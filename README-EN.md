@@ -80,3 +80,21 @@ python main.py
   - 2.  TAG is the same as EH
 
 ![img-LANraragi](https://github.com/eezd/EhFavDL/blob/main/img-LANraragi.png)
+
+
+
+## LANraragi Tips
+
+This section will guide you on how to add tags to manga in `LANraragi`.
+
+- 1. Run the code and enter the number "2" to execute `2. (Next) Update Fav Info`.
+
+  - Retrieve favorites data.
+
+- 1. Open `LANraragi---Settings---Security`, enter your `API Key`, and enable `Enable CORS for the Client API`.
+
+- 1. Run the code, enter the number "4" to execute `4. Komga/LANraragi Options`, then enter the number "3" for `3. LANraragi Add Tags`.
+
+  - Next, provide your `access address` and the previously entered `API Key`.
+
+- Finally, wait for the code to complete its execution.

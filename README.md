@@ -82,3 +82,16 @@ python main.py
   - 2、TAG 和 EH 一样
 
 ![img-LANraragi](https://github.com/eezd/EhFavDL/blob/main/img-LANraragi.png)
+
+
+
+## LANraragi Tips
+
+该章节会教你如何给 `LANraragi` 中的漫画添加标签。
+
+- 1、运行代码，输入数字 "2" 运行 `2. (Next) Update Fav Info`
+  - 获取收藏夹数据
+- 2、打开 `LANraragi---Settings---Security`, 填写 `API Key` 以及打开 `Enable CORS for the Client API`
+- 3、运行代码，输入数字 "4" 运行 `4. Komga/LANraragi Options`，然后输入数字 "3" `3. LANraragi Add Tags`
+  - 下一步, 填写你的 `访问地址`, 以及刚刚的 `API Key`
+- 最后, 等待代码运行结束
