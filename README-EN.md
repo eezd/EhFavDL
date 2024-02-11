@@ -7,94 +7,125 @@
 [![Last commit](https://img.shields.io/github/last-commit/eezd/EhFavDL/main)](https://github.com/eezd/EhFavDL/commits/main)
 [![License](https://img.shields.io/badge/license-MIT-yellowgreen.svg)](https://github.com/eezd/EhFavDL/blob/main/LICENSE)
 
-E-Hentai / Exhentai Download Favorites, compiled based on Python3.9, supports Komga and LANraragi.
+Download favorites from E-Hentai/Exhentai, based on Python 3.9, supporting Komga and LANraragi.
 
-[Chinese](README.md)
+[中文](README.md)/[English](README-EN.md)
 
 ## 📌 TODO
 
-- [x] Support for `Sqlite` storage
-- [x] If the download fails, it will automatically re-download
-- [x] Automatically generate `ComicInfo.xml` (support Komga/LANraragi)
-- [x] Automatically compress into zip for Komga/LANraragi
-- [x] LANraragi automatically adds EH Tags
+- [x] Support `Sqlite` storage
+- [x] Automatically retry download in case of failure
+- [x] Generate `ComicInfo.xml` (compatible with Komga/LANraragi)
+- [x] Compress into zip format for compatibility with Komga/LANraragi
+- [x] Add EH Tags to LANraragi
 
-![image](https://github.com/eezd/EhFavDL/blob/main/Snipaste_2023-07-23_12-52-40.png)
+![img-1AddFavInfo](https://github.com/eezd/EhFavDL/blob/main/img-1AddFavInfo.png)
 
-![image](https://github.com/eezd/EhFavDL/blob/main/Snipaste_2023-07-23_12-53-07.png)
+![img-3DownloadData](https://github.com/eezd/EhFavDL/blob/main/img-3DownloadData.png)
 
-## use
+![img-7LANraragiAddTags](https://github.com/eezd/EhFavDL/blob/main/img-7LANraragiAddTags.png)
 
-> **PyCharm** users will need to enable “emulate terminal” in output console option in run/debug configuration to see
-> styled output.
+##  🔨 Usage
 
-- 1、Installation Environment
+> If you are using PyCharm, enable "emulate terminal" in the output console option in run/debug configuration to see styled output.
 
-```
+- 1. Install dependencies
+
+```bash
 pip install -r requirements.txt
 ```
 
-- 2、fill in `config.yaml`
+- 2. Fill in `config.yaml`
 
 ```yaml
 cookies:
-  ipb_member_id:
-  ipb_pass_hash:
-  igneous:
+  ipb_member_id: 
+  ipb_pass_hash: 
+  igneous: 
 
 User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36
 
 proxy:
   enable: True
-  url: http://127.0.0.1:7778
+  url: http://127.0.0.1:7890
 
-work_path: E:\Hso\myEhDL\ehNew
+dbs_name: ./data.db
 
-data_path: E:\Hso\myEhDL\ehNew\data
+work_path: E:\Code\EhFavDL
+
+data_path: E:\Code\EhFavDL\data
 
 website: exhentai.org
 
 connect_limit: 3
 ```
 
-- 3、run
+- 3. Run
 
-```shell
+```bash
 python main.py
 ```
 
-## Komga or LANraragi ？
+
+
+>  🔧 The next part is crucial, please read it carefully. 🔧 
+
+1. `Add Fav Info`
+
+**Execute this for the first run**, note that this method will not update field information (`INSERT OR IGNORE INTO`).
+
+
+
+2. `Update Fav Info`
+
+This method will update all field information (`INSERT OR REPLACE INTO`).
+
+
+
+3. `Download Data`
+
+Download the gallery.
+
+
+
+4. `Create ComicInfo.xml`
+
+Based on the GID at the beginning of the folder, search the database for matching information, and create `ComicInfo.xml` in the folder.
+
+
+
+5. `To ZIP`
+
+Compress the folder into a ZIP file.
+
+
+
+6. `Format ZIP File Name`
+
+Note that in `LANraragi`, if your file name is too long, it may freeze and throw an error. Use this feature to format the file name length.
+
+
+
+7. `LANraragi Add Tags`
+
+Refer to the images above.
+
+
+
+##  💡 Komga or LANraragi?
 
 - `Komga`
-  - 1.  It will freeze when encountering a large number of files (for example, there are 1000 files locally)
-  - 2.  TAG can only be one line, not multiple TAG like EH
+  - 1. May experience lag when dealing with a large number of files (e.g., 1000 files locally).
+  - 2. TAG can only be one line, not multiple TAGs like EH.
 
 ![img-Komga](https://github.com/eezd/EhFavDL/blob/main/img-Komga.png)
 
 > WARNING!!
 >
-> LANraragi：When the file name is too long, it may not be readable
+> LANraragi: May not be able to read if the file name is too long.
 
 - `LANraragi`
-- 1. When encountering a large number of files, it will not be stuck like `Komga`
-  - 2.  TAG is the same as EH
+  - 1. Does not experience lag when dealing with a large number of files like `Komga`.
+  - 2. TAGs are similar to EH.
 
 ![img-LANraragi](https://github.com/eezd/EhFavDL/blob/main/img-LANraragi.png)
-
-
-
-## LANraragi Tips
-
-This section will guide you on how to add tags to manga in `LANraragi`.
-
-- 1. Run the code and enter the number "2" to execute `2. (Next) Update Fav Info`.
-
-  - Retrieve favorites data.
-
-- 1. Open `LANraragi---Settings---Security`, enter your `API Key`, and enable `Enable CORS for the Client API`.
-
-- 1. Run the code, enter the number "4" to execute `4. Komga/LANraragi Options`, then enter the number "3" for `3. LANraragi Add Tags`.
-
-  - Next, provide your `access address` and the previously entered `API Key`.
-
-- Finally, wait for the code to complete its execution.

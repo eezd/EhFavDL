@@ -1,24 +1,21 @@
+import base64
 import os.path
 import sys
 import zipfile
 from datetime import datetime
-from .common import *
+
 import httpx
-import base64
+
+from .Config import Config
+from .common import *
 
 
-class CreateConmicinfo:
-    """
+class Support(Config):
 
-    """
+    def __init__(self):
+        super().__init__()
 
-    def __init__(self, hx, dbs_name, data_path, base_url):
-        self.hx = hx
-        self.dbs_name = dbs_name
-        self.data_path = data_path
-        self.base_url = base_url
-
-    def zip_directory(self, directory_path, zip_file_path):
+    def create_zip(self, directory_path, zip_file_path):
         """
         创建一个ZIP文件
         Create a ZIP file
@@ -28,13 +25,53 @@ class CreateConmicinfo:
                 for file in files:
                     file_path = os.path.join(root, file)
                     # 使用os.path.relpath()获取文件相对于目录的路径
+                    # Using os.path.relpath() to get the file path relative to a directory.
                     zipf.write(file_path, os.path.relpath(file_path, directory_path))
 
+    def directory_to_zip(self):
+        """
+        压缩成ZIP
+        """
+        logger.info(f'[Running] ZIP ...')
+        for i in os.listdir(self.data_path):
+            if i.find('-') == -1 or os.path.isfile(os.path.join(self.data_path, i)):
+                continue
+
+            self.create_zip(os.path.join(self.data_path, i), os.path.join(self.data_path, i + ".zip"))
+        logger.info(f'[OK] ZIP ...')
+
+    def format_zip_file_name(self):
+        """
+        格式化ZIP文件
+        Format the ZIP file, intercept the part when the length is greater than 95
+        """
+        logger.info(f'[Running] Format the ZIP file ...')
+        for i in os.listdir(self.data_path):
+            if i.find('-') == -1 or os.path.isdir(os.path.join(self.data_path, i)):
+                continue
+
+            if i.find(".zip") == -1:
+                continue
+
+            new_i = i.replace(".zip", "")
+
+            if len(str(base64.b64encode(new_i.encode('utf-8')))) > 300:
+                while len(str(base64.b64encode(new_i.encode('utf-8')))) > 300:
+                    new_i = new_i[:-1]
+                shutil.move(os.path.join(self.data_path, i), os.path.join(self.data_path, new_i + ".zip"))
+                logger.info(i, ">>>>>>", new_i + ".zip")
+            elif len(new_i) > 120:
+                new_i = new_i[:120]
+                shutil.move(os.path.join(self.data_path, i), os.path.join(self.data_path, new_i + ".zip"))
+                logger.info(i, ">>>>>>", new_i + ".zip")
+        logger.info(f'[OK] Format the ZIP file ...')
+
     def create_xml(self):
-        logger.info(f'[Loading] Create ComicInfo.xml')
+        logger.info(f'[Running] Create ComicInfo.xml')
 
         # 遍历本地目录
         # traverse the local directory
+
         # os.makedirs(init.data_path, exist_ok=True)
         for i in os.listdir(self.data_path):
             if i.find('-') == -1 or os.path.isfile(os.path.join(self.data_path, i)):
@@ -46,7 +83,7 @@ class CreateConmicinfo:
                 co = co.execute(f'SELECT TITLE,CATEGORY,POSTED,TAGS,TOKEN FROM FAV WHERE GID="{gid}"')
                 db_data = co.fetchone()
                 if db_data is None:
-                    logger.warning(f"不存在该ID>> {gid}")
+                    logger.warning(f"The ID does not exist>> {gid}")
                     sys.exit(1)
                 xml_t = xml_escape(db_data[0])
                 category = db_data[1]
@@ -93,18 +130,6 @@ class CreateConmicinfo:
 
         logger.info(f'[OK] Create ComicInfo.xml')
 
-    def create_zip(self):
-        """
-        压缩成ZIP
-        """
-        logger.info(f'[Loading] ZIP ...')
-        for i in os.listdir(self.data_path):
-            if i.find('-') == -1 or os.path.isfile(os.path.join(self.data_path, i)):
-                continue
-
-            self.zip_directory(os.path.join(self.data_path, i), os.path.join(self.data_path, i + ".zip"))
-        logger.info(f'[OK] ZIP ...')
-
     def lan_add_tags(self):
         db_data = []
         with sqlite3.connect(self.dbs_name) as co:
@@ -121,11 +146,9 @@ class CreateConmicinfo:
             lan_url = lan_url + "/api/archives"
         # lan_url = "http://127.0.0.1:7070/api/archives"
 
-        logger.info(f"请输入 Authorization Token")
-        logger.info(f"不要输入格式为base64的, 请输入明文")
+        logger.info(f"请输入 API Key")
         logger.info(f"如果没有, 请创建 Setting>>> Security >>> API Key")
-        logger.info(f"Please enter Authorization Token")
-        logger.info(f"Do not enter the format is base64, please enter plain text")
+        logger.info(f"Please enter API Key")
         logger.info(f"If not, please create Setting>>> Security >>> API Key")
 
         authorization_token = input()
@@ -167,36 +190,6 @@ class CreateConmicinfo:
                            data={"tags": sub_tags.strip()})
 
         logger.info("[OK] LANraragi Add Tags")
-
-    def format_zip_file_name(self):
-        """
-        格式化ZIP文件
-        Format the ZIP file, intercept the part when the length is greater than 95
-        """
-        logger.info(f'[Loading] Format the ZIP file ...')
-        for i in os.listdir(self.data_path):
-            if i.find('-') == -1 or os.path.isdir(os.path.join(self.data_path, i)):
-                continue
-
-            if i.find(".zip") == -1:
-                continue
-
-            new_i = i.replace(".zip", "")
-
-            if len(str(base64.b64encode(new_i.encode('utf-8')))) > 300:
-                while len(str(base64.b64encode(new_i.encode('utf-8')))) > 300:
-                    new_i = new_i[:-1]
-                shutil.move(os.path.join(self.data_path, i), os.path.join(self.data_path, new_i + ".zip"))
-                logger.info(i, ">>>>>>", new_i + ".zip")
-            elif len(new_i) > 120:
-                new_i = new_i[:120]
-                shutil.move(os.path.join(self.data_path, i), os.path.join(self.data_path, new_i + ".zip"))
-                logger.info(i, ">>>>>>", new_i + ".zip")
-        logger.info(f'[OK] Format the ZIP file ...')
-
-    def apply(self):
-        # self.create_xml()
-        print()
 
 # <ComicInfo xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 # <Manga/>

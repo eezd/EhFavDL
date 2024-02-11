@@ -1,57 +1,32 @@
-import sys
-
-from .common import *
 import concurrent.futures
-import re
-import sqlite3
-import time
-import shutil
+
 from bs4 import BeautifulSoup
-from loguru import logger
 from rich.progress import Progress
 
+from .Config import Config
+from .common import *
 
-class DownloadImage:
 
-    def __init__(self, hx, dbs_name, data_path, connect_limit, gid, token, title, base_url):
-        self.hx = hx
-        self.dbs_name = dbs_name
-        self.data_path = data_path
-        self.connect_limit = connect_limit
-        self.base_url = base_url
+class DownloadGallery(Config):
+
+    def __init__(self, gid, token, title):
+        super().__init__()
+
         self.gid = gid
+        self.token = token
+
         # 格式化不合法的命名
         # invalid format name
         self.title = windows_escape(title)
-        self.token = token
+
         self.long_url = f"https://{self.base_url}/g/{self.gid}/{self.token}/"
-
-        self.uuu = 0
-
-    def get_real_url_download(self, url, index):
-        """
-        获取图片真实地址, 调用 download_image() 下载
-        Get the real address of the image, call download_image() to download
-        """
-
-        try:
-            real_url = self.hx.get(url)
-            real_url = BeautifulSoup(real_url, 'html.parser')
-            real_url = real_url.select_one('img#img').get('src')
-
-            file_name = re.match('.*/(.*)\.(.*)$', real_url)
-            file_name = file_name[1] + '.' + file_name[2]
-
-            return self.download_image(real_url, file_name, index)
-        except Exception as exc:
-            # return [file_name, index]
-            return self.get_real_url_download(url, index)
 
     def download_image(self, url, file_name, index):
         """
         下载图片保存到本地 / Download pictures and save them locally
         url: 图片地址 / image url
         file_name: 文件名 / file name
+        index: 文件索引位置 / file index
 
         返回值:
         Returns:
@@ -63,7 +38,7 @@ class DownloadImage:
             Returns-Example: ["01.jpg", 0]
         """
         try:
-            with self.hx.stream("GET", url, timeout=10) as response:
+            with self.request.stream("GET", url, timeout=10) as response:
                 if response.status_code == 200:
                     sub_path = os.path.join(self.data_path, 'temp', str(self.gid) + '-' + self.title)
                     os.makedirs(sub_path, exist_ok=True)
@@ -75,6 +50,25 @@ class DownloadImage:
                     return [file_name, index]
         except Exception as exc:
             return [file_name, index]
+
+    def get_real_url_download(self, url, index):
+        """
+        获取图片真实地址, 调用 download_image() 下载
+        Get the real address of the image, call download_image() to download
+        """
+
+        try:
+            real_url = self.request.get(url)
+            real_url = BeautifulSoup(real_url, 'html.parser')
+            real_url = real_url.select_one('img#img').get('src')
+
+            file_name = re.match('.*/(.*)\.(.*)$', real_url)
+            file_name = file_name[1] + '.' + file_name[2]
+
+            return self.download_image(real_url, file_name, index)
+        except Exception as exc:
+            # return [file_name, index]
+            return self.get_real_url_download(url, index)
 
     def get_image_url(self, err_id=None):
         """
@@ -90,14 +84,13 @@ class DownloadImage:
         """
 
         try:
-            hx_res = self.hx.get(self.long_url)
+            hx_res = self.request.get(self.long_url)
 
             page_data = BeautifulSoup(hx_res, 'html.parser')
 
             # 获取总页码 / Get the total page number
             ptb = page_data.select_one('.ptb td:nth-last-child(2)')
 
-            # print(ptb)
             if ptb is None:
                 with sqlite3.connect(self.dbs_name) as co:
                     co.execute(f'UPDATE FAV SET BAN = 1 WHERE gid = {self.gid}')
@@ -117,12 +110,12 @@ class DownloadImage:
             while sub_ptb <= ptb:
                 if sub_ptb != 0:
                     try:
-                        page_data = self.hx.get(f"{self.long_url}?p={sub_ptb}")
+                        page_data = self.request.get(f"{self.long_url}?p={sub_ptb}")
                         page_data = BeautifulSoup(page_data, 'html.parser')
                     except Exception as exc:
                         logger.warning(
-                            f"Recall after waiting 2 seconds >>> (while sub_ptb) get_image_url({self.long_url})")
-                        time(2)
+                            f"Recall after waiting 5 seconds >>> (while sub_ptb) get_image_url({self.long_url})")
+                        time.sleep(5)
                         self.get_image_url(err_id)
 
                 page_data = page_data.select('#gdt > .gdtl > a')
@@ -132,7 +125,7 @@ class DownloadImage:
                 sub_ptb = sub_ptb + 1
 
             # Format Data
-            # [[url1, 0], [url2, 1], ...]
+            # Return >>> [[url1, 0], [url2, 1], ...]
             page_img_url = [[url, index] for index, url in enumerate(page_img_url)]
 
             # 返回需要重新下载的图片地址
@@ -244,13 +237,14 @@ class DownloadImage:
 
     def apply(self):
 
-        logger.info(f"[Loading] Ready To Download: {self.long_url}")
+        logger.info(f"[Running] Ready To Download: {self.long_url}")
 
         img_url_res = self.get_image_url()
 
         if img_url_res == "BAN":
             logger.warning(f'Has Been Banned: {self.long_url}')
             return False
+
         dl = self.download(img_url_res)
         cd = self.check_download(dl)
 

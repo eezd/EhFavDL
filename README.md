@@ -9,30 +9,30 @@
 
 E-Hentai / Exhentai 下载收藏夹，基于 Python3.9 编，支持 Komga 和 LANraragi。
 
-[English](README-EN.md)
+[中文](README.md)/[English](README-EN.md)
 
 ## 📌 TODO
 
 - [x] 支持 `Sqlite` 存储
 - [x] 下载失败则自动重新下载
-- [x] 自动生成 `ComicInfo.xml` (支持 Komga/LANraragi)
-- [x] 自动压缩成 zip 适配 Komga/LANraragi
-- [x] LANraragi 自动添加 EH Tags
+- [x] 生成 `ComicInfo.xml` (支持 Komga/LANraragi)
+- [x] 压缩成 zip 适配 Komga/LANraragi
+- [x] LANraragi 添加 EH Tags
 
-![image](https://github.com/eezd/EhFavDL/blob/main/Snipaste_2023-07-23_12-52-40.png)
+![img-1AddFavInfo](https://github.com/eezd/EhFavDL/blob/main/img-1AddFavInfo.png)
 
-![image](https://github.com/eezd/EhFavDL/blob/main/Snipaste_2023-07-23_12-53-07.png)
+![img-3DownloadData](https://github.com/eezd/EhFavDL/blob/main/img-3DownloadData.png)
 
-## 使用
+![img-7LANraragiAddTags](https://github.com/eezd/EhFavDL/blob/main/img-7LANraragiAddTags.png)
 
-> 如果你是使用 Pycharm 的话，请将需要在运行/调试配置中的输出控制台选项中启用“模拟终端”以查看样式的输出。
+##  🔨 使用
+
+> ✏️ 如果你是使用 Pycharm 的话，请将需要在运行/调试配置中的输出控制台选项中启用“模拟终端”以查看样式的输出。
 >
-> **PyCharm** users will need to enable “emulate terminal” in output console option in run/debug configuration to see
-> styled output.
 
 - 1、安装环境
 
-```
+```bash
 pip install -r requirements.txt
 ```
 
@@ -40,19 +40,21 @@ pip install -r requirements.txt
 
 ```yaml
 cookies:
-  ipb_member_id:
-  ipb_pass_hash:
-  igneous:
+  ipb_member_id: 
+  ipb_pass_hash: 
+  igneous: 
 
 User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36
 
 proxy:
   enable: True
-  url: http://127.0.0.1:7778
+  url: http://127.0.0.1:7890
 
-work_path: E:\Hso\myEhDL\ehNew
+dbs_name: ./data.db
 
-data_path: E:\Hso\myEhDL\ehNew\data
+work_path: E:\Code\EhFavDL
+
+data_path: E:\Code\EhFavDL\data
 
 website: exhentai.org
 
@@ -65,7 +67,53 @@ connect_limit: 3
 python main.py
 ```
 
-## Komga or LANraragi ？
+
+
+>  🔧 接下来很重要, 请仔细阅读 🔧 
+
+1. `Add Fav Info`
+
+**初次运行请执行这个**, 需要注意, 这个方法它不会更新字段信息(`INSERT OR IGNORE INTO`)
+
+
+
+2. `Update Fav Info`
+
+这个方法它会更新所有字段的信息 (`INSERT OR REPLACE INTO`)
+
+
+
+3. `Download Data`
+
+下载画廊
+
+
+
+4. `Create ComicInfo.xml`
+
+根据文件夹开头的 `GID`, 搜索数据库匹配信息, 在文件夹中创建 `ComicInfo.xml`
+
+
+
+5. `To ZIP`
+
+将文件夹压缩成 ZIP 文件
+
+
+
+6. `Format ZIP File Name`
+
+需要注意, 在 `LANraragi` 中如果你文件名称过长，它会卡住报错. 因此你需要就可以使用这个功能格式化文件名长度.
+
+
+
+7. `LANraragi Add Tags`
+
+请看上面的图片
+
+
+
+##  💡 Komga or LANraragi ？
 
 - `Komga`
   - 1、在遇到大量文件时会卡顿（例如有 1000 个文件在本地）
@@ -82,16 +130,3 @@ python main.py
   - 2、TAG 和 EH 一样
 
 ![img-LANraragi](https://github.com/eezd/EhFavDL/blob/main/img-LANraragi.png)
-
-
-
-## LANraragi Tips
-
-该章节会教你如何给 `LANraragi` 中的漫画添加标签。
-
-- 1、运行代码，输入数字 "2" 运行 `2. (Next) Update Fav Info`
-  - 获取收藏夹数据
-- 2、打开 `LANraragi---Settings---Security`, 填写 `API Key` 以及打开 `Enable CORS for the Client API`
-- 3、运行代码，输入数字 "4" 运行 `4. Komga/LANraragi Options`，然后输入数字 "3" `3. LANraragi Add Tags`
-  - 下一步, 填写你的 `访问地址`, 以及刚刚的 `API Key`
-- 最后, 等待代码运行结束

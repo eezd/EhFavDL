@@ -1,9 +1,10 @@
-import time
 import os
 import re
-from loguru import logger
-import sqlite3
 import shutil
+import sqlite3
+import time
+
+from loguru import logger
 
 
 def get_time():

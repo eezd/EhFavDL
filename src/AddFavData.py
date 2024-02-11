@@ -1,32 +1,24 @@
-import re
+import sys
 
 from bs4 import BeautifulSoup
-import sys
+
+from .Config import Config
 from .common import *
-from datetime import datetime
 
 
-class GetFavData:
-    """
-    获取收藏夹的信息, 然后录入数据库
-    Add favorite data, and then enter the database
-    """
+class AddFavData(Config):
+    def __init__(self):
+        super().__init__()
 
-    def __init__(self, hx, dbs_name, data_path, base_url):
-        self.hx = hx
-        self.dbs_name = dbs_name
-        self.data_path = data_path
-        self.base_url = base_url
-
-    def get_category(self):
+    def update_category(self):
         """
-        获取收藏夹分类
-        Get Favorites Category
+        添加收藏夹分类
+        Add Favorites Category
         """
 
-        logger.info(f'[Loading] Get Favorites Category...')
+        logger.info(f'[Running] Get Favorites Category...')
 
-        hx_res = self.hx.get(f'https://{self.base_url}/uconfig.php')
+        hx_res = self.request.get(f'https://{self.base_url}/uconfig.php')
         hx_res_bs = BeautifulSoup(hx_res, 'html.parser')
         hx_res_bs = hx_res_bs.select('#favsel > div input')
 
@@ -43,8 +35,7 @@ class GetFavData:
 
         logger.info(f'[OK] Get Favorites Category...')
 
-    @logger.catch()
-    def get_search_data(self, res):
+    def get_fav_page_info(self, res):
         """
         格式化页面数据获取 GID 和 TOKEN 以及 Next_Gid
         Format page data to get GID and TOKEN and Next_Gid
@@ -90,28 +81,27 @@ class GetFavData:
 
         return [mylist, next_gid]
 
-    @logger.catch()
-    def update_fav_data(self):
+    def add_fav_data(self):
         """
-        遍历收藏夹, 获取 GID 和 TOKEN, 录入数据库.
-        Traverse the favorites, get the GID and TOKEN, and enter the database.
+        获取收藏夹数据, 向数据库写入 GID, TOKEN, FAVORITE.
+        Retrieve favorite data and write GID, TOKEN, FAVORITE to the database.
         """
-        logger.info(f'[Loading] Get Favorite GID and TOKEN...')
+        logger.info(f'[Running] Add Favorite GID and TOKEN...')
 
         fav_num = 0
         next_gid = None
 
         while fav_num < 10:
             if next_gid is None:
-                logger.info(f'[Loading] Fetching the {fav_num}th favorite data...')
+                logger.info(f'[Running] Fetching the {fav_num}th favorite data...')
                 url = f'https://{self.base_url}/favorites.php?favcat={fav_num}'
             else:
                 url = f'https://{self.base_url}/favorites.php?favcat={fav_num}&f_search=&next={next_gid}'
 
-            hx_res = self.hx.get(url)
+            hx_res = self.request.get(url)
 
             hx_res_bs = BeautifulSoup(hx_res, 'html.parser')
-            search_data = self.get_search_data(hx_res_bs)
+            search_data = self.get_fav_page_info(hx_res_bs)
 
             # 判断切换下一个收藏夹
             # Judgment switch to next favorite
@@ -141,7 +131,7 @@ class GetFavData:
 
         with sqlite3.connect(self.dbs_name) as co:
             count = co.execute('SELECT COUNT(*) FROM FAV').fetchone()
-        logger.info(f'[OK] Get Favorite GID and TOKEN, A Total Of: {count}...')
+        logger.info(f'[OK] Add Favorite GID and TOKEN, A Total Of: {count}...')
 
     def post_eh_api(self, json):
         """
@@ -149,28 +139,36 @@ class GetFavData:
         Request EH API
         """
         try:
-            eh_api_data = self.hx.post("https://api.e-hentai.org/api.php", json=json)
+            eh_api_data = self.request.post("https://api.e-hentai.org/api.php", json=json)
             json_data = eh_api_data.json()['gmetadata']
             time.sleep(0.5)
             return json_data
         except Exception as exc:
             logger.warning("A network error occurred while requesting the API, retrying")
-            time.sleep(2)
+            time.sleep(5)
             return self.post_eh_api(json)
 
-    def get_tags_data(self):
+    def add_tags_data(self, get_all=False):
         """
-        向数据库写入 EH API 数据
-        Write EH API data to database
+        根据数据库 GID,TOKEN 去请求 EH API 数据, 更新数据库数据.
+        默认只获取 TITLE 为空的字段, 通过 add_tags_data(True) 即可更新所有字段
+
+        Retrieve EH API data based on database GID and TOKEN, and update the database.
+        By default, only fetch records with an empty TITLE field.
+        Use add_tags_data(True) to update all fields.
         """
 
-        logger.info(f'[Loading] Get tags...')
+        logger.info(f'[Running] Get tags...')
 
-        with sqlite3.connect(self.dbs_name) as co:
-            gid_token = co.execute('SELECT * FROM FAV f WHERE TITLE IS "" OR TITLE IS NULL ').fetchall()
+        if not get_all:
+            with sqlite3.connect(self.dbs_name) as co:
+                gid_token = co.execute('SELECT GID,TOKEN FROM FAV WHERE TITLE IS "" OR TITLE IS NULL').fetchall()
+        else:
+            with sqlite3.connect(self.dbs_name) as co:
+                gid_token = co.execute('SELECT GID,TOKEN FROM FAV').fetchall()
 
         if len(gid_token) == 0:
-            logger.warning("eh_api_label() >>> gid does not exist")
+            logger.warning("add_tags_data() >>> gid does not exist")
             sys.exit(1)
 
         gid_token = [list(t) for t in gid_token]
@@ -223,7 +221,7 @@ class GetFavData:
         Note: Determine whether the number of pictures in the folder
          is the same as the corresponding PAGES value in the database
         """
-        logger.info('[Loading] Checkout Local Data State...')
+        logger.info('[Running] Checkout Local Data State...')
 
         # 遍历本地目录
         # traverse the local directory
@@ -261,10 +259,12 @@ class GetFavData:
         logger.info('[OK] Checkout Local Data State...')
 
     def apply(self):
-        self.get_category()
+        self.update_category()
 
-        self.update_fav_data()
+        # 先获取 GID 和 TOKEN
+        # First, obtain GID and TOKEN.
+        self.add_fav_data()
 
-        self.get_tags_data()
-
-        # self.checkout_local_state()
+        # 再根据数据库的 GID 和 TOKEN, 通过 EH API 获取剩余信息
+        # Retrieve additional information based on the database's GID and TOKEN using the EH API.
+        self.add_tags_data()
