@@ -79,7 +79,7 @@ python main.py
 
 2. `Update Fav Info`
 
-这个方法它会更新所有字段的信息 (`INSERT OR REPLACE INTO`)
+这个方法它会更新所有字段的信息
 
 
 

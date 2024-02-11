@@ -78,7 +78,7 @@ python main.py
 
 2. `Update Fav Info`
 
-This method will update all field information (`INSERT OR REPLACE INTO`).
+This method will update all field information
 
 
 
