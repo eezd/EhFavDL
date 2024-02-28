@@ -5,7 +5,7 @@
 [![Code size](https://img.shields.io/github/languages/code-size/eezd/EhFavDL?color=blueviolet)](https://github.com/eezd/EhFavDL)
 [![Repo size](https://img.shields.io/github/repo-size/eezd/EhFavDL?color=eb56fd)](https://github.com/eezd/EhFavDL)
 [![Last commit](https://img.shields.io/github/last-commit/eezd/EhFavDL/main)](https://github.com/eezd/EhFavDL/commits/main)
-[![License](https://img.shields.io/badge/license-MIT-yellowgreen.svg)](https://github.com/eezd/EhFavDL/blob/main/LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-yellowgreen.svg)](LICENSE)
 
 Download favorites from E-Hentai/Exhentai, based on Python 3.9, supporting Komga and LANraragi.
 
@@ -19,13 +19,13 @@ Download favorites from E-Hentai/Exhentai, based on Python 3.9, supporting Komga
 - [x] Compress into zip format for compatibility with Komga/LANraragi
 - [x] Add EH Tags to LANraragi
 
-![img-1AddFavInfo](https://github.com/eezd/EhFavDL/blob/main/img-1AddFavInfo.png)
+![img-1AddFavInfo](img-1AddFavInfo.png)
 
-![img-3DownloadData](https://github.com/eezd/EhFavDL/blob/main/img-3DownloadData.png)
+![img-3DownloadData](img-3DownloadData.png)
 
-![img-7LANraragiAddTags](https://github.com/eezd/EhFavDL/blob/main/img-7LANraragiAddTags.png)
+![img-7LANraragiAddTags](img-7LANraragiAddTags.png)
 
-##  🔨 Usage
+## 🔨 Usage
 
 > If you are using PyCharm, enable "emulate terminal" in the output console option in run/debug configuration to see styled output.
 
@@ -39,9 +39,9 @@ pip install -r requirements.txt
 
 ```yaml
 cookies:
-  ipb_member_id: 
-  ipb_pass_hash: 
-  igneous: 
+  ipb_member_id:
+  ipb_pass_hash:
+  igneous:
 
 User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36
 
@@ -66,59 +66,43 @@ connect_limit: 3
 python main.py
 ```
 
-
-
->  🔧 The next part is crucial, please read it carefully. 🔧 
+> 🔧 The next part is crucial, please read it carefully. 🔧
 
 1. `Add Fav Info`
 
 **Execute this for the first run**, note that this method will not update field information (`INSERT OR IGNORE INTO`).
 
-
-
 2. `Update Fav Info`
 
 This method will update all field information
-
-
 
 3. `Download Data`
 
 Download the gallery.
 
-
-
 4. `Create ComicInfo.xml`
 
 Based on the GID at the beginning of the folder, search the database for matching information, and create `ComicInfo.xml` in the folder.
-
-
 
 5. `To ZIP`
 
 Compress the folder into a ZIP file.
 
-
-
 6. `Format ZIP File Name`
 
 Note that in `LANraragi`, if your file name is too long, it may freeze and throw an error. Use this feature to format the file name length.
-
-
 
 7. `LANraragi Add Tags`
 
 Refer to the images above.
 
-
-
-##  💡 Komga or LANraragi?
+## 💡 Komga or LANraragi?
 
 - `Komga`
   - 1. May experience lag when dealing with a large number of files (e.g., 1000 files locally).
   - 2. TAG can only be one line, not multiple TAGs like EH.
 
-![img-Komga](https://github.com/eezd/EhFavDL/blob/main/img-Komga.png)
+![img-Komga](img-Komga.png)
 
 > WARNING!!
 >
@@ -128,4 +112,4 @@ Refer to the images above.
   - 1. Does not experience lag when dealing with a large number of files like `Komga`.
   - 2. TAGs are similar to EH.
 
-![img-LANraragi](https://github.com/eezd/EhFavDL/blob/main/img-LANraragi.png)
+![img-LANraragi](img-LANraragi.png)

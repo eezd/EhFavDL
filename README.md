@@ -5,7 +5,7 @@
 [![Code size](https://img.shields.io/github/languages/code-size/eezd/EhFavDL?color=blueviolet)](https://github.com/eezd/EhFavDL)
 [![Repo size](https://img.shields.io/github/repo-size/eezd/EhFavDL?color=eb56fd)](https://github.com/eezd/EhFavDL)
 [![Last commit](https://img.shields.io/github/last-commit/eezd/EhFavDL/main)](https://github.com/eezd/EhFavDL/commits/main)
-[![License](https://img.shields.io/badge/license-MIT-yellowgreen.svg)](https://github.com/eezd/EhFavDL/blob/main/LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-yellowgreen.svg)](LICENSE)
 
 E-Hentai / Exhentai 下载收藏夹，基于 Python3.9 编，支持 Komga 和 LANraragi。
 
@@ -19,16 +19,15 @@ E-Hentai / Exhentai 下载收藏夹，基于 Python3.9 编，支持 Komga 和 LA
 - [x] 压缩成 zip 适配 Komga/LANraragi
 - [x] LANraragi 添加 EH Tags
 
-![img-1AddFavInfo](https://github.com/eezd/EhFavDL/blob/main/img-1AddFavInfo.png)
+![img-1AddFavInfo](img-1AddFavInfo.png)
 
-![img-3DownloadData](https://github.com/eezd/EhFavDL/blob/main/img-3DownloadData.png)
+![img-3DownloadData](img-3DownloadData.png)
 
-![img-7LANraragiAddTags](https://github.com/eezd/EhFavDL/blob/main/img-7LANraragiAddTags.png)
+![img-7LANraragiAddTags](img-7LANraragiAddTags.png)
 
-##  🔨 使用
+## 🔨 使用
 
 > ✏️ 如果你是使用 Pycharm 的话，请将需要在运行/调试配置中的输出控制台选项中启用“模拟终端”以查看样式的输出。
->
 
 - 1、安装环境
 
@@ -40,9 +39,9 @@ pip install -r requirements.txt
 
 ```yaml
 cookies:
-  ipb_member_id: 
-  ipb_pass_hash: 
-  igneous: 
+  ipb_member_id:
+  ipb_pass_hash:
+  igneous:
 
 User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36
 
@@ -67,59 +66,43 @@ connect_limit: 3
 python main.py
 ```
 
-
-
->  🔧 接下来很重要, 请仔细阅读 🔧 
+> 🔧 接下来很重要, 请仔细阅读 🔧
 
 1. `Add Fav Info`
 
 **初次运行请执行这个**, 需要注意, 这个方法它不会更新字段信息(`INSERT OR IGNORE INTO`)
 
-
-
 2. `Update Fav Info`
 
 这个方法它会更新所有字段的信息
-
-
 
 3. `Download Data`
 
 下载画廊
 
-
-
 4. `Create ComicInfo.xml`
 
 根据文件夹开头的 `GID`, 搜索数据库匹配信息, 在文件夹中创建 `ComicInfo.xml`
-
-
 
 5. `To ZIP`
 
 将文件夹压缩成 ZIP 文件
 
-
-
 6. `Format ZIP File Name`
 
 需要注意, 在 `LANraragi` 中如果你文件名称过长，它会卡住报错. 因此你需要就可以使用这个功能格式化文件名长度.
-
-
 
 7. `LANraragi Add Tags`
 
 请看上面的图片
 
-
-
-##  💡 Komga or LANraragi ？
+## 💡 Komga or LANraragi ？
 
 - `Komga`
   - 1、在遇到大量文件时会卡顿（例如有 1000 个文件在本地）
   - 2、TAG 只能一行，无法像 EH 一样多个 TAG
 
-![img-Komga](https://github.com/eezd/EhFavDL/blob/main/img-Komga.png)
+![img-Komga](img-Komga.png)
 
 > WARNING!!
 >
@@ -129,4 +112,4 @@ python main.py
   - 1、遇到大量文件不会像 `Komga` 一样卡
   - 2、TAG 和 EH 一样
 
-![img-LANraragi](https://github.com/eezd/EhFavDL/blob/main/img-LANraragi.png)
+![img-LANraragi](img-LANraragi.png)
