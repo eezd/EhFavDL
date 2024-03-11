@@ -19,6 +19,7 @@ def main():
         print("5. To ZIP")
         print("6. Format ZIP File Name")
         print("7. LANraragi Add Tags")
+        print("8. LANraragi Check PageCount")
 
         num = input("Select Number:")
         num = int(num) if num else None
@@ -44,6 +45,8 @@ def main():
             Support().format_zip_file_name()
         elif num == 7:
             Support().lan_add_tags()
+        elif num == 8:
+            Support().lan_check_page_count()
 
 
 if __name__ == "__main__":

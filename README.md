@@ -58,6 +58,11 @@ data_path: E:\Code\EhFavDL\data
 website: exhentai.org
 
 connect_limit: 3
+
+lan_url: http://127.0.0.1:7070
+
+# Setting >>> Security >>> API Key
+lan_api_psw: my-api-psw
 ```
 
 - 3、运行
@@ -95,6 +100,16 @@ python main.py
 7. `LANraragi Add Tags`
 
 请看上面的图片
+
+8. `LANraragi Check PageCount`
+
+比较数据库与本地文件的页数
+
+```python
+if db_page_count > loc_page_count & abs(db_page_count - loc_page_count) > 3:
+```
+
+
 
 ## 💡 Komga or LANraragi ？
 

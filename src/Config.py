@@ -18,6 +18,8 @@ class Config:
                 data_path = str(config['data_path'])
                 dbs_name = str(config['dbs_name'])
                 connect_limit = str(config['connect_limit'])
+                lan_url = str(config['lan_url'])
+                lan_api_psw = str(config['lan_api_psw'])
 
                 httpx_cookies = {
                     "ipb_member_id": str(config['cookies']['ipb_member_id']),
@@ -76,6 +78,8 @@ class Config:
         self.work_path = work_path
         self.data_path = data_path
         self.connect_limit = connect_limit
+        self.lan_url = lan_url
+        self.lan_api_psw = lan_api_psw
 
     def create_database(self):
         """

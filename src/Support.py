@@ -130,34 +130,33 @@ class Support(Config):
 
         logger.info(f'[OK] Create ComicInfo.xml')
 
+    def lan_init_request(self):
+        logger.info("请按回车确认你的 LANraragi 地址及密码:")
+        logger.info("Please press Enter to confirm your LANraragi address and password.")
+        print("lan_url: " + self.lan_url)
+        print("lan_api_psw: " + self.lan_api_psw)
+        enter = input()
+        if enter != "":
+            sys.exit(1)
+
+        authorization_token_base64 = str(base64.b64encode(self.lan_api_psw.encode('utf-8'))).replace("b",
+                                                                                                     "").replace("'",
+                                                                                                                 "")
+        return httpx.Client(headers={"Authorization": f"Bearer {authorization_token_base64}"})
+
     def lan_add_tags(self):
         db_data = []
         with sqlite3.connect(self.dbs_name) as co:
-            co = co.execute(f'SELECT GID,TOKEN,TITLE_JPN,POSTED,TAGS FROM FAV')
+            co = co.execute(f'SELECT GID,TOKEN,TITLE_JPN,POSTED,TAGS,PAGES FROM FAV')
             db_data = co.fetchall()
 
-        logger.info("请输入你的 LANraragi 地址: (http://127.0.0.1:7070)")
-        logger.info("Please enter your LANraragi address")
+        hx = self.lan_init_request()
+        lan_url = self.lan_url
 
-        lan_url = input()
         if lan_url[-1] == "/":
-            lan_url = lan_url + "api/archives"
+            lan_url += "api/archives"
         else:
-            lan_url = lan_url + "/api/archives"
-        # lan_url = "http://127.0.0.1:7070/api/archives"
-
-        logger.info(f"请输入 API Key")
-        logger.info(f"如果没有, 请创建 Setting>>> Security >>> API Key")
-        logger.info(f"Please enter API Key")
-        logger.info(f"If not, please create Setting>>> Security >>> API Key")
-
-        authorization_token = input()
-
-        authorization_token_base64 = str(base64.b64encode(authorization_token.encode('utf-8'))).replace("b",
-                                                                                                        "").replace("'",
-                                                                                                                    "")
-
-        hx = httpx.Client(headers={"Authorization": f"Bearer {authorization_token_base64}"})
+            lan_url += "/api/archives"
 
         all_archives = hx.get(lan_url)
         all_archives = all_archives.json()
@@ -170,9 +169,9 @@ class Support(Config):
             sys.exit(1)
 
         for sub_archives in all_archives:
-            gid = str(sub_archives['title']).split('-')[0]
+            gid = int(str(sub_archives['title']).split('-')[0])
 
-            gid = int(gid)
+            status = 0
 
             for db_tags in db_data:
                 if int(db_tags[0]) == gid:
@@ -188,8 +187,48 @@ class Support(Config):
 
                     hx.put(f"{lan_url}/{sub_archives['arcid']}/metadata",
                            data={"tags": sub_tags.strip()})
+                    status = 1
+
+            if status == 0:
+                logger.warning(f"Gallery with GID {gid} not found.")
 
         logger.info("[OK] LANraragi Add Tags")
+
+    def lan_check_page_count(self):
+        db_data = []
+        with sqlite3.connect(self.dbs_name) as co:
+            co = co.execute(f'SELECT GID,TOKEN,TITLE_JPN,POSTED,TAGS,PAGES FROM FAV')
+            db_data = co.fetchall()
+
+        hx = self.lan_init_request()
+        lan_url = self.lan_url
+
+        if lan_url[-1] == "/":
+            lan_url += "api/archives"
+        else:
+            lan_url += "/api/archives"
+
+        all_archives = hx.get(lan_url)
+        all_archives = all_archives.json()
+
+        logger.info(f"一共检查到 {len(all_archives)} 个")
+        logger.info(f"A total of {len(all_archives)} were checked")
+        if len(all_archives) == 0:
+            logger.error(f"请添加画廊后再添加Tags")
+            logger.error(f"Please add gallery before adding Tags")
+            sys.exit(1)
+
+        for sub_archives in all_archives:
+            gid = int(str(sub_archives['title']).split('-')[0])
+            loc_page_count = int(sub_archives['pagecount'])
+
+            for db_tags in db_data:
+                if int(db_tags[0]) == gid:
+                    db_page_count = int(db_tags[5])
+                    token = str(db_tags[1])
+                    if db_page_count > loc_page_count & abs(db_page_count - loc_page_count) > 3:
+                        logger.warning(
+                            f"Gallery with https://{self.base_url}/g/{gid}/{token} has an incorrect number of pages. {db_page_count} != {loc_page_count}")
 
 # <ComicInfo xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 # <Manga/>
