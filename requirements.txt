@@ -3,3 +3,4 @@ httpx==0.26.0
 loguru==0.7.0
 PyYAML==6.0.1
 rich==13.4.2
+tqdm==4.24.0

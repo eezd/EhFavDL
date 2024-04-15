@@ -20,6 +20,7 @@ def main():
         print("6. Format ZIP File Name")
         print("7. LANraragi Add Tags")
         print("8. LANraragi Check PageCount")
+        print("9. (experiment) Download Archive Gallery")
 
         num = input("Select Number:")
         num = int(num) if num else None
@@ -47,7 +48,11 @@ def main():
             Support().lan_add_tags()
         elif num == 8:
             Support().lan_check_page_count()
+        elif num == 9:
+            DownloadArchiveGallery().apply()
 
 
 if __name__ == "__main__":
     main()
+
+# DownloadArchiveGallery().update_archive_state()

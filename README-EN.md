@@ -19,14 +19,14 @@ Download favorites from E-Hentai/Exhentai, based on Python 3.9, supporting Komga
 - [x] Compress into zip format for compatibility with Komga/LANraragi
 - [x] Add EH Tags to LANraragi
 
-![img-1AddFavInfo](img-1AddFavInfo.png)
+![img-main](img-main.png)
 
-![img-3DownloadData](img-3DownloadData.png)
 
-![img-7LANraragiAddTags](img-7LANraragiAddTags.png)
 
 ## 🔨 Usage
 
+> If you are using PyCharm, enable "emulate terminal" in the output console option in run/debug configuration to see styled output.
+> If you are using PyCharm, enable "emulate terminal" in the output console option in run/debug configuration to see styled output.
 > If you are using PyCharm, enable "emulate terminal" in the output console option in run/debug configuration to see styled output.
 
 - 1. Install dependencies
@@ -73,41 +73,28 @@ python main.py
 
 > 🔧 The next part is crucial, please read it carefully. 🔧
 
-1. `Add Fav Info`
+- 1 `Add Fav Info`
+  - **Execute this for the first run**, note that this method will not update field information (`INSERT OR IGNORE INTO`).
 
-**Execute this for the first run**, note that this method will not update field information (`INSERT OR IGNORE INTO`).
+- 2 `Update Fav Info`
+  - This method will update all field information
 
-2. `Update Fav Info`
-
-This method will update all field information
-
-3. `Download Data`
-
-Download the gallery.
-
-4. `Create ComicInfo.xml`
-
-Based on the GID at the beginning of the folder, search the database for matching information, and create `ComicInfo.xml` in the folder.
-
-5. `To ZIP`
-
-Compress the folder into a ZIP file.
-
-6. `Format ZIP File Name`
-
-Note that in `LANraragi`, if your file name is too long, it may freeze and throw an error. Use this feature to format the file name length.
-
-7. `LANraragi Add Tags`
-
-Refer to the images above.
-
-8. `LANraragi Check PageCount`
-
-Compare the page numbers between the database and local files.
-
-```python
-if db_page_count > loc_page_count & abs(db_page_count - loc_page_count) > 3:
-```
+- 3 `Download Data`
+  - Download the gallery.
+- 4 `Create ComicInfo.xml`
+  - Based on the GID at the beginning of the folder, search the database for matching information, and create `ComicInfo.xml` in the folder.
+- 5 `To ZIP`
+  - Compress the folder into a ZIP file.
+- 6 `Format ZIP File Name`
+  - Note that in `LANraragi`, if your file name is too long, it may freeze and throw an error. Use this feature to format the file name length.
+- 7 `LANraragi Add Tags`
+  - Refer to the images above.
+- 8 `LANraragi Check PageCount`
+  - Compare the page numbers between the database and local files.
+  - `if db_page_count > loc_page_count & abs(db_page_count - loc_page_count) > 3:`
+- 9 `(experiment) Download Archive Gallery`
+  - Download the original image, and be mindful of your GP (Gallery Points).
+  - Upon completion of the download, `STATE` will not be modified. If you need to modify `STATE`, please execute `DownloadArchiveGallery().update_archive_state()` and ensure that `*.zip` files exist in your `archive` folder.
 
 
 

@@ -11,6 +11,8 @@ E-Hentai / Exhentai 下载收藏夹，基于 Python3.9 编，支持 Komga 和 LA
 
 [中文](README.md)/[English](README-EN.md)
 
+
+
 ## 📌 TODO
 
 - [x] 支持 `Sqlite` 存储
@@ -19,14 +21,14 @@ E-Hentai / Exhentai 下载收藏夹，基于 Python3.9 编，支持 Komga 和 LA
 - [x] 压缩成 zip 适配 Komga/LANraragi
 - [x] LANraragi 添加 EH Tags
 
-![img-1AddFavInfo](img-1AddFavInfo.png)
+![img-main](img-main.png)
 
-![img-3DownloadData](img-3DownloadData.png)
 
-![img-7LANraragiAddTags](img-7LANraragiAddTags.png)
 
 ## 🔨 使用
 
+> ✏️ 如果你是使用 Pycharm 的话，请将需要在运行/调试配置中的输出控制台选项中启用“模拟终端”以查看样式的输出。
+> ✏️ 如果你是使用 Pycharm 的话，请将需要在运行/调试配置中的输出控制台选项中启用“模拟终端”以查看样式的输出。
 > ✏️ 如果你是使用 Pycharm 的话，请将需要在运行/调试配置中的输出控制台选项中启用“模拟终端”以查看样式的输出。
 
 - 1、安装环境
@@ -73,41 +75,28 @@ python main.py
 
 > 🔧 接下来很重要, 请仔细阅读 🔧
 
-1. `Add Fav Info`
+- 1 `Add Fav Info`
+  - **初次运行请执行这个**, 需要注意, 这个方法它不会更新字段信息(`INSERT OR IGNORE INTO`)
 
-**初次运行请执行这个**, 需要注意, 这个方法它不会更新字段信息(`INSERT OR IGNORE INTO`)
+- 2 `Update Fav Info`
+  - 这个方法它会更新所有字段的信息
 
-2. `Update Fav Info`
-
-这个方法它会更新所有字段的信息
-
-3. `Download Data`
-
-下载画廊
-
-4. `Create ComicInfo.xml`
-
-根据文件夹开头的 `GID`, 搜索数据库匹配信息, 在文件夹中创建 `ComicInfo.xml`
-
-5. `To ZIP`
-
-将文件夹压缩成 ZIP 文件
-
-6. `Format ZIP File Name`
-
-需要注意, 在 `LANraragi` 中如果你文件名称过长，它会卡住报错. 因此你需要就可以使用这个功能格式化文件名长度.
-
-7. `LANraragi Add Tags`
-
-请看上面的图片
-
-8. `LANraragi Check PageCount`
-
-比较数据库与本地文件的页数
-
-```python
-if db_page_count > loc_page_count & abs(db_page_count - loc_page_count) > 3:
-```
+- 3 `Download Data`
+  - 下载画廊
+- 4 `Create ComicInfo.xml`
+  - 根据文件夹开头的 `GID`, 搜索数据库匹配信息, 在文件夹中创建 `ComicInfo.xml`
+- 5 `To ZIP`
+  - 将文件夹压缩成 ZIP 文件
+- 6 `Format ZIP File Name`
+  - 需要注意, 在 `LANraragi` 中如果你文件名称过长，它会卡住报错. 因此你需要就可以使用这个功能格式化文件名长度.
+- 7 `LANraragi Add Tags`
+  - 请看上面的图片
+- 8 `LANraragi Check PageCount`
+  - 比较数据库与本地文件的页数
+  - `if db_page_count > loc_page_count & abs(db_page_count - loc_page_count) > 3:`
+- 9 `(experiment) Download Archive Gallery`
+  - 下载原图, 注意自己的GP点数
+  - 下载完成后不会修改`STATE`, 如果需要修改`STATE`, 请执行 `DownloadArchiveGallery().update_archive_state()`, 并确保你的 `archive` 文件夹下存在 `*.zip`
 
 
 
