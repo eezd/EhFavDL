@@ -103,19 +103,21 @@ python main.py
 - 8 `LANraragi Check PageCount`
     - Compare the page numbers between the database and local files.
     - `if db_page_count > loc_page_count & abs(db_page_count - loc_page_count) > 3:`
+
+Q: Why is `9 (experiment) Download Archive Gallery` marked with `A_STATE` instead of `STATE` to indicate its status?
+
+A: Because the default way to download galleries is through the web (1280x), so I cannot mix the tagging of `Original`
+with `1280x` galleries.
+
 - 9 `(experiment) Download Archive Gallery`
     - Download the original image, and be mindful of your GP (Gallery Points).
-    - Upon completion of the download, `STATE` will not be modified. If you need to modify `STATE`, please
-      execute `DownloadArchiveGallery().update_archive_state()` and ensure that `*.zip` files exist in your `archive`
-      folder.
+    - The status identifier is the `A_STATE` field in the `FAV` table, not the `STATE` field.
 
 ## 💡 Komga or LANraragi?
 
 - `Komga`
-  -
-        1. May experience lag when dealing with a large number of files (e.g., 1000 files locally).
-    -
-        2. TAG can only be one line, not multiple TAGs like EH.
+    - 1 May experience lag when dealing with a large number of files (e.g., 1000 files locally).
+    - 2 TAG can only be one line, not multiple TAGs like EH.
 
 ![img-Komga](img-Komga.png)
 
@@ -124,9 +126,7 @@ python main.py
 > LANraragi: May not be able to read if the file name is too long.
 
 - `LANraragi`
-  -
-        1. Does not experience lag when dealing with a large number of files like `Komga`.
-    -
-        2. TAGs are similar to EH.
+    - 1 Does not experience lag when dealing with a large number of files like `Komga`.
+    - 2 TAGs are similar to EH.
 
 ![img-LANraragi](img-LANraragi.png)

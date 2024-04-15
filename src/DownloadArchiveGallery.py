@@ -72,18 +72,18 @@ class DownloadArchiveGallery(Config):
                         loc_gid.append(file.split("-")[0])
         return loc_gid
 
-    def update_archive_state(self):
-        directory = os.path.join(self.data_path, folder)
-        loc_gid = []
-        for root, dirs, files in os.walk(directory):
-            for file in files:
-                file_path = os.path.join(root, file)
-                if os.path.getsize(file_path) > 0:
-                    file = str(file)
-                    if len(file.split(".zip")) != 1:
-                        with sqlite3.connect(self.dbs_name) as co:
-                            co.execute(f'UPDATE FAV SET STATE=1 WHERE GID={file.split("-")[0]}')
-                            co.commit()
+    # def update_archive_state(self):
+    #     directory = os.path.join(self.data_path, folder)
+    #     loc_gid = []
+    #     for root, dirs, files in os.walk(directory):
+    #         for file in files:
+    #             file_path = os.path.join(root, file)
+    #             if os.path.getsize(file_path) > 0:
+    #                 file = str(file)
+    #                 if len(file.split(".zip")) != 1:
+    #                     with sqlite3.connect(self.dbs_name) as co:
+    #                         co.execute(f'UPDATE FAV SET STATE=1 WHERE GID={file.split("-")[0]}')
+    #                         co.commit()
 
     def apply(self):
         print("[bold magenta]说明1: 下载所指定收藏夹的所有数据, 不受数据库 FAV 中 STATE 字段控制.[/bold magenta]")
@@ -137,6 +137,9 @@ class DownloadArchiveGallery(Config):
                 logger.warning(f"⚠️ download failed: https://{self.base_url}/g/{j[0]}/{j[1]}/")
                 continue
             else:
+                with sqlite3.connect(self.dbs_name) as co:
+                    co.execute(f'UPDATE FAV SET A_STATE=1 WHERE GID={j[0]}')
+                    co.commit()
                 logger.info(f"https://{self.base_url}/g/{j[0]}/{j[1]}/, download OK")
 
         # with self.request.stream("GET", dl_url, timeout=10) as response:

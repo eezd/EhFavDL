@@ -102,6 +102,7 @@ class Config:
                 "FAVORITE" INT NOT NULL /*收藏夹*/,
                 "BAN" INTEGER NOT NULL DEFAULT 0/*版权*/,
                 "STATE" INTEGER NOT NULL DEFAULT 0 /*状态, 0默认 1已下载*/,
+                "A_STATE" INTEGER NOT NULL DEFAULT 0 /*Archive状态, 0默认 1已下载*/,
                 "TAGS" TEXT /*标签*/
             )''')
 

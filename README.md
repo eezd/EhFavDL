@@ -95,10 +95,14 @@ python main.py
 - 8 `LANraragi Check PageCount`
     - 比较数据库与本地文件的页数
     - `if db_page_count > loc_page_count & abs(db_page_count - loc_page_count) > 3:`
+
+Q: 为什么 `9(experiment) Download Archive Gallery` 是使用 `A_STATE` 而不是 `STATE` 来标记状态?
+
+A: 因为默认下载画廊的方式是通过网页(1280x)下载, 因此我不能将 `原图` 与 `1280x` 的画廊混着标记.
+
 - 9 `(experiment) Download Archive Gallery`
     - 下载原图, 注意自己的GP点数
-    - 下载完成后不会修改`STATE`, 如果需要修改`STATE`, 请执行 `DownloadArchiveGallery().update_archive_state()`,
-      并确保你的 `archive` 文件夹下存在 `*.zip`
+    - 状态标识是 `FAV` 表中的 `A_STATE` 字段, 并不是 `STATE` 字段.
 
 ## 💡 Komga or LANraragi ？
 
