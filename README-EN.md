@@ -21,21 +21,26 @@ Download favorites from E-Hentai/Exhentai, based on Python 3.9, supporting Komga
 
 ![img-main](img-main.png)
 
-
-
 ## 🔨 Usage
 
-> If you are using PyCharm, enable "emulate terminal" in the output console option in run/debug configuration to see styled output.
-> If you are using PyCharm, enable "emulate terminal" in the output console option in run/debug configuration to see styled output.
-> If you are using PyCharm, enable "emulate terminal" in the output console option in run/debug configuration to see styled output.
+> If you are using PyCharm, enable "emulate terminal" in the output console option in run/debug configuration to see
+> styled output.
+>
+> If you are using PyCharm, enable "emulate terminal" in the output console option in run/debug configuration to see
+> styled output.
+>
+> If you are using PyCharm, enable "emulate terminal" in the output console option in run/debug configuration to see
+> styled output.
 
-- 1. Install dependencies
+-
+    1. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-- 2. Fill in `config.yaml`
+-
+    2. Fill in `config.yaml`
 
 ```yaml
 cookies:
@@ -65,7 +70,8 @@ lan_url: http://127.0.0.1:7070
 lan_api_psw: my-api-psw
 ```
 
-- 3. Run
+-
+    3. Run
 
 ```bash
 python main.py
@@ -74,35 +80,41 @@ python main.py
 > 🔧 The next part is crucial, please read it carefully. 🔧
 
 - 1 `Add Fav Info`
-  - **Execute this for the first run**, note that this method will not update field information (`INSERT OR IGNORE INTO`).
+    - **Execute this for the first run**
+    - Note that this method does not update the fields in the FAV table.(`INSERT OR IGNORE INTO`)
+    - But he will update the number of favorites. (`UPDATE FAV SET TOKEN=?, FAVORITE=? WHERE GID=?`)
 
 - 2 `Update Fav Info`
-  - This method will update all field information
+    - This method will update all field information
 
 - 3 `Download Data`
-  - Download the gallery.
+    - Download the gallery.
 - 4 `Create ComicInfo.xml`
-  - Based on the GID at the beginning of the folder, search the database for matching information, and create `ComicInfo.xml` in the folder.
+    - Based on the GID at the beginning of the folder, search the database for matching information, and
+      create `ComicInfo.xml` in the folder.
 - 5 `To ZIP`
-  - Compress the folder into a ZIP file.
+    - Compress the folder into a ZIP file.
 - 6 `Format ZIP File Name`
-  - Note that in `LANraragi`, if your file name is too long, it may freeze and throw an error. Use this feature to format the file name length.
+    - Note that in `LANraragi`, if your file name is too long, it may freeze and throw an error. Use this feature to
+      format the file name length.
 - 7 `LANraragi Add Tags`
-  - Refer to the images above.
+    - Refer to the images above.
 - 8 `LANraragi Check PageCount`
-  - Compare the page numbers between the database and local files.
-  - `if db_page_count > loc_page_count & abs(db_page_count - loc_page_count) > 3:`
+    - Compare the page numbers between the database and local files.
+    - `if db_page_count > loc_page_count & abs(db_page_count - loc_page_count) > 3:`
 - 9 `(experiment) Download Archive Gallery`
-  - Download the original image, and be mindful of your GP (Gallery Points).
-  - Upon completion of the download, `STATE` will not be modified. If you need to modify `STATE`, please execute `DownloadArchiveGallery().update_archive_state()` and ensure that `*.zip` files exist in your `archive` folder.
-
-
+    - Download the original image, and be mindful of your GP (Gallery Points).
+    - Upon completion of the download, `STATE` will not be modified. If you need to modify `STATE`, please
+      execute `DownloadArchiveGallery().update_archive_state()` and ensure that `*.zip` files exist in your `archive`
+      folder.
 
 ## 💡 Komga or LANraragi?
 
 - `Komga`
-  - 1. May experience lag when dealing with a large number of files (e.g., 1000 files locally).
-  - 2. TAG can only be one line, not multiple TAGs like EH.
+  -
+        1. May experience lag when dealing with a large number of files (e.g., 1000 files locally).
+    -
+        2. TAG can only be one line, not multiple TAGs like EH.
 
 ![img-Komga](img-Komga.png)
 
@@ -111,7 +123,9 @@ python main.py
 > LANraragi: May not be able to read if the file name is too long.
 
 - `LANraragi`
-  - 1. Does not experience lag when dealing with a large number of files like `Komga`.
-  - 2. TAGs are similar to EH.
+  -
+        1. Does not experience lag when dealing with a large number of files like `Komga`.
+    -
+        2. TAGs are similar to EH.
 
 ![img-LANraragi](img-LANraragi.png)
