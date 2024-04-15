@@ -18,6 +18,7 @@ Download favorites from E-Hentai/Exhentai, based on Python 3.9, supporting Komga
 - [x] Generate `ComicInfo.xml` (compatible with Komga/LANraragi)
 - [x] Compress into zip format for compatibility with Komga/LANraragi
 - [x] Add EH Tags to LANraragi
+- [x] Support downloading original images / Archive download
 
 ![img-main](img-main.png)
 

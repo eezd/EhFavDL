@@ -18,6 +18,7 @@ E-Hentai / Exhentai 下载收藏夹，基于 Python3.9 编，支持 Komga 和 LA
 - [x] 生成 `ComicInfo.xml` (支持 Komga/LANraragi)
 - [x] 压缩成 zip 适配 Komga/LANraragi
 - [x] LANraragi 添加 EH Tags
+- [x] 支持下载原图/归档下载
 
 ![img-main](img-main.png)
 
