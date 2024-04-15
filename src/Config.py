@@ -113,3 +113,12 @@ class Config:
             )''')
 
             co.commit()
+
+            try:
+                co.execute("ALTER TABLE FAV ADD COLUMN A_STATE INTEGER NOT NULL DEFAULT 0;")
+                co.commit()
+            except Exception as e:
+                if str(e).find("duplicate column name") != -1:
+                    pass
+                else:
+                    raise

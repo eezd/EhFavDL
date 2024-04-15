@@ -4,8 +4,7 @@ from rich import print
 
 from src import *
 
-logger.add(f'./log/{datetime.today().date()}.log', rotation='10 MB',
-           format="{time} {level} {message}")
+logger.add(f'./log/{datetime.today().date()}.log', rotation='10 MB')
 
 
 def main():

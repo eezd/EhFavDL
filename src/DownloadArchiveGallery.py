@@ -117,7 +117,7 @@ class DownloadArchiveGallery(Config):
             gid_condition = ','.join(['?' for _ in loc_gid])
             # ce = co.execute(f'SELECT GID, TOKEN, TITLE_JPN FROM FAV WHERE GID = 2172361')
             ce = co.execute(
-                f'SELECT GID, TOKEN, TITLE_JPN FROM FAV WHERE FAVORITE={favcat} AND GID NOT IN ({gid_condition})',
+                f'SELECT GID, TOKEN, TITLE_JPN FROM FAV WHERE FAVORITE={favcat} AND A_STATE=0 AND GID NOT IN ({gid_condition})',
                 loc_gid)
             for i in ce.fetchall():
                 dl_list.append([i[0], i[1], i[2]])
