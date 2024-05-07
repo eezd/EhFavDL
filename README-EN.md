@@ -7,7 +7,7 @@
 [![Last commit](https://img.shields.io/github/last-commit/eezd/EhFavDL/main)](https://github.com/eezd/EhFavDL/commits/main)
 [![License](https://img.shields.io/badge/license-MIT-yellowgreen.svg)](LICENSE)
 
-Download favorites from E-Hentai/Exhentai, based on Python 3.9, supporting Komga and LANraragi.
+Download favorites from E-Hentai/Exhentai, based on Python 3.11, supporting Komga and LANraragi.
 
 [中文](README.md)/[English](README-EN.md)
 
