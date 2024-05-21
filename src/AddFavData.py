@@ -103,13 +103,6 @@ class AddFavData(Config):
             hx_res_bs = BeautifulSoup(hx_res, 'html.parser')
             search_data = self.get_fav_page_info(hx_res_bs)
 
-            # 判断切换下一个收藏夹
-            # Judgment switch to next favorite
-            next_gid = search_data[1]
-            if next_gid is None:
-                fav_num = fav_num + 1
-                logger.info(f'[OK] Fetching the {fav_num}th favorite data...')
-
             fav_data = []
             if len(search_data[0]) != 0:
                 for item_data in search_data[0]:
@@ -128,6 +121,13 @@ class AddFavData(Config):
                 )
 
                 co.commit()
+            
+            # 判断切换下一个收藏夹
+            # Judgment switch to next favorite
+            next_gid = search_data[1]
+            if next_gid is None:
+                fav_num = fav_num + 1
+                logger.info(f'[OK] Fetching the {fav_num}th favorite data...')
 
         with sqlite3.connect(self.dbs_name) as co:
             count = co.execute('SELECT COUNT(*) FROM FAV').fetchone()

@@ -6,7 +6,7 @@ from tqdm import tqdm
 
 from .Config import Config
 from .common import *
-from rich import print
+from rich import print, json
 
 folder = "archive"
 
@@ -101,16 +101,8 @@ class DownloadArchiveGallery(Config):
 
         favcat = int(input("请输入你需要下载的收藏夹ID(0-9)\nPlease enter the collection you want to download.:"))
 
-        with sqlite3.connect(self.dbs_name) as co:
-            favcat_data = co.execute(f'SELECT * FROM CATEGORY WHERE ID = {favcat}')
-            favcat_data = favcat_data.fetchone()
-
-            favcat_check = input(f"Press Enter to confirm.:{favcat_data}")
-            if favcat_check != "":
-                print("Cancel")
-                sys.exit(1)
-
         dl_list = []
+
         with sqlite3.connect(self.dbs_name) as co:
             # ce = co.execute(f'SELECT GID, TOKEN, TITLE_JPN FROM FAV')
             loc_gid = self.check_loc_file()
@@ -121,7 +113,16 @@ class DownloadArchiveGallery(Config):
                 loc_gid)
             for i in ce.fetchall():
                 dl_list.append([i[0], i[1], i[2]])
-        print(dl_list)
+
+            logger.info(f"total download list:{json.dumps(dl_list, indent=4, ensure_ascii=False)}")
+
+            favcat_data = co.execute(f'SELECT * FROM CATEGORY WHERE ID = {favcat}')
+            favcat_data = favcat_data.fetchone()
+            favcat_check = input(f"Press Enter to confirm.:{favcat_data}")
+            if favcat_check != "":
+                print("Cancel")
+                sys.exit(1)
+
         for j in dl_list:
             dl_url = self.search_download_url(j[0], j[1])
 
