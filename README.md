@@ -76,11 +76,10 @@ python main.py
 
 - 1 `Add Fav Info`
     - **初次运行请执行这个**
-    - 需要注意, 这个方法它不会更新FAV表的字段信息(`INSERT OR IGNORE INTO`)
-    - 但是他会更新收藏夹数字 `UPDATE FAV SET TOKEN=?, FAVORITE=? WHERE GID=?`
+    - 只添加新数据, 以及更新其收藏夹的字段信息
 
-- 2 `Update Fav Info`
-    - 这个方法它会更新所有字段的信息
+- 2 `Update Fav Tags`
+    - 只使用 EH API 去更新 Tags
 
 - 3 `Download Data`
     - 下载画廊

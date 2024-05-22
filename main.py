@@ -12,7 +12,7 @@ def main():
 
     while True:
         print("1. Add Fav Info")
-        print("2. Update Fav Info")
+        print("2. Update Fav Tags")
         print("3. Download Data")
         print("4. Create ComicInfo.xml")
         print("5. To ZIP")

@@ -12,8 +12,8 @@ class AddFavData(Config):
 
     def update_category(self):
         """
-        添加收藏夹分类
-        Add Favorites Category
+        添加收藏夹分类名称
+        Add Favorites Category Name
         """
 
         logger.info(f'[Running] Get Favorites Category...')
@@ -28,7 +28,7 @@ class AddFavData(Config):
 
         with sqlite3.connect(self.dbs_name) as co:
             co.executemany(
-                'INSERT OR REPLACE INTO CATEGORY(ID, NAME) VALUES (?,?)',
+                'INSERT OR REPLACE INTO fav_name(fav_id, fav_name) VALUES (?,?)',
                 fav_category)
 
             co.commit()
@@ -37,8 +37,8 @@ class AddFavData(Config):
 
     def get_fav_page_info(self, res):
         """
-        格式化页面数据获取 GID 和 TOKEN 以及 Next_Gid
-        Format page data to get GID and TOKEN and Next_Gid
+        格式化页面数据获取 gid 和 token 以及 Next_Gid
+        Format page data to get gid and token and Next_Gid
 
         Returns:[
             [
@@ -83,20 +83,20 @@ class AddFavData(Config):
 
     def add_fav_data(self):
         """
-        获取收藏夹数据, 向数据库写入 GID, TOKEN, FAVORITE.
-        Retrieve favorite data and write GID, TOKEN, FAVORITE to the database.
+        获取收藏夹数据, 向数据库写入 gid, token, fav_id.
+        Retrieve favorite data and write gid, token, fav_id to the database.
         """
-        logger.info(f'[Running] Add Favorite GID and TOKEN...')
+        logger.info(f'[Running] Add Favorite gid and token...')
 
-        fav_num = 0
+        fav_id = 0
         next_gid = None
 
-        while fav_num < 10:
+        while fav_id < 10:
             if next_gid is None:
-                logger.info(f'[Running] Fetching the {fav_num}th favorite data...')
-                url = f'https://{self.base_url}/favorites.php?favcat={fav_num}'
+                logger.info(f'[Running] Fetching the {fav_id}th favorite data...')
+                url = f'https://{self.base_url}/favorites.php?favcat={fav_id}'
             else:
-                url = f'https://{self.base_url}/favorites.php?favcat={fav_num}&f_search=&next={next_gid}'
+                url = f'https://{self.base_url}/favorites.php?favcat={fav_id}&f_search=&next={next_gid}'
 
             hx_res = self.request.get(url)
 
@@ -104,34 +104,35 @@ class AddFavData(Config):
             search_data = self.get_fav_page_info(hx_res_bs)
 
             fav_data = []
+            fav_category_data = []
             if len(search_data[0]) != 0:
                 for item_data in search_data[0]:
-                    fav_data.append((int(item_data['gid']), item_data['token'], fav_num))
+                    fav_data.append((int(item_data['gid']), item_data['token']))
+                    fav_category_data.append((int(item_data['gid']), fav_id))
 
             with sqlite3.connect(self.dbs_name) as co:
                 co.executemany(
-                    'INSERT OR IGNORE INTO FAV(GID, TOKEN, FAVORITE) VALUES (?,?,?)',
+                    'INSERT OR IGNORE INTO fav(gid, token) VALUES (?,?)',
                     fav_data)
 
                 co.commit()
 
                 co.executemany(
-                    'UPDATE FAV SET TOKEN=?, FAVORITE=? WHERE GID=?',
-                    [(token, favorite, gid) for gid, token, favorite in fav_data]
-                )
+                    'INSERT OR IGNORE INTO fav_category(gid, fav_id) VALUES (?,?)',
+                    fav_category_data)
 
                 co.commit()
-            
+
             # 判断切换下一个收藏夹
             # Judgment switch to next favorite
             next_gid = search_data[1]
             if next_gid is None:
-                fav_num = fav_num + 1
-                logger.info(f'[OK] Fetching the {fav_num}th favorite data...')
+                fav_id = fav_id + 1
+                logger.info(f'[OK] Fetching the {fav_id}th favorite data...')
 
         with sqlite3.connect(self.dbs_name) as co:
-            count = co.execute('SELECT COUNT(*) FROM FAV').fetchone()
-        logger.info(f'[OK] Add Favorite GID and TOKEN, A Total Of: {count}...')
+            count = co.execute('SELECT COUNT(*) FROM fav').fetchone()
+        logger.info(f'[OK] Add Favorite gid and token, A Total Of: {count}...')
 
     def post_eh_api(self, json):
         """
@@ -150,11 +151,11 @@ class AddFavData(Config):
 
     def add_tags_data(self, get_all=False):
         """
-        根据数据库 GID,TOKEN 去请求 EH API 数据, 更新数据库数据.
-        默认只获取 TITLE 为空的字段, 通过 add_tags_data(True) 即可更新所有字段
+        根据数据库 gid,token 去请求 EH API 数据, 更新数据库数据.
+        默认只获取 title 为空的字段, 通过 add_tags_data(True) 即可更新所有字段
 
-        Retrieve EH API data based on database GID and TOKEN, and update the database.
-        By default, only fetch records with an empty TITLE field.
+        Retrieve EH API data based on database gid and token, and update the database.
+        By default, only fetch records with an empty title field.
         Use add_tags_data(True) to update all fields.
         """
 
@@ -162,64 +163,63 @@ class AddFavData(Config):
 
         if not get_all:
             with sqlite3.connect(self.dbs_name) as co:
-                gid_token = co.execute('SELECT GID,TOKEN FROM FAV WHERE TITLE IS "" OR TITLE IS NULL').fetchall()
+                gid_token = co.execute('SELECT gid,token FROM fav WHERE title IS "" OR title IS NULL').fetchall()
         else:
             with sqlite3.connect(self.dbs_name) as co:
-                gid_token = co.execute('SELECT GID,TOKEN FROM FAV').fetchall()
+                gid_token = co.execute('SELECT gid,token FROM fav').fetchall()
 
-        if len(gid_token) == 0:
+        if len(gid_token) != 0:
             logger.warning("add_tags_data() >>> gid does not exist")
-            sys.exit(1)
 
-        gid_token = [list(t) for t in gid_token]
+            gid_token = [list(t) for t in gid_token]
 
-        # 分片, 25个一片
-        # Fragmentation, 25 pieces
-        gid_token = [gid_token[i:i + 25] for i in range(0, len(gid_token), 25)]
+            # 分片, 25个一片
+            # Fragmentation, 25 pieces
+            gid_token = [gid_token[i:i + 25] for i in range(0, len(gid_token), 25)]
 
-        post_json_arr = []
+            post_json_arr = []
 
-        for i in gid_token:
-            post_json_arr.append({
-                "method": "gdata",
-                "gidlist": i,
-                "namespace": 1
-            })
+            for i in gid_token:
+                post_json_arr.append({
+                    "method": "gdata",
+                    "gidlist": i,
+                    "namespace": 1
+                })
 
-        # 通过 EH API 请求数据
-        # Request data through EH API
-        for post_json in post_json_arr:
-            post_data = self.post_eh_api(post_json)
-            format_data = []
-            for sub_post_data in post_data:
-                format_data.append((
-                    sub_post_data['title'],
-                    sub_post_data['title_jpn'],
-                    sub_post_data['category'],
-                    sub_post_data['thumb'],
-                    sub_post_data['uploader'],
-                    sub_post_data['posted'],
-                    int(sub_post_data['filecount']),
-                    str(sub_post_data['rating']),
-                    str(sub_post_data['tags']),
-                    sub_post_data['gid'],
-                ))
+            # 通过 EH API 请求数据
+            # Request data through EH API
+            for post_json in post_json_arr:
+                post_data = self.post_eh_api(post_json)
+                format_data = []
+                for sub_post_data in post_data:
+                    format_data.append((
+                        sub_post_data['title'],
+                        sub_post_data['title_jpn'],
+                        sub_post_data['category'],
+                        sub_post_data['thumb'],
+                        sub_post_data['uploader'],
+                        sub_post_data['posted'],
+                        int(sub_post_data['filecount']),
+                        str(sub_post_data['rating']),
+                        str(sub_post_data['tags']),
+                        sub_post_data['gid'],
+                    ))
 
-            with sqlite3.connect(self.dbs_name) as co:
-                co.executemany(
-                    'UPDATE FAV SET TITLE=?, TITLE_JPN=?, CATEGORY=?, THUMB=?, UPLOADER=?, POSTED=?, PAGES=?, RATING=?, TAGS=? WHERE GID=?',
-                    format_data
-                )
-                co.commit()
+                with sqlite3.connect(self.dbs_name) as co:
+                    co.executemany(
+                        'UPDATE fav SET title=?, title_jpn=?, category=?, thumb=?, uploader=?, posted=?, pages=?, rating=?, tags=? WHERE gid=?',
+                        format_data
+                    )
+                    co.commit()
         logger.info(f'[OK] Get tags...')
 
     def checkout_local_state(self):
         """
         防止当数据库被删除时重复下载图片
 
-        note: 判断 文件夹中的图片个数 和 数据库中对应的PAGES值是否相同.
+        note: 判断 文件夹中的图片个数 和 数据库中对应的pages值是否相同.
         Note: Determine whether the number of pictures in the folder
-         is the same as the corresponding PAGES value in the database
+         is the same as the corresponding pages value in the database
         """
         logger.info('[Running] Checkout Local Data State...')
 
@@ -241,19 +241,19 @@ class AddFavData(Config):
                     local_pages = local_pages + 1
 
             with sqlite3.connect(self.dbs_name) as co:
-                co = co.execute(f'SELECT PAGES FROM FAV WHERE GID="{gid}"')
+                co = co.execute(f'SELECT pages FROM fav WHERE gid="{gid}"')
                 db_pages = co.fetchone()[0]
 
                 if db_pages is not None:
                     db_pages = db_pages[0]
                 else:
-                    logger.error(f"在 FAV 中找不到该GID>>>{gid}")
+                    logger.error(f"在 FAV 中找不到该gid>>>{gid}")
                     db_pages = 0
                     sys.exit(1)
 
             if int(local_pages) == int(db_pages):
                 with sqlite3.connect(self.dbs_name) as co:
-                    co.execute(f'UPDATE FAV SET STATE = 2, TIME={get_time()} WHERE gid = {gid}')
+                    co.execute(f'UPDATE fav SET state = 2 WHERE gid = {gid}')
                     co.commit()
 
         logger.info('[OK] Checkout Local Data State...')
@@ -261,10 +261,10 @@ class AddFavData(Config):
     def apply(self):
         self.update_category()
 
-        # 先获取 GID 和 TOKEN
-        # First, obtain GID and TOKEN.
+        # 先获取 gid 和 token
+        # First, obtain gid and token.
         self.add_fav_data()
 
-        # 再根据数据库的 GID 和 TOKEN, 通过 EH API 获取剩余信息
-        # Retrieve additional information based on the database's GID and TOKEN using the EH API.
+        # 再根据数据库的 gid 和 token, 通过 EH API 获取剩余信息
+        # Retrieve additional information based on the database's gid and token using the EH API.
         self.add_tags_data()

@@ -88,34 +88,39 @@ class Config:
         """
         with sqlite3.connect(self.dbs_name) as co:
             co.execute('''
-            CREATE TABLE IF NOT EXISTS "FAV" (
-                "GID" INTEGER PRIMARY KEY NOT NULL,
-                "TOKEN" TEXT,
-                "TITLE" TEXT,
-                "TITLE_JPN" TEXT,
-                "CATEGORY" TEXT /*分类*/,
-                "THUMB" TEXT /*封面 URL*/,
-                "UPLOADER" TEXT /*上传者*/,
-                "POSTED" TEXT /*发布时间*/,
-                "PAGES" INTEGER /*页数*/,
-                "RATING" TEXT /*评分*/,
-                "FAVORITE" INT NOT NULL /*收藏夹*/,
-                "BAN" INTEGER NOT NULL DEFAULT 0/*版权*/,
-                "STATE" INTEGER NOT NULL DEFAULT 0 /*状态, 0默认 1已下载*/,
-                "A_STATE" INTEGER NOT NULL DEFAULT 0 /*Archive状态, 0默认 1已下载*/,
-                "TAGS" TEXT /*标签*/
+            CREATE TABLE IF NOT EXISTS "fav" (
+                "gid" INTEGER PRIMARY KEY NOT NULL,
+                "token" TEXT,
+                "title" TEXT,
+                "title_jpn" TEXT,
+                "category" TEXT /*分类*/,
+                "thumb" TEXT /*封面 URL*/,
+                "uploader" TEXT /*上传者*/,
+                "posted" TEXT /*发布时间*/,
+                "pages" INTEGER /*页数*/,
+                "rating" TEXT /*评分*/,
+                "ban" INTEGER NOT NULL DEFAULT 0/*版权*/,
+                "state" INTEGER NOT NULL DEFAULT 0 /*状态, 0默认 1已下载*/,
+                "a_state" INTEGER NOT NULL DEFAULT 0 /*Archive状态, 0默认 1已下载*/,
+                "tags" TEXT /*标签*/
             )''')
 
             co.execute('''
-            CREATE TABLE IF NOT EXISTS "CATEGORY" (
-              "ID" INTEGER PRIMARY KEY NOT NULL,
-              "NAME" TEXT NOT NULL
+            CREATE TABLE IF NOT EXISTS "fav_name" (
+              "fav_id" INTEGER PRIMARY KEY NOT NULL,
+              "fav_name" TEXT NOT NULL
+            )''')
+
+            co.execute('''
+            CREATE TABLE IF NOT EXISTS "fav_category" (
+              "gid" INTEGER PRIMARY KEY NOT NULL,
+              "fav_id" INT NOT NULL /*收藏夹*/
             )''')
 
             co.commit()
 
             try:
-                co.execute("ALTER TABLE FAV ADD COLUMN A_STATE INTEGER NOT NULL DEFAULT 0;")
+                co.execute("ALTER TABLE fav ADD COLUMN a_state INTEGER NOT NULL DEFAULT 0;")
                 co.commit()
             except Exception as e:
                 if str(e).find("duplicate column name") != -1:

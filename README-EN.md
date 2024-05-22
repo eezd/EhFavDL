@@ -82,11 +82,10 @@ python main.py
 
 - 1 `Add Fav Info`
     - **Execute this for the first run**
-    - Note that this method does not update the fields in the FAV table.(`INSERT OR IGNORE INTO`)
-    - But he will update the number of favorites. (`UPDATE FAV SET TOKEN=?, FAVORITE=? WHERE GID=?`)
+    - nly add new data and update the information in the favorites field.
 
 - 2 `Update Fav Info`
-    - This method will update all field information
+    - Only use the EH API to update tags.
 
 - 3 `Download Data`
     - Download the gallery.

@@ -41,7 +41,7 @@ def windows_escape(title):
 
 def sync_local_dir_name(data_path, dbs_name):
     """
-    根据 GID 重命名文件夹名字
+    根据 gid 重命名文件夹名字
     """
     for i in os.listdir(data_path):
         if i.find('-') == -1 or os.path.isfile(os.path.join(data_path, i)):
@@ -49,7 +49,7 @@ def sync_local_dir_name(data_path, dbs_name):
 
         gid = i.split("-")[0]
         with sqlite3.connect(dbs_name) as co:
-            co = co.execute(f'SELECT TITLE_JPN FROM FAV WHERE GID="{gid}"')
+            co = co.execute(f'SELECT title_jpn FROM fav WHERE gid="{gid}"')
             db_pages = co.fetchone()
             if db_pages is not None:
                 title = db_pages[0]
@@ -57,5 +57,5 @@ def sync_local_dir_name(data_path, dbs_name):
                 new_path = os.path.join(data_path, f"{gid}-{windows_escape(title)}")
                 shutil.move(ole_path, new_path)
             else:
-                logger.warning(f"找不到该GID: {gid}")
+                logger.warning(f"找不到该gid: {gid}")
                 continue

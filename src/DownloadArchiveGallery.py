@@ -82,19 +82,19 @@ class DownloadArchiveGallery(Config):
     #                 file = str(file)
     #                 if len(file.split(".zip")) != 1:
     #                     with sqlite3.connect(self.dbs_name) as co:
-    #                         co.execute(f'UPDATE FAV SET STATE=1 WHERE GID={file.split("-")[0]}')
+    #                         co.execute(f'UPDATE fav SET state=1 WHERE gid={file.split("-")[0]}')
     #                         co.commit()
 
     def apply(self):
-        print("[bold magenta]说明1: 下载所指定收藏夹的所有数据, 不受数据库 FAV 中 STATE 字段控制.[/bold magenta]")
-        print(f"[bold magenta]说明2: 会跳过目录({folder})中已存在的GID文件.[/bold magenta]")
+        print("[bold magenta]说明1: 下载所指定收藏夹的所有数据, 不受数据库 fav 中 state 字段控制.[/bold magenta]")
+        print(f"[bold magenta]说明2: 会跳过目录({folder})中已存在的gid文件.[/bold magenta]")
         print(f"[bold magenta]说明3: 确保已经执行了(1. Add Fav Info)更新FAV数据.[/bold magenta]")
 
         print(
-            "[bold magenta]Note 1: Download all data from the specified collection, regardless of the STATE field in "
+            "[bold magenta]Note 1: Download all data from the specified collection, regardless of the state field in "
             "the FAV database.[/bold magenta]")
         print(
-            f"[bold magenta]Note 2:The code will skip GID files that already exist in the directory ({folder}).[/bold magenta]")
+            f"[bold magenta]Note 2:The code will skip gid files that already exist in the directory ({folder}).[/bold magenta]")
         print(
             f"[bold magenta]Note 3: Make sure that the (1. Add Fav Info) update for FAV data has been executed.[/bold magenta]")
         time.sleep(1)
@@ -104,19 +104,19 @@ class DownloadArchiveGallery(Config):
         dl_list = []
 
         with sqlite3.connect(self.dbs_name) as co:
-            # ce = co.execute(f'SELECT GID, TOKEN, TITLE_JPN FROM FAV')
+            # ce = co.execute(f'SELECT gid, token, title_jpn FROM fav')
             loc_gid = self.check_loc_file()
             gid_condition = ','.join(['?' for _ in loc_gid])
-            # ce = co.execute(f'SELECT GID, TOKEN, TITLE_JPN FROM FAV WHERE GID = 2172361')
+            # ce = co.execute(f'SELECT gid, token, title_jpn FROM fav WHERE gid = 2172361')
             ce = co.execute(
-                f'SELECT GID, TOKEN, TITLE_JPN FROM FAV WHERE FAVORITE={favcat} AND A_STATE=0 AND GID NOT IN ({gid_condition})',
+                f'SELECT gid, token, title_jpn FROM fav WHERE FAVORITE={favcat} AND a_state=0 AND gid NOT IN ({gid_condition})',
                 loc_gid)
             for i in ce.fetchall():
                 dl_list.append([i[0], i[1], i[2]])
 
             logger.info(f"total download list:{json.dumps(dl_list, indent=4, ensure_ascii=False)}")
 
-            favcat_data = co.execute(f'SELECT * FROM CATEGORY WHERE ID = {favcat}')
+            favcat_data = co.execute(f'SELECT * FROM category WHERE ID = {favcat}')
             favcat_data = favcat_data.fetchone()
             favcat_check = input(f"Press Enter to confirm.:{favcat_data}")
             if favcat_check != "":
@@ -139,7 +139,7 @@ class DownloadArchiveGallery(Config):
                 continue
             else:
                 with sqlite3.connect(self.dbs_name) as co:
-                    co.execute(f'UPDATE FAV SET A_STATE=1 WHERE GID={j[0]}')
+                    co.execute(f'UPDATE fav SET a_state=1 WHERE gid={j[0]}')
                     co.commit()
                 logger.info(f"https://{self.base_url}/g/{j[0]}/{j[1]}/, download OK")
 

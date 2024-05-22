@@ -12,8 +12,8 @@ class Checker(Config):
 
     def check_local_gid(self):
         """
-        检查本地目录下的重复GID
-        Repeat the GID in the local directory
+        检查本地目录下的重复gid
+        Repeat the gid in the local directory
         """
         gid_list = []
         count = 1
@@ -34,14 +34,14 @@ class Checker(Config):
             count += 1
 
         if len(repeat_list) != 0:
-            logger.error(f'Duplicate GID, Please Check: {repeat_list}')
+            logger.error(f'Duplicate gid, Please Check: {repeat_list}')
             sys.exit(1)
 
         logger.info('[OK] Start Check Local Gid...')
 
     def get_local_data_add(self):
         """
-        同步本地数据到数据库(add GID & NAME)
+        同步本地数据到数据库(add gid & NAME)
         Upload local data to the database
         """
 
@@ -56,7 +56,7 @@ class Checker(Config):
             try:
                 co.execute('DELETE FROM DOWNLOAD_DIRNAME')
                 co.executemany(
-                    'INSERT OR REPLACE INTO DOWNLOAD_DIRNAME(GID, DIRNAME) VALUES (?, ?)',
+                    'INSERT OR REPLACE INTO DOWNLOAD_DIRNAME(gid, DIRNAME) VALUES (?, ?)',
                     downloads_dirname_list)
 
                 co.commit()

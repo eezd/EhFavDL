@@ -80,7 +80,7 @@ class Support(Config):
             gid = int(str(i).split('-')[0])
 
             with sqlite3.connect(self.dbs_name) as co:
-                co = co.execute(f'SELECT TITLE,CATEGORY,POSTED,TAGS,TOKEN FROM FAV WHERE GID="{gid}"')
+                co = co.execute(f'SELECT title,category,posted,tags,token FROM fav WHERE gid="{gid}"')
                 db_data = co.fetchone()
                 if db_data is None:
                     logger.warning(f"The ID does not exist>> {gid}")
@@ -145,11 +145,6 @@ class Support(Config):
         return httpx.Client(headers={"Authorization": f"Bearer {authorization_token_base64}"})
 
     def lan_add_tags(self):
-        db_data = []
-        with sqlite3.connect(self.dbs_name) as co:
-            co = co.execute(f'SELECT GID,TOKEN,TITLE_JPN,POSTED,TAGS,PAGES FROM FAV')
-            db_data = co.fetchall()
-
         hx = self.lan_init_request()
         lan_url = self.lan_url
 
@@ -168,36 +163,59 @@ class Support(Config):
             logger.error(f"Please add gallery before adding Tags")
             sys.exit(1)
 
-        for sub_archives in all_archives:
-            gid = int(str(sub_archives['title']).split('-')[0])
+        with sqlite3.connect(self.dbs_name) as co:
+            for sub_archives in all_archives:
 
-            status = 0
+                try:
+                    gid = re.compile('.*gid:([0-9]*),.*').match(str(sub_archives['tags']))
+                    if gid is not None:
+                        gid = int(gid.group(1))
+                    else:
+                        gid = int(str(sub_archives['title']).split('-')[0])
+                except ValueError:
+                    logger.warning(
+                        f"The ID does not exist>> arcid: {str(sub_archives['arcid'])}, title: {str(sub_archives['title'])}")
+                    #
+                    sys.exit(1)
 
-            for db_tags in db_data:
-                if int(db_tags[0]) == gid:
-                    token = str(db_tags[1])
-                    title = str(gid) + "-" + str(db_tags[2])
-                    source = f"exhentai.org/g/{gid}/{token}"
-                    # posted = str(datetime.datetime.fromtimestamp(int(db_tags[3]))).split(" ")[0].replace("-", "/")
-                    posted = db_tags[3]
+                co = co.execute(
+                    f'SELECT gid,token,title,title_jpn,category,posted,pages,tags FROM fav WHERE gid="{gid}"')
+                fav_info = co.fetchone()
 
-                    sub_tags = str(db_tags[4]).replace("[", "").replace("]", "").replace("'", "")
+                if fav_info is None:
+                    logger.warning(f"The ID does not exist>> {gid}")
+                    continue
 
-                    sub_tags = f"gid:{gid},token:{token},source:{source},date_added:{posted}," + sub_tags
+                token = str(fav_info[1])
 
-                    hx.put(f"{lan_url}/{sub_archives['arcid']}/metadata",
-                           data={"tags": sub_tags.strip()})
-                    status = 1
+                # title = str(gid) + "-" + str(fav_info[2])
+                if fav_info[3] is not None:
+                    title = str(fav_info[3])
+                else:
+                    title = str(fav_info[2])
 
-            if status == 0:
-                logger.warning(f"Gallery with GID {gid} not found.")
+                source = f"exhentai.org/g/{gid}/{token}"
+
+                category = str(fav_info[4])
+
+                # posted = str(datetime.datetime.fromtimestamp(int(db_tags[3]))).split(" ")[0].replace("-", "/")
+                posted = fav_info[5]
+
+                pages = int(fav_info[6])
+
+                tags = str(fav_info[7]).replace("[", "").replace("]", "").replace("'", "")
+
+                lan_tags = f"gid:{gid},token:{token},source:{source},category:{category},date_added:{posted},pages:{pages}," + tags
+
+                hx.put(f"{lan_url}/{sub_archives['arcid']}/metadata",
+                       data={"title": title, "tags": lan_tags.strip()})
 
         logger.info("[OK] LANraragi Add Tags")
 
     def lan_check_page_count(self):
         db_data = []
         with sqlite3.connect(self.dbs_name) as co:
-            co = co.execute(f'SELECT GID,TOKEN,TITLE_JPN,POSTED,TAGS,PAGES FROM FAV')
+            co = co.execute(f'SELECT gid,token,title_jpn,posted,tags,pages FROM fav')
             db_data = co.fetchall()
 
         hx = self.lan_init_request()

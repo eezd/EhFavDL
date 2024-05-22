@@ -93,7 +93,7 @@ class DownloadGallery(Config):
 
             if ptb is None:
                 with sqlite3.connect(self.dbs_name) as co:
-                    co.execute(f'UPDATE FAV SET BAN = 1 WHERE gid = {self.gid}')
+                    co.execute(f'UPDATE fav SET ban = 1 WHERE gid = {self.gid}')
                     co.commit()
                 return "BAN"
 
@@ -230,7 +230,7 @@ class DownloadGallery(Config):
                 shutil.move(old_path, new_path)
 
             with sqlite3.connect(self.dbs_name) as co:
-                co.execute(f'UPDATE FAV SET STATE = 1 WHERE gid = {self.gid}')
+                co.execute(f'UPDATE fav SET state = 1 WHERE gid = {self.gid}')
                 co.commit()
 
             return True
