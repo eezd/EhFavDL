@@ -169,7 +169,7 @@ class AddFavData(Config):
                 gid_token = co.execute('SELECT gid,token FROM fav').fetchall()
 
         if len(gid_token) != 0:
-            logger.warning("add_tags_data() >>> gid does not exist")
+            # logger.warning("add_tags_data() >>> gid does not exist")
 
             gid_token = [list(t) for t in gid_token]
 

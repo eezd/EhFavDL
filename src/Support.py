@@ -179,7 +179,7 @@ class Support(Config):
                     sys.exit(1)
 
                 co = co.execute(
-                    f'SELECT gid,token,title,title_jpn,category,posted,pages,tags FROM fav WHERE gid="{gid}"')
+                    f'SELECT f.gid,f.token,f.title,f.title_jpn,f.category,f.posted,f.pages,f.tags,fn.fav_name FROM fav AS f, fav_category AS fc, fav_name AS fn WHERE f.gid="{gid}" AND fc.gid="{gid}" AND fc.fav_id=fn.fav_id')
                 fav_info = co.fetchone()
 
                 if fav_info is None:
@@ -205,7 +205,9 @@ class Support(Config):
 
                 tags = str(fav_info[7]).replace("[", "").replace("]", "").replace("'", "")
 
-                lan_tags = f"gid:{gid},token:{token},source:{source},category:{category},date_added:{posted},pages:{pages}," + tags
+                fav_name = str(fav_info[8])
+
+                lan_tags = f"gid:{gid},token:{token},source:{source},category:{category},date_added:{posted},pages:{pages},fav_name:{fav_name}," + tags
 
                 hx.put(f"{lan_url}/{sub_archives['arcid']}/metadata",
                        data={"title": title, "tags": lan_tags.strip()})
