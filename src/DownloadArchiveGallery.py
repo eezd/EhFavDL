@@ -104,21 +104,19 @@ class DownloadArchiveGallery(Config):
         dl_list = []
 
         with sqlite3.connect(self.dbs_name) as co:
-            # ce = co.execute(f'SELECT gid, token, title_jpn FROM fav')
             loc_gid = self.check_loc_file()
             gid_condition = ','.join(['?' for _ in loc_gid])
             # ce = co.execute(f'SELECT gid, token, title_jpn FROM fav WHERE gid = 2172361')
+
             ce = co.execute(
-                f'SELECT gid, token, title_jpn FROM fav WHERE FAVORITE={favcat} AND a_state=0 AND gid NOT IN ({gid_condition})',
-                loc_gid)
+                f'SELECT gid, token, title_jpn FROM fav WHERE a_state=0 AND gid in (SELECT gid FROM fav_category WHERE fav_id = {favcat})')
+
             for i in ce.fetchall():
                 dl_list.append([i[0], i[1], i[2]])
 
-            logger.info(f"total download list:{json.dumps(dl_list, indent=4, ensure_ascii=False)}")
+            logger.info(f"total download list(len: {len(dl_list)}):{json.dumps(dl_list, indent=4, ensure_ascii=False)}")
 
-            favcat_data = co.execute(f'SELECT * FROM category WHERE ID = {favcat}')
-            favcat_data = favcat_data.fetchone()
-            favcat_check = input(f"Press Enter to confirm.:{favcat_data}")
+            favcat_check = input(f"Press Enter to confirm")
             if favcat_check != "":
                 print("Cancel")
                 sys.exit(1)
