@@ -270,7 +270,8 @@ class AddFavData(Config):
         logger.info('[Running] Checkout EH Fav AND sqlite data...')
 
         with sqlite3.connect(self.dbs_name) as co:
-            co = co.execute(f'SELECT gid,token,title FROM fav')
+            co = co.execute(
+                f'SELECT fav_category.gid, fav.token, fav.title FROM fav,fav_category WHERE fav.gid = fav_category.gid')
             db_gid = co.fetchall()
 
         for i in db_gid:
