@@ -19,9 +19,13 @@ class Checker(Config):
         count = 1
         repeat_list = []
 
-        logger.info('[Running] Start Check Local Gid...')
-        for i in os.listdir(self.data_path):
-            if i.find('-') == -1 or os.path.isfile(os.path.join(self.data_path, i)):
+        folder = input(f"Please enter the file directory.\n")
+        if folder == "":
+            print("Cancel")
+            sys.exit(1)
+
+        for i in os.listdir(folder):
+            if i.find('-') == -1 or os.path.isfile(os.path.join(folder, i)):
                 continue
 
             gid_list.append(int(str(i).split('-')[0]))
@@ -36,39 +40,6 @@ class Checker(Config):
         if len(repeat_list) != 0:
             logger.error(f'Duplicate gid, Please Check: {repeat_list}')
             sys.exit(1)
-
-        logger.info('[OK] Start Check Local Gid...')
-
-    def get_local_data_add(self):
-        """
-        同步本地数据到数据库(add gid & NAME)
-        Upload local data to the database
-        """
-
-        logger.info('[Running] ...')
-
-        downloads_dirname_list = []
-        for i in os.listdir(self.data_path):
-            gid = int(str(i).split('-')[0])
-            downloads_dirname_list.append((gid, i))
-
-        with sqlite3.connect(self.dbs_name) as co:
-            try:
-                co.execute('DELETE FROM DOWNLOAD_DIRNAME')
-                co.executemany(
-                    'INSERT OR REPLACE INTO DOWNLOAD_DIRNAME(gid, DIRNAME) VALUES (?, ?)',
-                    downloads_dirname_list)
-
-                co.commit()
-
-                logger.info(f'Successfully added {len(downloads_dirname_list)} pieces of'
-                            f' data data in DOWNLOAD_DIRNAME')
-            except sqlite3.Error as e:
-                logger.error(f'SQLite error occurred: {e}')
-            except Exception as e:
-                logger.error(f'Unexpected error occurred: {e}')
-
-        logger.info('[OK] Delete DOWNLOAD_DIRNAME Table...')
 
     def check_eh_setting(self):
         """
@@ -99,3 +70,51 @@ class Checker(Config):
             logger.error("Front Page / Search Settings >>> Extended")
             sys.exit(1)
         logger.info('[OK] Start checkout EH Setting.')
+
+    def update_local_to_sqlite_status(self, cover=True):
+        """
+        以本地文件为基准, 重新设置数据库的 status
+        Reset the database status based on the local file.
+        """
+
+        logger.info(f"update_local_to_sqlite_status({cover})")
+
+        if cover:
+            logger.info("该方法会覆盖 fav 的 status 和 a_status 字段")
+            logger.info("This method will overwrite the `status` and `a_status` fields of `fav`.")
+            logger.info("如果不想覆盖请重新执行: update_local_to_sqlite_status(False)")
+            logger.info("If you do not want to overwrite, please re-execute: `update_local_to_sqlite_status(False)`.")
+
+        folder = input(f"Please enter the file directory.\n")
+        if folder == "":
+            print("Cancel")
+            sys.exit(1)
+
+        all_count = 0
+        for root, dirs, files in os.walk(folder):
+            for file in files:
+                all_count += 1
+
+        logger.info(f"There are a total of {all_count} files.")
+
+        enter = input(f"Please press Enter to confirm.\n")
+
+        if enter != "":
+            print("Cancel")
+            sys.exit(1)
+
+        if cover:
+            with sqlite3.connect(self.dbs_name) as co:
+                co.execute(f'UPDATE fav SET status=0, a_status=0')
+                co.commit()
+
+        with sqlite3.connect(self.dbs_name) as co:
+            for root, dirs, files in os.walk(folder):
+                for file in files:
+                    gid = int(file.split('-')[0])
+                    query = co.execute(f'SELECT gid FROM fav WHERE gid={gid}').fetchone()
+                    if query is None:
+                        logger.warning(f"sqlite no gid:{gid}, file:{file}")
+                    else:
+                        co.execute(f'UPDATE fav SET status=1, a_status=1 WHERE gid={gid}')
+                        co.commit()

@@ -13,7 +13,7 @@ class DownloadFav(Config):
         # Define query array
         dl_list = []
         with sqlite3.connect(self.dbs_name) as co:
-            ce = co.execute(f'SELECT gid, token, title_jpn FROM fav WHERE state=0 AND ban=0 ORDER BY RANDOM()')
+            ce = co.execute(f'SELECT gid, token, title_jpn FROM fav WHERE status=0 AND ban=0 ORDER BY RANDOM()')
             # ce = co.execute(f'SELECT gid, token, title_jpn FROM fav WHERE gid = 2794528')
             co.commit()
 

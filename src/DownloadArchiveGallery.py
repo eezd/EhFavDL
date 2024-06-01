@@ -1,12 +1,13 @@
 import sys
+import zipfile
 from urllib.parse import urlsplit
 
 from bs4 import BeautifulSoup
+from rich import print, json
 from tqdm import tqdm
 
 from .Config import Config
 from .common import *
-from rich import print, json
 
 folder = "archive"
 
@@ -17,7 +18,7 @@ class DownloadArchiveGallery(Config):
         super().__init__()
 
     def search_download_url(self, gid, token):
-        hx_res = self.request.get(f"https://{self.base_url}/g/{gid}/{token}/", timeout=10)
+        hx_res = self.request.get(f"https://{self.base_url}/g/{gid}/{token}", timeout=10)
         page_data = BeautifulSoup(hx_res, 'html.parser')
         archive_url = page_data.select_one('.g2.gsp a')
         if archive_url is None:
@@ -25,13 +26,13 @@ class DownloadArchiveGallery(Config):
         archive_url = archive_url['onclick'].split("'")[1].replace("--", "-")
 
         hx_res = self.request.post(archive_url, data={"dltype": "org", "dlcheck": "Download+Original+Archive"},
-                                   timeout=10)
+                                   timeout=5)
         page_data = BeautifulSoup(hx_res, 'html.parser')
         archive_url = page_data.select_one('#continue a')['href']
 
         dl_site = urlsplit(archive_url).netloc
 
-        hx_res = self.request.get(archive_url, timeout=10)
+        hx_res = self.request.get(archive_url, timeout=5)
         page_data = BeautifulSoup(hx_res, 'html.parser')
         archive_url = page_data.select_one('a')['href']
 
@@ -39,7 +40,7 @@ class DownloadArchiveGallery(Config):
         return dl_url
 
     def download_file(self, dl_url, filename):
-        with self.request.stream("GET", dl_url, timeout=10) as response:
+        with self.request.stream("GET", dl_url, timeout=5) as response:
             if response.status_code == 200:
                 total_size = int(response.headers.get("Content-Length"))
                 block_size = 1024
@@ -58,21 +59,39 @@ class DownloadArchiveGallery(Config):
 
                 return True
             else:
+                content = response.read().decode('utf-8')
+                if "IP quota exhausted" in content:
+                    logger.warning("IP quota exhausted.")
+                    sys.exit(1)
                 return False
 
     def check_loc_file(self):
         directory = os.path.join(self.data_path, folder)
         loc_gid = []
+        status = 0
         for root, dirs, files in os.walk(directory):
             for file in files:
                 file_path = os.path.join(root, file)
                 if os.path.getsize(file_path) > 0:
-                    file = str(file)
-                    if len(file.split(".zip")) != 1:
-                        loc_gid.append(file.split("-")[0])
+                    try:
+                        with zipfile.ZipFile(file_path, 'r') as zip_file:
+                            bad_file = zip_file.testzip()
+                            if bad_file:
+                                logger.error(f"检测到压缩包损坏, 请删除文件: {file_path}")
+                                logger.error(f"Detected a corrupted archive. Please delete the file.: {file_path}")
+                            else:
+                                file = str(file)
+                                if len(file.split(".zip")) != 1:
+                                    loc_gid.append(file.split("-")[0])
+                    except zipfile.BadZipFile:
+                        logger.error(f"检测到压缩包损坏, 请删除文件: {file_path}")
+                        logger.error(f"Detected a corrupted archive. Please delete the file.: {file_path}")
+                        status = 1
+        if status == 1:
+            sys.exit(1)
         return loc_gid
 
-    # def update_archive_state(self):
+    # def update_archive_status(self):
     #     directory = os.path.join(self.data_path, folder)
     #     loc_gid = []
     #     for root, dirs, files in os.walk(directory):
@@ -82,49 +101,56 @@ class DownloadArchiveGallery(Config):
     #                 file = str(file)
     #                 if len(file.split(".zip")) != 1:
     #                     with sqlite3.connect(self.dbs_name) as co:
-    #                         co.execute(f'UPDATE fav SET state=1 WHERE gid={file.split("-")[0]}')
+    #                         co.execute(f'UPDATE fav SET status=1 WHERE gid={file.split("-")[0]}')
     #                         co.commit()
 
     def apply(self):
-        print("[bold magenta]说明1: 下载所指定收藏夹的所有数据, 不受数据库 fav 中 state 字段控制.[/bold magenta]")
+        print("[bold magenta]说明1: 下载所指定收藏夹的所有数据, 不受数据库 fav 中 status 字段控制.[/bold magenta]")
         print(f"[bold magenta]说明2: 会跳过目录({folder})中已存在的gid文件.[/bold magenta]")
         print(f"[bold magenta]说明3: 确保已经执行了(1. Add Fav Info)更新FAV数据.[/bold magenta]")
 
         print(
-            "[bold magenta]Note 1: Download all data from the specified collection, regardless of the state field in "
+            "[bold magenta]Note 1: Download all data from the specified collection, regardless of the status field in "
             "the FAV database.[/bold magenta]")
         print(
             f"[bold magenta]Note 2:The code will skip gid files that already exist in the directory ({folder}).[/bold magenta]")
         print(
             f"[bold magenta]Note 3: Make sure that the (1. Add Fav Info) update for FAV data has been executed.[/bold magenta]")
-        time.sleep(1)
+        time.sleep(0.5)
+
+        loc_gid = []
+
+        check_zip = input("是否检测zip文件是否损坏? y/n\nCheck if the zip file is corrupted? y/n\n")
+
+        if check_zip.lower() == 'y':
+            logger.info(f"check loc file...")
+            loc_gid = self.check_loc_file()
 
         favcat = int(input("请输入你需要下载的收藏夹ID(0-9)\nPlease enter the collection you want to download.:"))
 
         dl_list = []
 
         with sqlite3.connect(self.dbs_name) as co:
-            loc_gid = self.check_loc_file()
             gid_condition = ','.join(['?' for _ in loc_gid])
             # ce = co.execute(f'SELECT gid, token, title, title_jpn FROM fav WHERE gid = 1249409')
-
             ce = co.execute(
-                f'SELECT gid, token, title, title_jpn FROM fav WHERE a_state=0 AND gid in (SELECT gid FROM fav_category WHERE fav_id = {favcat} AND gid NOT IN ({gid_condition}))',
+                f'SELECT gid, token, title, title_jpn FROM fav WHERE a_status=0 AND gid in (SELECT gid FROM fav_category WHERE fav_id = {favcat} AND gid NOT IN ({gid_condition}))',
                 loc_gid)
 
             for i in ce.fetchall():
                 title = i[3] if i[3] else i[2]
                 dl_list.append([i[0], i[1], title])
 
-            logger.info(f"total download list(len: {len(dl_list)}):{json.dumps(dl_list, indent=4, ensure_ascii=False)}")
+            logger.info(f"total download list:{json.dumps(dl_list, indent=4, ensure_ascii=False)}")
 
-            favcat_check = input(f"Press Enter to confirm")
+            favcat_check = input(f"(len: {len(dl_list)})Press Enter to confirm\n")
             if favcat_check != "":
                 print("Cancel")
                 sys.exit(1)
 
         for j in dl_list:
             dl_url = self.search_download_url(j[0], j[1])
+            time.sleep(2)
 
             if dl_url is False:
                 logger.warning(f"⚠️ not found: https://{self.base_url}/g/{j[0]}/{j[1]}/")
@@ -139,9 +165,10 @@ class DownloadArchiveGallery(Config):
                 continue
             else:
                 with sqlite3.connect(self.dbs_name) as co:
-                    co.execute(f'UPDATE fav SET a_state=1 WHERE gid={j[0]}')
+                    co.execute(f'UPDATE fav SET a_status=1 WHERE gid={j[0]}')
                     co.commit()
                 logger.info(f"https://{self.base_url}/g/{j[0]}/{j[1]}/, download OK")
+            time.sleep(2)
 
         # with self.request.stream("GET", dl_url, timeout=10) as response:
         #     if response.status_code == 200:

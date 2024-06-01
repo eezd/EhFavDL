@@ -89,6 +89,7 @@ class AddFavData(Config):
         logger.info(f'[Running] Add Favorite gid and token...')
 
         fav_id = 0
+        all_gid = []
         next_gid = None
 
         while fav_id < 10:
@@ -109,6 +110,7 @@ class AddFavData(Config):
                 for item_data in search_data[0]:
                     fav_data.append((int(item_data['gid']), item_data['token']))
                     fav_category_data.append((int(item_data['gid']), fav_id))
+                    all_gid.append(int(item_data['gid']))
 
             with sqlite3.connect(self.dbs_name) as co:
                 co.executemany(
@@ -118,7 +120,7 @@ class AddFavData(Config):
                 co.commit()
 
                 co.executemany(
-                    'INSERT OR IGNORE INTO fav_category(gid, fav_id) VALUES (?,?)',
+                    'INSERT OR REPLACE INTO fav_category(gid, fav_id) VALUES (?,?)',
                     fav_category_data)
 
                 co.commit()
@@ -133,6 +135,8 @@ class AddFavData(Config):
         with sqlite3.connect(self.dbs_name) as co:
             count = co.execute('SELECT COUNT(*) FROM fav').fetchone()
         logger.info(f'[OK] Add Favorite gid and token, A Total Of: {count}...')
+
+        return all_gid
 
     def post_eh_api(self, json):
         """
@@ -213,7 +217,7 @@ class AddFavData(Config):
                     co.commit()
         logger.info(f'[OK] Get tags...')
 
-    def checkout_local_state(self):
+    def checkout_local_status(self):
         """
         防止当数据库被删除时重复下载图片
 
@@ -253,18 +257,42 @@ class AddFavData(Config):
 
             if int(local_pages) == int(db_pages):
                 with sqlite3.connect(self.dbs_name) as co:
-                    co.execute(f'UPDATE fav SET state = 2 WHERE gid = {gid}')
+                    co.execute(f'UPDATE fav SET status = 2 WHERE gid = {gid}')
                     co.commit()
 
         logger.info('[OK] Checkout Local Data State...')
+
+    def check_eh_null_data(self, all_gid):
+        """
+        该方法会检测在 EH Fav 不存在的数据, 然后删除 fav_category 中匹配数据
+        This method will detect data that does not exist in EH Fav and then delete the matching data in fav_category.
+        """
+        logger.info('[Running] Checkout EH Fav AND sqlite data...')
+
+        with sqlite3.connect(self.dbs_name) as co:
+            co = co.execute(f'SELECT gid,token,title FROM fav')
+            db_gid = co.fetchall()
+
+        for i in db_gid:
+            if int(i[0]) not in all_gid:
+                with sqlite3.connect(self.dbs_name) as co:
+                    co.execute(f'DELETE FROM fav_category WHERE gid = {i[0]}')
+                    co.commit()
+
+                    logger.warning(f"fav_category delete >>> gid: {i[0]}, token: {i[1]}, title: {i[2]}")
+        logger.info('[OK] Checkout EH Fav AND sqlite data...')
 
     def apply(self):
         self.update_category()
 
         # 先获取 gid 和 token
         # First, obtain gid and token.
-        self.add_fav_data()
+        all_gid = self.add_fav_data()
 
         # 再根据数据库的 gid 和 token, 通过 EH API 获取剩余信息
         # Retrieve additional information based on the database's gid and token using the EH API.
         self.add_tags_data()
+
+        # 该方法会检测在 EH Fav 不存在的数据, 然后删除 fav_category 中匹配数据
+        # This method will detect data that does not exist in EH Fav and then delete the matching data in fav_category.
+        self.check_eh_null_data(all_gid)

@@ -29,9 +29,7 @@ def main():
         add_fav_data = AddFavData()
 
         if num == 1:
-            add_fav_data.update_category()
-            add_fav_data.add_fav_data()
-            add_fav_data.add_tags_data()
+            add_fav_data.apply()
         elif num == 2:
             add_fav_data.update_category()
             add_fav_data.add_tags_data(True)
@@ -53,5 +51,14 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
-# DownloadArchiveGallery().update_archive_state()
+
+# check = Checker()
+# check.update_local_to_sqlite_status()
+
+# with sqlite3.connect(Config().dbs_name) as co:
+#     for root, dirs, files in os.walk(r"E:\Hso\exhentaiDL\data\archive"):
+#         for file in files:
+#             gid = int(file.split('-')[0])
+#             query = co.execute(f'SELECT gid FROM fav_category WHERE gid={gid} AND fav_id = 2').fetchone()
+#             if query is None:
+#                 logger.warning(f"sqlite no gid:{gid}, file:{file}")

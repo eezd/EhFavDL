@@ -70,11 +70,9 @@ class Config:
         #     logger.error(e)
         #     sys.exit(1)
 
-        request = httpx.Client(headers=headers, proxies=proxy_list, cookies=httpx_cookies)
-
         self.dbs_name = dbs_name
         self.base_url = base_url
-        self.request = request
+        self.request = httpx.Client(headers=headers, proxies=proxy_list, cookies=httpx_cookies)
         self.work_path = work_path
         self.data_path = data_path
         self.connect_limit = connect_limit
@@ -100,8 +98,8 @@ class Config:
                 "pages" INTEGER /*页数*/,
                 "rating" TEXT /*评分*/,
                 "ban" INTEGER NOT NULL DEFAULT 0/*版权*/,
-                "state" INTEGER NOT NULL DEFAULT 0 /*状态, 0默认 1已下载*/,
-                "a_state" INTEGER NOT NULL DEFAULT 0 /*Archive状态, 0默认 1已下载*/,
+                "status" INTEGER NOT NULL DEFAULT 0 /*状态, 0默认 1已下载*/,
+                "a_status" INTEGER NOT NULL DEFAULT 0 /*Archive状态, 0默认 1已下载*/,
                 "tags" TEXT /*标签*/
             )''')
 
@@ -120,7 +118,7 @@ class Config:
             co.commit()
 
             try:
-                co.execute("ALTER TABLE fav ADD COLUMN a_state INTEGER NOT NULL DEFAULT 0;")
+                co.execute("ALTER TABLE fav ADD COLUMN a_status INTEGER NOT NULL DEFAULT 0;")
                 co.commit()
             except Exception as e:
                 if str(e).find("duplicate column name") != -1:
