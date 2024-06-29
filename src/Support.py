@@ -183,8 +183,17 @@ class Support(Config):
                 fav_info = co.fetchone()
 
                 if fav_info is None:
-                    logger.warning(f"The ID does not exist>> {gid}")
-                    continue
+                    co = co.execute(
+                        f'SELECT f.gid,f.token,f.title,f.title_jpn,f.category,f.posted,f.pages,f.tags FROM fav AS f WHERE f.gid="{gid}"')
+                    fav_info = co.fetchone()
+
+                    if fav_info is None:
+                        logger.warning(f"The ID does not exist>> {gid}")
+                        continue
+                    else:
+                        fav_info = fav_info + ("no_category",)
+                        logger.warning(
+                            f"The data does not exist in fav_category, but it exists in fav. The data has been written.>> {gid}")
 
                 token = str(fav_info[1])
 
