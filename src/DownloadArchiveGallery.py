@@ -97,10 +97,10 @@ class DownloadArchiveGallery(Config):
                         return False
             except (RemoteProtocolError, Exception) as e:
                 if attempt < retry_attempts - 1:
-                    print(f"Attempt {attempt + 1} failed. Retrying in {retry_delay} seconds...({filename})")
+                    logger.warning(f"Attempt {attempt + 1} failed. Retrying in {retry_delay} seconds...({filename})")
                     time.sleep(retry_delay)
                 else:
-                    print(f"Download failed after {retry_attempts} attempts.({filename})")
+                    logger.warning(f"Download failed after {retry_attempts} attempts.({filename})")
                     sys.exit(1)
                     # return False
 
