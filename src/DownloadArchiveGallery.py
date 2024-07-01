@@ -1,3 +1,4 @@
+import copy
 import sys
 import zipfile
 from urllib.parse import urlsplit
@@ -46,7 +47,7 @@ class DownloadArchiveGallery(Config):
         file_url = os.path.join(sub_path, filename)
         os.makedirs(sub_path, exist_ok=True)
         file_size = 0  # Initialize file_size to 0
-        headers = self.request_hearders
+        headers = copy.deepcopy(self.request_hearders)
 
         retry_attempts = 5  # Number of retry attempts
         retry_delay = 5  # Delay in seconds between retries
@@ -56,22 +57,35 @@ class DownloadArchiveGallery(Config):
                 if os.path.exists(file_url):
                     # If the file exists, determine the size and resume from where it left off
                     file_size = os.path.getsize(file_url)
-                    headers = self.request_hearders.update({'Range': f'bytes={file_size}-'})
+                    headers.update({'Range': f'bytes={file_size}-'})
+                    mode = 'ab'  # Append to existing file
+                else:
+                    mode = 'wb'  # Write new file
 
                 with self.request.stream("GET", dl_url, headers=headers, timeout=10) as response:
                     if response.status_code == 200 or response.status_code == 206:  # 206 indicates partial content
                         total_size = int(response.headers.get("Content-Length", 0)) + file_size
                         block_size = 1024
-
                         with tqdm(total=total_size, initial=file_size, unit="B", unit_scale=True) as progress_bar:
-                            with open(file_url, 'wb') as file:
+                            with open(file_url, mode) as file:
                                 for data in response.iter_raw(block_size):
                                     file.write(data)
-                                    file.flush()
                                     progress_bar.update(len(data))
 
                         if total_size != 0 and progress_bar.n != total_size:
                             raise RuntimeError("Could not download file")
+
+                        try:
+                            with zipfile.ZipFile(file_url, 'r') as zip_file:
+                                zip_file.testzip()
+                        except zipfile.BadZipFile:
+                            logger.error(f"检测到压缩包损坏, 请删除文件: {file_url}")
+                            logger.error(f"Detected a corrupted archive. Please delete the file.: {file_url}")
+                            return False
+                        except OSError as e:
+                            logger.error(f"检测到压缩包损坏, 请删除文件: {file_url}")
+                            logger.error(f"Detected a corrupted archive. Please delete the file.: {file_url}")
+                            return False
 
                         return True
                     else:
@@ -79,6 +93,7 @@ class DownloadArchiveGallery(Config):
                         if "IP quota exhausted" in content:
                             logger.warning("IP quota exhausted.")
                             sys.exit(1)
+                        logger.error(f'{content}: {filename}')
                         return False
             except (RemoteProtocolError, Exception) as e:
                 if attempt < retry_attempts - 1:
@@ -108,6 +123,10 @@ class DownloadArchiveGallery(Config):
                                 if len(file.split(".zip")) != 1:
                                     loc_gid.append(file.split("-")[0])
                     except zipfile.BadZipFile:
+                        logger.error(f"检测到压缩包损坏, 请删除文件: {file_path}")
+                        logger.error(f"Detected a corrupted archive. Please delete the file.: {file_path}")
+                        status = 1
+                    except OSError as e:
                         logger.error(f"检测到压缩包损坏, 请删除文件: {file_path}")
                         logger.error(f"Detected a corrupted archive. Please delete the file.: {file_path}")
                         status = 1
