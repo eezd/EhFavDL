@@ -3,6 +3,7 @@ import zipfile
 from urllib.parse import urlsplit
 
 from bs4 import BeautifulSoup
+from httpx import RemoteProtocolError
 from rich import print, json
 from tqdm import tqdm
 
@@ -40,30 +41,53 @@ class DownloadArchiveGallery(Config):
         return dl_url
 
     def download_file(self, dl_url, filename):
-        with self.request.stream("GET", dl_url, timeout=5) as response:
-            if response.status_code == 200:
-                total_size = int(response.headers.get("Content-Length"))
-                block_size = 1024
-                # sub_path = os.path.join(self.data_path, 'temp', str(self.gid) + '-' + self.title)
-                sub_path = os.path.join(self.data_path, folder)
-                os.makedirs(sub_path, exist_ok=True)
+        filename = windows_escape(filename)
+        sub_path = os.path.join(self.data_path, folder)
+        file_url = os.path.join(sub_path, filename)
+        os.makedirs(sub_path, exist_ok=True)
+        file_size = 0  # Initialize file_size to 0
+        headers = self.request_hearders
 
-                with tqdm(total=total_size, unit="B", unit_scale=True) as progress_bar:
-                    with open(os.path.join(sub_path, filename), "wb") as file:
-                        for data in response.iter_raw(block_size):
-                            progress_bar.update(len(data))
-                            file.write(data)
+        retry_attempts = 5  # Number of retry attempts
+        retry_delay = 5  # Delay in seconds between retries
 
-                if total_size != 0 and progress_bar.n != total_size:
-                    raise RuntimeError("Could not download file")
+        for attempt in range(retry_attempts):
+            try:
+                if os.path.exists(file_url):
+                    # If the file exists, determine the size and resume from where it left off
+                    file_size = os.path.getsize(file_url)
+                    headers = self.request_hearders.update({'Range': f'bytes={file_size}-'})
 
-                return True
-            else:
-                content = response.read().decode('utf-8')
-                if "IP quota exhausted" in content:
-                    logger.warning("IP quota exhausted.")
+                with self.request.stream("GET", dl_url, headers=headers, timeout=10) as response:
+                    if response.status_code == 200 or response.status_code == 206:  # 206 indicates partial content
+                        total_size = int(response.headers.get("Content-Length", 0)) + file_size
+                        block_size = 1024
+
+                        with tqdm(total=total_size, initial=file_size, unit="B", unit_scale=True) as progress_bar:
+                            with open(file_url, 'wb') as file:
+                                for data in response.iter_raw(block_size):
+                                    file.write(data)
+                                    file.flush()
+                                    progress_bar.update(len(data))
+
+                        if total_size != 0 and progress_bar.n != total_size:
+                            raise RuntimeError("Could not download file")
+
+                        return True
+                    else:
+                        content = response.read().decode('utf-8')
+                        if "IP quota exhausted" in content:
+                            logger.warning("IP quota exhausted.")
+                            sys.exit(1)
+                        return False
+            except (RemoteProtocolError, Exception) as e:
+                if attempt < retry_attempts - 1:
+                    print(f"Attempt {attempt + 1} failed. Retrying in {retry_delay} seconds...({filename})")
+                    time.sleep(retry_delay)
+                else:
+                    print(f"Download failed after {retry_attempts} attempts.({filename})")
                     sys.exit(1)
-                return False
+                    # return False
 
     def check_loc_file(self):
         directory = os.path.join(self.data_path, folder)
@@ -122,7 +146,7 @@ class DownloadArchiveGallery(Config):
 
         check_zip = input("是否检测zip文件是否损坏? y/n\nCheck if the zip file is corrupted? y/n\n")
 
-        if check_zip.lower() == 'y':
+        if check_zip.lower() != 'n':
             logger.info(f"check loc file...")
             loc_gid = self.check_loc_file()
 
@@ -157,8 +181,7 @@ class DownloadArchiveGallery(Config):
                 continue
             else:
                 logger.info(f"https://{self.base_url}/g/{j[0]}/{j[1]}/, dl_url={dl_url}")
-
-            dl_status = self.download_file(dl_url, str(j[0]) + "-" + str(j[2]) + ".zip")
+            dl_status = self.download_file(dl_url, str(j[0]) + "-" + windows_escape(str(j[2])) + ".zip")
 
             if dl_status is False:
                 logger.warning(f"⚠️ download failed: https://{self.base_url}/g/{j[0]}/{j[1]}/")

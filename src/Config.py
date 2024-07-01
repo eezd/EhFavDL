@@ -73,6 +73,7 @@ class Config:
         self.dbs_name = dbs_name
         self.base_url = base_url
         self.request = httpx.Client(headers=headers, proxies=proxy_list, cookies=httpx_cookies)
+        self.request_hearders = headers
         self.work_path = work_path
         self.data_path = data_path
         self.connect_limit = connect_limit
