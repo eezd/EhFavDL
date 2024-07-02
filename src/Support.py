@@ -248,7 +248,10 @@ class Support(Config):
             sys.exit(1)
 
         for sub_archives in all_archives:
-            gid = int(str(sub_archives['title']).split('-')[0])
+            try:
+                gid = int(str(sub_archives['title']).split('-')[0])
+            except ValueError:
+                gid = int(str(sub_archives['filename']).split('-')[0])
             loc_page_count = int(sub_archives['pagecount'])
 
             for db_tags in db_data:

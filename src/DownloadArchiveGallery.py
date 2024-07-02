@@ -4,7 +4,7 @@ import zipfile
 from urllib.parse import urlsplit
 
 from bs4 import BeautifulSoup
-from httpx import RemoteProtocolError
+from httpx import RemoteProtocolError, ReadTimeout, WriteTimeout, ConnectTimeout
 from rich import print, json
 from tqdm import tqdm
 
@@ -20,26 +20,41 @@ class DownloadArchiveGallery(Config):
         super().__init__()
 
     def search_download_url(self, gid, token):
-        hx_res = self.request.get(f"https://{self.base_url}/g/{gid}/{token}", timeout=10)
-        page_data = BeautifulSoup(hx_res, 'html.parser')
-        archive_url = page_data.select_one('.g2.gsp a')
-        if archive_url is None:
-            return False
-        archive_url = archive_url['onclick'].split("'")[1].replace("--", "-")
+        retry_attempts = 5  # Number of retry attempts
+        retry_delay = 5  # Delay in seconds between retries
 
-        hx_res = self.request.post(archive_url, data={"dltype": "org", "dlcheck": "Download+Original+Archive"},
-                                   timeout=5)
-        page_data = BeautifulSoup(hx_res, 'html.parser')
-        archive_url = page_data.select_one('#continue a')['href']
+        for attempt in range(retry_attempts):
+            try:
+                hx_res = self.request.get(f"https://{self.base_url}/g/{gid}/{token}", timeout=10)
+                page_data = BeautifulSoup(hx_res, 'html.parser')
+                archive_url = page_data.select_one('a[onclick*="archiver.php"]')
+                if archive_url is None:
+                    return False
+                archive_url = archive_url['onclick'].split("'")[1].replace("--", "-")
 
-        dl_site = urlsplit(archive_url).netloc
+                hx_res = self.request.post(archive_url, data={"dltype": "org", "dlcheck": "Download+Original+Archive"},
+                                           timeout=10)
+                page_data = BeautifulSoup(hx_res, 'html.parser')
+                archive_url = page_data.select_one('#continue a')['href']
 
-        hx_res = self.request.get(archive_url, timeout=5)
-        page_data = BeautifulSoup(hx_res, 'html.parser')
-        archive_url = page_data.select_one('a')['href']
+                dl_site = urlsplit(archive_url).netloc
 
-        dl_url = f"https://{dl_site}{archive_url}"
-        return dl_url
+                hx_res = self.request.get(archive_url, timeout=10)
+                page_data = BeautifulSoup(hx_res, 'html.parser')
+                archive_url = page_data.select_one('a')['href']
+
+                dl_url = f"https://{dl_site}{archive_url}"
+                return dl_url
+            except (ReadTimeout, WriteTimeout, ConnectTimeout):
+                if attempt < retry_attempts - 1:
+                    logger.warning(
+                        f"Attempt {attempt + 1} failed. Retrying in {retry_delay} seconds...(search_download_url(): https://{self.base_url}/g/{gid}/{token})")
+                    time.sleep(retry_delay)
+                else:
+                    logger.warning(
+                        f"search_download_url {retry_attempts} attempts.(search_download_url(): https://{self.base_url}/g/{gid}/{token})")
+                    sys.exit(1)
+                    # return False
 
     def download_file(self, dl_url, filename):
         filename = windows_escape(filename)
