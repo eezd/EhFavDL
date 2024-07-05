@@ -154,7 +154,7 @@ After completing the installation steps above, some users may still be unsure ho
 
 - Best practice: You can now use the 'Favorites' feature of `eh` to categorize galleries, starting from version `>=1.1.2`.
 
-![image-lan-fav](.\image-lan-fav.png)
+![img-lan-fav](img-lan-fav.png)
 
 
 
