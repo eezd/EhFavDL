@@ -1,13 +1,20 @@
 import concurrent.futures
+import os
+import shutil
+import sqlite3
 
 from bs4 import BeautifulSoup
-from rich.progress import Progress
+from loguru import logger
+from tqdm import tqdm
 
 from .Config import Config
 from .common import *
 
+# 下载路径为: data_path + "web"
+folder = "web"
 
-class DownloadGallery(Config):
+
+class DownloadWebGallery(Config):
 
     def __init__(self, gid, token, title):
         super().__init__()
@@ -19,8 +26,14 @@ class DownloadGallery(Config):
         # invalid format name
         self.title = windows_escape(title)
 
+        # 临时路径 (当前是文件夹形式)
+        self.filepath_tmp = os.path.join(self.data_path, folder, 'temp', str(self.gid) + '-' + self.title + "-1280x")
+        # 最终路径
+        self.filepath_end = os.path.join(self.data_path, folder, str(self.gid) + '-' + self.title + "-1280x")
+
         self.long_url = f"https://{self.base_url}/g/{self.gid}/{self.token}/"
 
+    @logger.catch()
     def download_image(self, url, file_name, index):
         """
         下载图片保存到本地 / Download pictures and save them locally
@@ -40,9 +53,8 @@ class DownloadGallery(Config):
         try:
             with self.request.stream("GET", url, timeout=10) as response:
                 if response.status_code == 200:
-                    sub_path = os.path.join(self.data_path, 'temp', str(self.gid) + '-' + self.title)
-                    os.makedirs(sub_path, exist_ok=True)
-                    with open(os.path.join(sub_path, file_name), "wb") as file:
+                    os.makedirs(self.filepath_tmp, exist_ok=True)
+                    with open(os.path.join(self.filepath_tmp, file_name), "wb") as file:
                         for chunk in response.iter_raw():
                             file.write(chunk)
                     return "OK"
@@ -51,6 +63,7 @@ class DownloadGallery(Config):
         except Exception as exc:
             return [file_name, index]
 
+    @logger.catch()
     def get_real_url_download(self, url, index):
         """
         获取图片真实地址, 调用 download_image() 下载
@@ -70,6 +83,7 @@ class DownloadGallery(Config):
             # return [file_name, index]
             return self.get_real_url_download(url, index)
 
+    @logger.catch()
     def get_image_url(self, err_id=None):
         """
         获取图片第一层地址
@@ -88,14 +102,19 @@ class DownloadGallery(Config):
 
             page_data = BeautifulSoup(hx_res, 'html.parser')
 
+            # 判断是否被版权
+            copyright_msg = page_data.select_one('.d p')
+            if copyright_msg is not None:
+                if copyright_msg.find('copyright') != -1:
+                    return "copyright"
+
             # 获取总页码 / Get the total page number
             ptb = page_data.select_one('.ptb td:nth-last-child(2)')
 
             if ptb is None:
-                with sqlite3.connect(self.dbs_name) as co:
-                    co.execute(f'UPDATE fav SET ban = 1 WHERE gid = {self.gid}')
-                    co.commit()
-                return "BAN"
+                logger.warning(f"Recall after waiting 5 seconds >>> page number is None >>> {self.long_url}")
+                time.sleep(5)
+                return self.get_image_url(err_id)
 
             ptb = ptb.get_text()
             ptb = int(ptb) - 1
@@ -113,8 +132,9 @@ class DownloadGallery(Config):
                         page_data = self.request.get(f"{self.long_url}?p={sub_ptb}")
                         page_data = BeautifulSoup(page_data, 'html.parser')
                     except Exception as exc:
+                        logger.warning(exc)
                         logger.warning(
-                            f"Recall after waiting 5 seconds >>> (while sub_ptb) get_image_url({self.long_url})")
+                            f"Recall after waiting 5 seconds >>> get_image_url({self.long_url})")
                         time.sleep(5)
                         self.get_image_url(err_id)
 
@@ -141,10 +161,12 @@ class DownloadGallery(Config):
             return page_img_url
 
         except Exception as exc:
+            logger.warning(exc)
             logger.warning(f"Recall after waiting 5 seconds >>> get_image_url()>>>{self.long_url}")
             time.sleep(5)
             return self.get_image_url(err_id)
 
+    @logger.catch()
     def download(self, page_img_url):
         """
         多线程调用下载图片
@@ -158,23 +180,19 @@ class DownloadGallery(Config):
         ]
         """
 
-        with Progress() as progress:
-            download_task = progress.add_task("[cyan]Download", total=len(page_img_url))
-
+        with tqdm(total=len(page_img_url)) as progress_bar:
             with concurrent.futures.ThreadPoolExecutor(max_workers=int(self.connect_limit)) as executor:
                 futures = [executor.submit(self.get_real_url_download, _p[0], _p[1]) for _p in page_img_url]
 
-                while not progress.finished:
-                    # 更新进度条
-                    # update progress bar
-                    completed_count = sum(future.done() for future in futures)
-                    progress.update(download_task, completed=completed_count)
+                for future in concurrent.futures.as_completed(futures):
+                    progress_bar.update(1)
 
         concurrent.futures.wait(futures)
         data = [future.result() for future in futures if future.result() is not None]
 
         return data
 
+    @logger.catch()
     def check_download(self, download_status):
         """
         判断全部图片是否成功下载, 否则再次重新下载失败的图片.
@@ -205,50 +223,54 @@ class DownloadGallery(Config):
 
             return self.check_download(aaa)
         else:
-            old_path = os.path.join(self.data_path, 'temp', str(self.gid) + '-' + self.title)
-            new_path = os.path.join(self.data_path, str(self.gid) + '-' + self.title)
+            # old_path = os.path.join(self.data_path, folder, 'temp', str(self.gid) + '-' + self.title)
+            # new_path = os.path.join(self.data_path, folder, str(self.gid) + '-' + self.title)
 
             # 判断 new_path 是否存在文件夹
             # # Determine whether there is a folder in new_path
             check_dir = None
-            if os.path.isdir(new_path):
+            if os.path.isdir(self.filepath_end):
                 logger.warning("Directory already exists, Whether to delete the overlay? Y/N")
-                logger.warning(f"{old_path}>>>{new_path}")
+                logger.warning(f"{self.filepath_tmp}>>>{self.filepath_end}")
 
                 while check_dir is None:
                     check_dir = input()
                     if check_dir.lower() == "n":
                         logger.warning("[OK] skip coverage")
                     elif check_dir.lower() == "y":
-                        shutil.rmtree(new_path)
-                        shutil.move(old_path, new_path)
+                        shutil.rmtree(self.filepath_end)
+                        shutil.move(self.filepath_tmp, self.filepath_end)
                         logger.warning("[OK] del and coverage")
                     else:
                         check_dir = None
 
             else:
-                shutil.move(old_path, new_path)
+                shutil.move(self.filepath_tmp, self.filepath_end)
 
             with sqlite3.connect(self.dbs_name) as co:
-                co.execute(f'UPDATE fav SET status = 1 WHERE gid = {self.gid}')
+                co.execute(f'UPDATE fav_category SET web_1280x_flag = 1 WHERE gid = {self.gid}')
                 co.commit()
 
             return True
 
+    @logger.catch()
     def apply(self):
-
-        logger.info(f"[Running] Ready To Download: {self.long_url}")
+        logger.info(f"Download Web Gallery...: {self.long_url}")
 
         img_url_res = self.get_image_url()
 
-        if img_url_res == "BAN":
-            logger.warning(f'Has Been Banned: {self.long_url}')
+        if img_url_res == "copyright":
+            logger.warning(
+                f"This gallery is unavailable due to a copyright claim. {self.long_url}    {self.title}")
+            with sqlite3.connect(self.dbs_name) as co:
+                co.execute(f'UPDATE eh_data SET copyright_flag=1 WHERE gid={self.gid}')
+                co.commit()
             return False
 
         dl = self.download(img_url_res)
         cd = self.check_download(dl)
 
         if cd:
-            logger.info(f"[OK] Ready To Download: {self.long_url}")
+            logger.info(f"OK: {self.long_url}")
         else:
             logger.warning(f"check_download() return False: {self.long_url}")

@@ -1,9 +1,9 @@
+import sqlite3
 import sys
 
 import httpx
 import yaml
-
-from .common import *
+from loguru import logger
 
 
 class Config:
@@ -73,7 +73,7 @@ class Config:
         self.dbs_name = dbs_name
         self.base_url = base_url
         self.request = httpx.Client(headers=headers, proxies=proxy_list, cookies=httpx_cookies)
-        self.request_hearders = headers
+        self.request_headers = headers
         self.work_path = work_path
         self.data_path = data_path
         self.connect_limit = connect_limit
@@ -81,27 +81,25 @@ class Config:
         self.lan_api_psw = lan_api_psw
 
     def create_database(self):
-        """
-        创建数据库
-        create database
-        """
         with sqlite3.connect(self.dbs_name) as co:
             co.execute('''
-            CREATE TABLE IF NOT EXISTS "fav" (
+            CREATE TABLE IF NOT EXISTS "eh_data" (
                 "gid" INTEGER PRIMARY KEY NOT NULL,
-                "token" TEXT,
+                "token" TEXT NOT NULL,
                 "title" TEXT,
                 "title_jpn" TEXT,
                 "category" TEXT /*分类*/,
                 "thumb" TEXT /*封面 URL*/,
                 "uploader" TEXT /*上传者*/,
                 "posted" TEXT /*发布时间*/,
-                "pages" INTEGER /*页数*/,
+                "filecount" INTEGER /*页数*/,
+                "filesize" INTEGER /*大小*/,
+                "expunged" INTEGER NOT NULL DEFAULT 0 /*是否被隐藏*/,
+                "copyright_flag" INTEGER NOT NULL DEFAULT 0 /*是否被版权*/,
                 "rating" TEXT /*评分*/,
-                "ban" INTEGER NOT NULL DEFAULT 0/*版权*/,
-                "status" INTEGER NOT NULL DEFAULT 0 /*状态, 0默认 1已下载*/,
-                "a_status" INTEGER NOT NULL DEFAULT 0 /*Archive状态, 0默认 1已下载*/,
-                "tags" TEXT /*标签*/
+                "tags" TEXT /*标签*/,
+                "current_gid" INTEGER /*画廊最新gid*/,
+                "current_token" TEXT /*画廊最新token*/
             )''')
 
             co.execute('''
@@ -113,16 +111,11 @@ class Config:
             co.execute('''
             CREATE TABLE IF NOT EXISTS "fav_category" (
               "gid" INTEGER PRIMARY KEY NOT NULL,
-              "fav_id" INT NOT NULL /*收藏夹*/
+              "token" TEXT NOT NULL,
+              "fav_id" INTEGER NOT NULL,
+              "del_flag" INTEGER NOT NULL DEFAULT 0 /* 是否已被移除收藏夹 */,
+              "original_flag" INTEGER NOT NULL DEFAULT 0 /* 1表示 通过archiver中original选择下载原图*/,
+              "web_1280x_flag" INTEGER NOT NULL DEFAULT 0 /* 1表示 通过网页画廊下载/通过archiver中Resample选项下载*/
             )''')
 
             co.commit()
-
-            try:
-                co.execute("ALTER TABLE fav ADD COLUMN a_status INTEGER NOT NULL DEFAULT 0;")
-                co.commit()
-            except Exception as e:
-                if str(e).find("duplicate column name") != -1:
-                    pass
-                else:
-                    raise

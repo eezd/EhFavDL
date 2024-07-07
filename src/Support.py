@@ -1,10 +1,14 @@
 import base64
 import os.path
+import shutil
+import sqlite3
 import sys
 import zipfile
 from datetime import datetime
 
 import httpx
+from loguru import logger
+from tqdm import tqdm
 
 from .Config import Config
 from .common import *
@@ -15,6 +19,7 @@ class Support(Config):
     def __init__(self):
         super().__init__()
 
+    @logger.catch()
     def create_zip(self, directory_path, zip_file_path):
         """
         创建一个ZIP文件
@@ -28,24 +33,29 @@ class Support(Config):
                     # Using os.path.relpath() to get the file path relative to a directory.
                     zipf.write(file_path, os.path.relpath(file_path, directory_path))
 
+    @logger.catch()
     def directory_to_zip(self):
-        """
-        压缩成ZIP
-        """
-        logger.info(f'[Running] ZIP ...')
+        logger.info(f'Create ZIP ...')
+        path_list = []
         for i in os.listdir(self.data_path):
             if i.find('-') == -1 or os.path.isfile(os.path.join(self.data_path, i)):
                 continue
+            path_list.append([os.path.join(self.data_path, i), os.path.join(self.data_path, i + ".zip")])
 
-            self.create_zip(os.path.join(self.data_path, i), os.path.join(self.data_path, i + ".zip"))
-        logger.info(f'[OK] ZIP ...')
+        logger.info(f'Total {len(path_list)}...')
 
-    def format_zip_file_name(self):
+        with tqdm(total=len(path_list)) as progress_bar:
+            for i in path_list:
+                self.create_zip(i[0], i[1])
+                progress_bar.update(1)
+        logger.info(f'[OK] Create ZIP')
+
+    @logger.catch()
+    def rename_zip_file(self):
         """
-        格式化ZIP文件
-        Format the ZIP file, intercept the part when the length is greater than 95
+        重命名  (gid-name.zip) OR (gid-name-1280x.zip)  ZIP文件
+        Rename the ZIP file (gid-name.zip) OR (gid-name-1280x.zip).
         """
-        logger.info(f'[Running] Format the ZIP file ...')
         for i in os.listdir(self.data_path):
             if i.find('-') == -1 or os.path.isdir(os.path.join(self.data_path, i)):
                 continue
@@ -55,17 +65,29 @@ class Support(Config):
 
             new_i = i.replace(".zip", "")
 
-            if len(str(base64.b64encode(new_i.encode('utf-8')))) > 300:
-                while len(str(base64.b64encode(new_i.encode('utf-8')))) > 300:
-                    new_i = new_i[:-1]
-                shutil.move(os.path.join(self.data_path, i), os.path.join(self.data_path, new_i + ".zip"))
-                logger.info(i, ">>>>>>", new_i + ".zip")
-            elif len(new_i) > 120:
-                new_i = new_i[:120]
-                shutil.move(os.path.join(self.data_path, i), os.path.join(self.data_path, new_i + ".zip"))
-                logger.info(i, ">>>>>>", new_i + ".zip")
-        logger.info(f'[OK] Format the ZIP file ...')
+            # -1280x
+            web_1280x_flag = False
+            if new_i.find("-1280X") != -1 or new_i.find("-1280x") != -1:
+                new_i = new_i.replace("-1280x", "")
+                new_i = new_i.replace("-1280X", "")
+                web_1280x_flag = True
 
+            base64_max_len = 280
+
+            if len(str(base64.b64encode(new_i.encode('utf-8')))) > base64_max_len or len(new_i) > 114:
+                while len(str(base64.b64encode(new_i.encode('utf-8')))) > base64_max_len:
+                    new_i = new_i[:-1]
+                if len(new_i) > 114:
+                    new_i = new_i[:114]
+                new_name = new_i + (".zip" if not web_1280x_flag else "-1280x.zip")
+                shutil.move(os.path.join(self.data_path, i), os.path.join(self.data_path, new_name))
+                logger.info(F"\nold_name: {i} \n new_name: {new_name} \n")
+            elif web_1280x_flag and "-1280X" in i:
+                new_name = i.replace("-1280X", "-1280x")
+                shutil.move(os.path.join(self.data_path, i), os.path.join(self.data_path, new_name))
+                logger.info(F"\nold_name: {i} \n new_name: {new_name} \n")
+
+    @logger.catch()
     def create_xml(self):
         logger.info(f'[Running] Create ComicInfo.xml')
 
@@ -80,7 +102,7 @@ class Support(Config):
             gid = int(str(i).split('-')[0])
 
             with sqlite3.connect(self.dbs_name) as co:
-                co = co.execute(f'SELECT title,category,posted,tags,token FROM fav WHERE gid="{gid}"')
+                co = co.execute(f'SELECT title,category,posted,tags,token FROM eh_data WHERE gid="{gid}"')
                 db_data = co.fetchone()
                 if db_data is None:
                     logger.warning(f"The ID does not exist>> {gid}")
@@ -130,6 +152,7 @@ class Support(Config):
 
         logger.info(f'[OK] Create ComicInfo.xml')
 
+    @logger.catch()
     def lan_init_request(self):
         logger.info("请按回车确认你的 LANraragi 地址及密码:")
         logger.info("Please press Enter to confirm your LANraragi address and password.")
@@ -144,7 +167,8 @@ class Support(Config):
                                                                                                                  "")
         return httpx.Client(headers={"Authorization": f"Bearer {authorization_token_base64}"})
 
-    def lan_add_tags(self):
+    @logger.catch()
+    def lan_update_tags(self):
         hx = self.lan_init_request()
         lan_url = self.lan_url
 
@@ -163,104 +187,114 @@ class Support(Config):
             logger.error(f"Please add gallery before adding Tags")
             sys.exit(1)
 
-        with sqlite3.connect(self.dbs_name) as co:
-            for sub_archives in all_archives:
+        with tqdm(total=len(all_archives)) as progress_bar:
+            with sqlite3.connect(self.dbs_name) as co:
+                for sub_archives in all_archives:
+                    try:
+                        gid = re.compile('.*gid:([0-9]*),.*').match(str(sub_archives['tags']))
+                        if gid is not None:
+                            gid = int(gid.group(1))
+                        else:
+                            gid = int(str(sub_archives['title']).split('-')[0])
+                    except ValueError:
+                        logger.warning(
+                            f"The ID does not exist>> arcid: {str(sub_archives['arcid'])}, title: {str(sub_archives['title'])}")
+                        sys.exit(1)
 
-                try:
-                    gid = re.compile('.*gid:([0-9]*),.*').match(str(sub_archives['tags']))
-                    if gid is not None:
-                        gid = int(gid.group(1))
-                    else:
-                        gid = int(str(sub_archives['title']).split('-')[0])
-                except ValueError:
-                    logger.warning(
-                        f"The ID does not exist>> arcid: {str(sub_archives['arcid'])}, title: {str(sub_archives['title'])}")
-                    #
-                    sys.exit(1)
-
-                co = co.execute(
-                    f'SELECT f.gid,f.token,f.title,f.title_jpn,f.category,f.posted,f.pages,f.tags,fn.fav_name FROM fav AS f, fav_category AS fc, fav_name AS fn WHERE f.gid="{gid}" AND fc.gid="{gid}" AND fc.fav_id=fn.fav_id')
-                fav_info = co.fetchone()
-
-                if fav_info is None:
+                    # 根据 gid 查询数据库
                     co = co.execute(
-                        f'SELECT f.gid,f.token,f.title,f.title_jpn,f.category,f.posted,f.pages,f.tags FROM fav AS f WHERE f.gid="{gid}"')
+                        f'SELECT eh.gid,eh.token,eh.title,eh.title_jpn,eh.category,eh.posted,eh.tags,fn.fav_name '
+                        f'FROM eh_data AS eh, fav_category AS fc, fav_name AS fn WHERE eh.gid="{gid}" AND fc.gid="{gid}" '
+                        f'AND fc.fav_id=fn.fav_id')
                     fav_info = co.fetchone()
 
+                    # fav_category表中不存在该 gid , 则在eh_data表中查询↓↓↓
                     if fav_info is None:
-                        logger.warning(f"The ID does not exist>> {gid}")
-                        continue
+                        co = co.execute(
+                            f'SELECT eh.gid,eh.token,eh.title,eh.title_jpn,eh.category,eh.posted,eh.tags FROM eh_data AS eh '
+                            f'WHERE eh.gid="{gid}"')
+                        fav_info = co.fetchone()
+
+                        if fav_info is None:
+                            logger.warning(f"The ID does not exist>> {gid}")
+                            continue
+                        else:
+                            fav_info = fav_info + ("no_category",)
+                            logger.warning(
+                                f"The data does not exist in fav_category, but it exists in eh_data. The data has been "
+                                f"written.>> {gid}")
+
+                    token = str(fav_info[1])
+
+                    # 优先使用 title_jpn 作为标题
+                    # title = str(gid) + "-" + str(fav_info[2])
+                    if fav_info[3] is not None and fav_info[3] != "":
+                        title = str(fav_info[3])
                     else:
-                        fav_info = fav_info + ("no_category",)
-                        logger.warning(
-                            f"The data does not exist in fav_category, but it exists in fav. The data has been written.>> {gid}")
+                        title = str(fav_info[2])
 
-                token = str(fav_info[1])
+                    source = f"exhentai.org/g/{gid}/{token}"
 
-                # title = str(gid) + "-" + str(fav_info[2])
-                if fav_info[3] is not None:
-                    title = str(fav_info[3])
-                else:
-                    title = str(fav_info[2])
+                    category = str(fav_info[4])
 
-                source = f"exhentai.org/g/{gid}/{token}"
+                    # posted = str(datetime.datetime.fromtimestamp(int(db_tags[3]))).split(" ")[0].replace("-", "/")
+                    posted = fav_info[5]
 
-                category = str(fav_info[4])
+                    # 使用 LANraragi 生成的 pages
+                    # https://github.com/Difegue/LANraragi/issues/586
+                    pages = int(sub_archives['pagecount'])
 
-                # posted = str(datetime.datetime.fromtimestamp(int(db_tags[3]))).split(" ")[0].replace("-", "/")
-                posted = fav_info[5]
+                    tags = str(fav_info[6]).replace("[", "").replace("]", "").replace("'", "")
 
-                pages = int(fav_info[6])
+                    fav_name = str(fav_info[7])
 
-                tags = str(fav_info[7]).replace("[", "").replace("]", "").replace("'", "")
+                    lan_tags = f"gid:{gid},token:{token},source:{source},category:{category},date_added:{posted},pages:{pages},fav_name:{fav_name}," + tags
 
-                fav_name = str(fav_info[8])
+                    hx.put(f"{lan_url}/{sub_archives['arcid']}/metadata",
+                           data={"title": title, "tags": lan_tags.strip()})
 
-                lan_tags = f"gid:{gid},token:{token},source:{source},category:{category},date_added:{posted},pages:{pages},fav_name:{fav_name}," + tags
-
-                hx.put(f"{lan_url}/{sub_archives['arcid']}/metadata",
-                       data={"title": title, "tags": lan_tags.strip()})
+                    progress_bar.update(1)
 
         logger.info("[OK] LANraragi Add Tags")
 
-    def lan_check_page_count(self):
-        db_data = []
-        with sqlite3.connect(self.dbs_name) as co:
-            co = co.execute(f'SELECT gid,token,title_jpn,posted,tags,pages FROM fav')
-            db_data = co.fetchall()
-
-        hx = self.lan_init_request()
-        lan_url = self.lan_url
-
-        if lan_url[-1] == "/":
-            lan_url += "api/archives"
-        else:
-            lan_url += "/api/archives"
-
-        all_archives = hx.get(lan_url)
-        all_archives = all_archives.json()
-
-        logger.info(f"一共检查到 {len(all_archives)} 个")
-        logger.info(f"A total of {len(all_archives)} were checked")
-        if len(all_archives) == 0:
-            logger.error(f"请添加画廊后再添加Tags")
-            logger.error(f"Please add gallery before adding Tags")
-            sys.exit(1)
-
-        for sub_archives in all_archives:
-            try:
-                gid = int(str(sub_archives['title']).split('-')[0])
-            except ValueError:
-                gid = int(str(sub_archives['filename']).split('-')[0])
-            loc_page_count = int(sub_archives['pagecount'])
-
-            for db_tags in db_data:
-                if int(db_tags[0]) == gid:
-                    db_page_count = int(db_tags[5])
-                    token = str(db_tags[1])
-                    if db_page_count > loc_page_count & abs(db_page_count - loc_page_count) > 3:
-                        logger.warning(
-                            f"Gallery with https://{self.base_url}/g/{gid}/{token} has an incorrect number of pages. {db_page_count} != {loc_page_count}")
+    # def lan_check_page_count(self):
+    #     db_data = []
+    #     with sqlite3.connect(self.dbs_name) as co:
+    #         co = co.execute(f'SELECT gid,token,title_jpn,posted,tags,filecount FROM eh_data')
+    #         db_data = co.fetchall()
+    #
+    #     hx = self.lan_init_request()
+    #     lan_url = self.lan_url
+    #
+    #     if lan_url[-1] == "/":
+    #         lan_url += "api/archives"
+    #     else:
+    #         lan_url += "/api/archives"
+    #
+    #     all_archives = hx.get(lan_url)
+    #     all_archives = all_archives.json()
+    #
+    #     logger.info(f"一共检查到 {len(all_archives)} 个")
+    #     logger.info(f"A total of {len(all_archives)} were checked")
+    #     if len(all_archives) == 0:
+    #         logger.error(f"请添加画廊后再添加Tags")
+    #         logger.error(f"Please add gallery before adding Tags")
+    #         sys.exit(1)
+    #
+    #     for sub_archives in all_archives:
+    #         try:
+    #             gid = int(str(sub_archives['title']).split('-')[0])
+    #         except ValueError:
+    #             gid = int(str(sub_archives['filename']).split('-')[0])
+    #         loc_page_count = int(sub_archives['pagecount'])
+    #
+    #         for db_tags in db_data:
+    #             if int(db_tags[0]) == gid:
+    #                 db_page_count = int(db_tags[5])
+    #                 token = str(db_tags[1])
+    #                 if db_page_count > loc_page_count & abs(db_page_count - loc_page_count) > 3:
+    #                     logger.warning(
+    #                         f"Gallery with https://{self.base_url}/g/{gid}/{token} has an incorrect number of pages. {db_page_count} != {loc_page_count}")
 
 # <ComicInfo xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 # <Manga/>
