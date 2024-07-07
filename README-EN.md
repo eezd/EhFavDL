@@ -95,7 +95,7 @@ python main.py
 
 **Run this initially** to update user favorites and update the `fav_category` table.
 
-![Update User Fav Info](/img/Update User Fav Info.png)
+![UpdateUserFavInfo](/img/UpdateUserFavInfo.png)
 
 <br/>
 
@@ -113,7 +113,7 @@ For free users, your access to galleries depends on your **IP quota**.
 
 Files will be downloaded to: `web` directory
 
-![Download Web Gallery](/img/Download Web Gallery.png)
+![DownloadWebGallery](/img/DownloadWebGallery.png)
 
 <br/>
 
@@ -125,7 +125,7 @@ If you encounter `IP quota exhausted`, try again after 30 minutes.
 
 Files will be downloaded to: `archive` directory
 
-![Download Archive Gallery](/img/Download Archive Gallery.png)
+![DownloadArchiveGallery](/img/DownloadArchiveGallery.png)
 
 <br/>
 
@@ -153,7 +153,7 @@ Use this function in LANraragi if file names are too long and causing errors.
 
 Update LANraragi Tags.
 
-![Update LANraragi Tags](/img/Update LANraragi Tags.png)
+![UpdateLANraragiTags](/img/UpdateLANraragiTags.png)
 
 <br/>
 
