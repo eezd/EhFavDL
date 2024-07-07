@@ -27,7 +27,6 @@ class Checker(Config):
             sys.exit(1)
 
         for i in os.listdir(folder):
-            print(os.path.isfile(os.path.join(folder, i)), i)
             if i.find('-') == -1 or not os.path.isfile(os.path.join(folder, i)):
                 continue
 
