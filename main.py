@@ -83,8 +83,9 @@ def main():
             while True:
                 print("0. Return")
                 print("1. Checker().check_gid_in_local_zip()")
-                print("2. Checker().sync_local_to_sqlite_zip(True)")
-                print("3. Checker().check_loc_file()")
+                print("2. Checker().sync_local_to_sqlite_zip()")
+                print("3. Checker().sync_local_to_sqlite_zip(True)")
+                print("4. Checker().check_loc_file()")
                 num = input("(Options) Select Number:")
                 num = int(num) if num else None
                 if num == 1:
@@ -93,7 +94,7 @@ def main():
                     Checker().sync_local_to_sqlite_zip()
                 elif num == 3:
                     Checker().sync_local_to_sqlite_zip(True)
-                elif num == 3:
+                elif num == 4:
                     Checker().check_loc_file()
                 elif num == 0:
                     break
