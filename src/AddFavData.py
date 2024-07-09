@@ -1,3 +1,4 @@
+import asyncio
 import sqlite3
 import sys
 
@@ -14,10 +15,10 @@ class AddFavData(Config):
         super().__init__()
 
     @logger.catch()
-    def update_category(self):
+    async def update_category(self):
         logger.info(f'Get Favorite Category Name...')
 
-        hx_res = self.request.get(f'https://{self.base_url}/uconfig.php')
+        hx_res = await self.fetch_data(url=f'https://{self.base_url}/uconfig.php')
         hx_res_bs = BeautifulSoup(hx_res, 'html.parser')
         hx_res_bs = hx_res_bs.select('#favsel > div input')
 
@@ -78,7 +79,7 @@ class AddFavData(Config):
         return [mylist, next_gid]
 
     @logger.catch()
-    def add_fav_data(self):
+    async def add_fav_data(self):
         logger.info(f'Get User Favorite gid and token...')
 
         fav_id = 0
@@ -86,6 +87,7 @@ class AddFavData(Config):
         next_gid = None
 
         # 先将删除标志设置为 1, 如果后续收藏夹存在则设置为 0
+        # First, set the delete flag to 1; if there are subsequent favorite categories, set it to 0.
         with sqlite3.connect(self.dbs_name) as co:
             co.execute('UPDATE fav_category SET del_flag = 1')
             co.commit()
@@ -97,11 +99,11 @@ class AddFavData(Config):
             else:
                 url = f'https://{self.base_url}/favorites.php?favcat={fav_id}&f_search=&next={next_gid}'
 
-            hx_res = self.request.get(url)
+            hx_res = await self.fetch_data(url)
 
             hx_res_bs = BeautifulSoup(hx_res, 'html.parser')
             search_data = self.format_fav_page_info(hx_res_bs)
-            time.sleep(0.5)
+            await asyncio.sleep(0.5)
 
             eh_data = []
             fav_category_data = []
@@ -112,7 +114,6 @@ class AddFavData(Config):
                     eh_data.append((_gid, _token))
                     fav_category_data.append((_gid, _token, fav_id))
                     all_gid.append(_gid)
-
             with sqlite3.connect(self.dbs_name) as co:
                 co.executemany(
                     "INSERT OR IGNORE INTO eh_data(gid, token) VALUES (?,?)",
@@ -143,19 +144,14 @@ class AddFavData(Config):
         return all_gid
 
     @logger.catch()
-    def post_eh_api(self, json):
-        try:
-            eh_api_data = self.request.post("https://api.e-hentai.org/api.php", json=json)
-            json_data = eh_api_data.json()['gmetadata']
-            time.sleep(0.5)
-            return json_data
-        except Exception as exc:
-            logger.warning("A network error occurred while requesting the API, retrying")
-            time.sleep(5)
-            return self.post_eh_api(json)
+    async def post_eh_api(self, json):
+        eh_api_data = await self.fetch_data(url="https://api.e-hentai.org/api.php", json=json)
+        json_data = eh_api_data['gmetadata']
+        await asyncio.sleep(0.5)
+        return json_data
 
     @logger.catch()
-    def add_tags_data(self, get_all=False):
+    async def add_tags_data(self, get_all=False):
         logger.info(f'Get EH tags...')
 
         if not get_all:
@@ -188,7 +184,7 @@ class AddFavData(Config):
 
             with tqdm(total=total) as progress_bar:
                 for post_json in post_json_arr:
-                    post_data = self.post_eh_api(post_json)
+                    post_data = await self.post_eh_api(post_json)
                     format_data = []
                     for sub_post_data in post_data:
                         gid = sub_post_data.get('gid')
@@ -246,12 +242,12 @@ class AddFavData(Config):
             logger.info(f"Delete del_flag = 1: {count}...")
 
     @logger.catch()
-    def apply(self):
-        self.update_category()
+    async def apply(self):
+        await self.update_category()
 
-        self.add_fav_data()
+        await self.add_fav_data()
 
-        self.add_tags_data()
+        await self.add_tags_data()
 
         with sqlite3.connect(self.dbs_name) as co:
             del_flag_list = co.execute('SELECT gid,token FROM fav_category WHERE del_flag = 1').fetchall()

@@ -3,7 +3,6 @@ import sqlite3
 import sys
 import zipfile
 
-from bs4 import BeautifulSoup
 from loguru import logger
 
 from .Config import Config
@@ -61,36 +60,6 @@ class Checker(Config):
             logger.error(f'(gid_list_1280x) Duplicate gid, Please Check: {repeat_list}')
         else:
             logger.info("(gid_list_1280x) OK")
-
-    def check_eh_setting(self):
-        """
-        <<<Deprecated Method>>>
-
-        检查 EH 设置
-        Check EH settings
-
-        Gallery Name Display >>> Default Title
-        Front Page / Search Settings >>> Extended
-        """
-        logger.info('[Running] Start Checkout EG Setting...')
-
-        hx_res = self.request.get(f'https://{self.base_url}/uconfig.php')
-        hx_res_bs = BeautifulSoup(hx_res, 'html.parser')
-
-        gallery_name_display = hx_res_bs.select_one('form #tl_0')
-        if gallery_name_display is not None:
-            gallery_name_display = gallery_name_display.get('checked')
-
-        front_page = hx_res_bs.select_one('form #dm_2')
-        if front_page is not None:
-            front_page = front_page.get('checked')
-
-        if gallery_name_display is None or front_page is None:
-            logger.error(f"Please checkout https://{self.base_url}/uconfig.php")
-            logger.error("Gallery Name Display >>> Default Title")
-            logger.error("Front Page / Search Settings >>> Extended")
-            sys.exit(1)
-        logger.info('[OK] Start checkout EH Setting.')
 
     def sync_local_to_sqlite_zip(self, cover=False):
         """

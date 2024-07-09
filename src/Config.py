@@ -1,9 +1,19 @@
+import asyncio
+import copy
+import os
 import sqlite3
+import ssl
 import sys
+import zipfile
 
-import httpx
+import aiohttp
 import yaml
 from loguru import logger
+from tqdm.asyncio import tqdm_asyncio
+
+# ssl:default [[SSL: DH_KEY_TOO_SMALL] dh key too small (_ssl.c:1006)]
+ssl_context = ssl.create_default_context()
+ssl_context.set_ciphers('HIGH:!DH:!aNULL')
 
 
 class Config:
@@ -13,30 +23,51 @@ class Config:
                 config = yaml.load(file, Loader=yaml.FullLoader)
 
                 base_url = str(config['website'])
+                self.base_url = base_url
 
                 work_path = str(config['work_path'])
-                data_path = str(config['data_path'])
-                dbs_name = str(config['dbs_name'])
-                connect_limit = str(config['connect_limit'])
-                lan_url = str(config['lan_url'])
-                lan_api_psw = str(config['lan_api_psw'])
+                self.work_path = work_path
 
-                httpx_cookies = {
+                data_path = str(config['data_path'])
+                self.data_path = data_path
+
+                dbs_name = str(config['dbs_name'])
+                self.dbs_name = dbs_name
+
+                connect_limit = str(config['connect_limit'])
+                self.connect_limit = connect_limit
+
+                lan_url = str(config['lan_url'])
+                self.lan_url = lan_url
+
+                lan_api_psw = str(config['lan_api_psw'])
+                self.lan_api_psw = lan_api_psw
+
+                eh_cookies = {
                     "ipb_member_id": str(config['cookies']['ipb_member_id']),
                     "ipb_pass_hash": str(config['cookies']['ipb_pass_hash']),
                     "igneous": str(config['cookies']['igneous'])
                 }
+                self.eh_cookies = eh_cookies
 
                 proxy_status = config['proxy']['enable']
+                self.proxy_status = proxy_status
+
                 proxy_url = config['proxy']['url']
+                self.proxy_url = proxy_url
+
                 proxy_list = {
                     'http://': proxy_url,
                     'https://': proxy_url,
                 }
+                if not proxy_status:
+                    proxy_list = None
+                self.proxy_list = proxy_list
 
                 headers = {
                     "User-Agent": config['User-Agent'],
                 }
+                self.request_headers = headers
 
         except FileNotFoundError:
             logger.error('File config.yaml not found')
@@ -45,40 +76,95 @@ class Config:
             logger.error(e)
             sys.exit(1)
 
-        if not proxy_status:
-            proxy_list = {}
+    @logger.catch()
+    async def fetch_data(self, url, data=None, json=None, retry_delay=5, retry_attempts=10):
 
-        # 测试 Httpx 网络环境.
-        # Test Httpx network environment.
-        # try:
-        #     hx = httpx.Client(headers=headers, proxies=proxy_list, cookies=httpx_cookies)
-        #     logger.info(f'[Running] Start testing Httpx to {test_url} network connection')
-        #     r = hx.get(test_url, timeout=10, follow_redirects=True)
-        #     res = BeautifulSoup(r, 'html.parser')
-        #
-        #     # 判断页面正常显示
-        #     # Judging that the page is normal
-        #     if len(res.get_text()) < 300 & len(res.get_text()) > 20:
-        #         logger.error(res.get_text())
-        #         sys.exit(1)
-        #     elif len(res.get_text()) < 19:
-        #         logger.error('Please check cookies')
-        #         sys.exit(1)
-        #
-        #     logger.info(f'[OK] Start testing Httpx to {test_url} network connection')
-        # except Exception as e:
-        #     logger.error(e)
-        #     sys.exit(1)
+        async with aiohttp.ClientSession(headers=self.request_headers, cookies=self.eh_cookies,
+                                         connector=aiohttp.TCPConnector(ssl_context=ssl_context)) as session:
+            try:
+                if data is not None:
+                    async with session.post(url, data=data, proxy=self.proxy_url) as response:
+                        await self.check_fetch_err(response, url)
+                        return await response.read()
 
-        self.dbs_name = dbs_name
-        self.base_url = base_url
-        self.request = httpx.Client(headers=headers, proxies=proxy_list, cookies=httpx_cookies)
-        self.request_headers = headers
-        self.work_path = work_path
-        self.data_path = data_path
-        self.connect_limit = connect_limit
-        self.lan_url = lan_url
-        self.lan_api_psw = lan_api_psw
+                elif json is not None:
+                    async with session.post(url, json=json, proxy=self.proxy_url) as response:
+                        await self.check_fetch_err(response, url)
+                        return await response.json(content_type=None)
+
+                else:
+                    async with session.get(url, proxy=self.proxy_url) as response:
+                        await self.check_fetch_err(response, url)
+                        return await response.read()
+            except Exception as e:
+                logger.error(e)
+                if retry_attempts > 0:
+                    logger.warning(
+                        f"Failed to retrieve data. Retrying in {retry_delay} seconds, {retry_attempts - 1} attempts remaining.")
+                    await asyncio.sleep(retry_delay)
+                    return await self.fetch_data(url=url, data=data, json=json, retry_delay=retry_delay,
+                                                 retry_attempts=retry_attempts - 1)
+                else:
+                    logger.warning(f"The request limit has been exceeded. Program terminated.")
+                    sys.exit(1)
+
+    @logger.catch()
+    async def fetch_data_stream(self, url, file_path, stream_range=0, retry_delay=10, retry_attempts=5):
+        headers = copy.deepcopy(self.request_headers)
+        mode = 'wb'
+        if stream_range != 0:
+            headers.update({'Range': f'bytes={stream_range}-'})
+            mode = 'ab'
+        async with aiohttp.ClientSession(headers=headers, cookies=self.eh_cookies,
+                                         connector=aiohttp.TCPConnector(ssl_context=ssl_context)) as session:
+            try:
+                async with session.get(url, proxy=self.proxy_url) as response:
+                    await self.check_fetch_err(response, file_path)
+                    with tqdm_asyncio(total=int(response.headers.get("Content-Length", 0)) + stream_range,
+                                      initial=stream_range,
+                                      unit="B", unit_scale=True) as progress_bar:
+                        folder_path = os.path.dirname(file_path)
+                        os.makedirs(folder_path, exist_ok=True)
+                        with open(file_path, mode) as f:
+                            async for data in response.content.iter_chunked(1024):
+                                f.write(data)
+                                progress_bar.update(len(data))
+            except BaseException as e:
+                # logger.error(e)
+                if retry_attempts > 0:
+                    logger.warning(
+                        f"Failed to fetch data. Retrying in {retry_delay} seconds, {retry_attempts - 1} attempts left")
+                    if os.path.exists(file_path) and str(file_path).find(".zip"):
+                        try:
+                            with zipfile.ZipFile(file_path, 'r') as zip_file:
+                                zip_file.testzip()
+                            logger.warning(f"The file already exists, skipping: {os.path.basename(file_path)}")
+                            return True
+                        except (zipfile.BadZipFile, OSError):
+                            logger.warning(f"开始断点续传 / Start resumable download.: {os.path.basename(file_path)}")
+                            file_size = os.path.getsize(file_path)
+                    await asyncio.sleep(retry_delay)
+                    return await self.fetch_data_stream(url=url, file_path=file_path, stream_range=file_size,
+                                                        retry_delay=retry_delay, retry_attempts=retry_attempts - 1)
+                else:
+                    logger.warning(f"The request limit has been exceeded. Program terminated.")
+                    sys.exit(1)
+
+    async def check_fetch_err(self, response, msg):
+        content_type = response.headers.get('Content-Type', '').lower()
+        if 'text' in content_type or 'json' in content_type or 'html' in content_type:
+            content = await response.text()
+            if "IP quota exhausted" in content:
+                logger.warning("IP quota exhausted.")
+                raise Exception("IP quota exhausted")
+            elif "You have clocked too many downloaded bytes on this gallery" in content:
+                logger.warning("You have clocked too many downloaded bytes on this gallery.")
+                logger.warning("Please open Gallery---Archive Download---Cancel")
+                logger.warning(msg)
+                raise Exception("You have clocked too many downloaded bytes on this gallery")
+            elif response.status != 200:
+                logger.warning(f"code: {response.status_code}")
+                logger.warning(f'{content}: {msg}')
 
     def create_database(self):
         with sqlite3.connect(self.dbs_name) as co:
