@@ -232,31 +232,39 @@ class AddFavData(Config):
 
                     progress_bar.update(piece)
 
-    def delete_fav_category_del_flag(self):
-        """
-        删除 del_flag = 1 的字段
-        """
+    def delete_fav_category_del_flag(self, gid_list):
         with sqlite3.connect(self.dbs_name) as co:
-            count = co.execute('DELETE FROM fav_category WHERE del_flag = 1').fetchone()[0]
-            co.commit()
-            logger.info(f"Delete del_flag = 1: {count}...")
+            if gid_list:
+                placeholders = ','.join('?' for _ in gid_list)
+                co.execute(f'DELETE FROM fav_category WHERE gid IN ({placeholders})', gid_list)
+                co.commit()
 
     @logger.catch()
     async def apply(self):
-        await self.update_category()
-
-        await self.add_fav_data()
-
-        await self.add_tags_data()
+        # await self.update_category()
+        #
+        # await self.add_fav_data()
+        #
+        # await self.add_tags_data()
 
         with sqlite3.connect(self.dbs_name) as co:
-            del_flag_list = co.execute('SELECT gid,token FROM fav_category WHERE del_flag = 1').fetchall()
+            co.execute('DELETE FROM fav_category WHERE del_flag = 1 AND original_flag = 0 AND web_1280x_flag = 0')
+            co.commit()
+
+            del_flag_list = co.execute(
+                'SELECT gid,token FROM fav_category WHERE del_flag = 1 AND (original_flag != 1 OR web_1280x_flag != 1)').fetchall()
 
             if len(del_flag_list) > 0:
                 logger.warning(f"del_flag = 1:")
+                logger.warning(f"只有两种可能性/ Only two possibilities exist:")
+                logger.warning(f"1. 你移除了该画廊")
+                logger.warning(f"1. You have removed this gallery.")
+                logger.warning(f"2. 此图库有更新的版本可用")
+                logger.warning(f"2. There are newer versions of this gallery available:")
                 for gid_token in del_flag_list:
                     logger.warning(f"https://exhentai.org/g/{gid_token[0]}/{gid_token[1]}")
 
                 del_enter = input("Delete data where del_flag = 1? (y/n):")
                 if del_enter.lower() == 'y':
-                    self.delete_fav_category_del_flag()
+                    gid_list = [row[0] for row in del_flag_list]
+                    self.delete_fav_category_del_flag(gid_list)
