@@ -241,11 +241,11 @@ class AddFavData(Config):
 
     @logger.catch()
     async def apply(self):
-        # await self.update_category()
-        #
-        # await self.add_fav_data()
-        #
-        # await self.add_tags_data()
+        await self.update_category()
+
+        await self.add_fav_data()
+
+        await self.add_tags_data()
 
         with sqlite3.connect(self.dbs_name) as co:
             co.execute('DELETE FROM fav_category WHERE del_flag = 1 AND original_flag = 0 AND web_1280x_flag = 0')
