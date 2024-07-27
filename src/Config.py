@@ -4,12 +4,14 @@ import os
 import sqlite3
 import ssl
 import sys
+import requests
 import zipfile
 
 import aiohttp
 import yaml
 from loguru import logger
 from tqdm.asyncio import tqdm_asyncio
+from bs4 import BeautifulSoup
 
 # ssl:default [[SSL: DH_KEY_TOO_SMALL] dh key too small (_ssl.c:1006)]
 ssl_context = ssl.create_default_context()
@@ -205,3 +207,17 @@ class Config:
             )''')
 
             co.commit()
+            
+    def get_image_limits(self):
+        home_url="https://e-hentai.org/home.php"
+        headers=self.request_headers
+        cookies=self.eh_cookies
+        response = requests.get(home_url, headers=headers,cookies=cookies)
+
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.content, 'html.parser')
+            if "your account has been suspended" in str(soup):
+                return False
+            image_limits = soup.find_all('div', class_='homebox')[0].find('p').find_all('strong')[0].text.strip()
+            total_limits = soup.find_all('div', class_='homebox')[0].find('p').find_all('strong')[1].text.strip()
+            return image_limits,total_limits

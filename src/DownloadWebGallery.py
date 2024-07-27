@@ -42,11 +42,20 @@ class DownloadWebGallery(Config):
             real_url = real_url.select_one('img#img').get('src')
             if real_url == "https://exhentai.org/img/509.gif":
                 logger.warning("509:YOU HAVE TEMPORARILY REACHED THE LIMIT")
-                #sys.exit(0)
-                # 尝试等待限额恢复 / The regen rate (typically 3-5 per minute) vary based on server load.
-                logger.warning("Attempt to wait for 24 hours")
-                await asyncio.sleep(24 * 60 * 60)
-                return await self.download_image(semaphore, url, file_path)  #24小时后重新尝试
+                if self.get_image_limits() == False:
+                        logger.warning("Can't get image limits as the account has been suspended, Attempt to wait for 12 hours")
+                        # 账号已被暂停，无法访问配额页面，等待12小时配额自行恢复 / The account has been suspended
+                        time.sleep(12 * 60 * 60)
+                else:
+                    image_limits,total_limits=self.get_image_limits()
+                    logger.warning(f"Currently at {image_limits} towards the limit of {total_limits}. Waiting for quota restoration")
+                    while True:
+                        time.sleep(3600)
+                        image_limits,_=self.get_image_limits()
+                        print(f"Currently at {image_limits}")
+                        if image_limits <= 200:
+                            break
+                return await self.download_image(semaphore, url, file_path)
             file = await self.fetch_data(url=real_url)
             with open(file_path, 'wb') as f:
                 f.write(file)
