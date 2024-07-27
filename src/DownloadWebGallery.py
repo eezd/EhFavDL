@@ -2,6 +2,7 @@ import asyncio
 import os
 import shutil
 import sqlite3
+import sys
 
 from bs4 import BeautifulSoup
 from loguru import logger
@@ -39,7 +40,13 @@ class DownloadWebGallery(Config):
             real_url = await self.fetch_data(url=url)
             real_url = BeautifulSoup(real_url, 'html.parser')
             real_url = real_url.select_one('img#img').get('src')
-
+            if real_url == "https://exhentai.org/img/509.gif":
+                logger.warning("509:YOU HAVE TEMPORARILY REACHED THE LIMIT")
+                #sys.exit(0)
+                # 尝试等待限额恢复 / The regen rate (typically 3-5 per minute) vary based on server load.
+                logger.warning("Attempt to wait for 24 hours")
+                await asyncio.sleep(24 * 60 * 60)
+                return await self.download_image(semaphore, url, file_path)  #24小时后重新尝试
             file = await self.fetch_data(url=real_url)
             with open(file_path, 'wb') as f:
                 f.write(file)
@@ -69,6 +76,10 @@ class DownloadWebGallery(Config):
 
         # 获取总页码 / Get the total page number
         ptb = page_data.select_one('.ptb td:nth-last-child(2)')
+        if ptb is None:
+            # 这通常意味着当前ip已被暂时封禁 / This usually means that the current ip has been temporarily banned
+            logger.warning(page_data)
+            sys.exit(0)
 
         ptb = ptb.get_text()
         ptb = int(ptb) - 1
