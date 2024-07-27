@@ -41,7 +41,7 @@ class DownloadWebGallery(Config):
             real_url = BeautifulSoup(real_url, 'html.parser')
             real_url = real_url.select_one('img#img').get('src')
             if real_url == "https://exhentai.org/img/509.gif":
-                logger.warning("509:YOU HAVE TEMPORARILY REACHED THE LIMIT")
+                logger.warning("509: YOU HAVE TEMPORARILY REACHED THE LIMIT")
                 if self.get_image_limits() == False:
                         logger.warning("Can't get image limits as the account has been suspended, Attempt to wait for 12 hours")
                         # 账号已被暂停，无法访问配额页面，等待12小时配额自行恢复 / The account has been suspended
@@ -53,7 +53,7 @@ class DownloadWebGallery(Config):
                         time.sleep(3600)
                         image_limits,_=self.get_image_limits()
                         print(f"Currently at {image_limits}")
-                        if image_limits <= 200:
+                        if int(image_limits) <= 200:
                             break
                 return await self.download_image(semaphore, url, file_path)
             file = await self.fetch_data(url=real_url)
@@ -112,6 +112,12 @@ class DownloadWebGallery(Config):
                 page_img_url.append([img_url, filename])
 
             sub_ptb = sub_ptb + 1
+            
+        if len(page_img_url)==0:
+            # 加载到https://exhentai.org/img/blank.gif
+            logger.warning("Failed to get image urls, retrying after 30mins……")
+            time.sleep(30 * 60)
+            return await self.get_image_url()
 
         return page_img_url
 

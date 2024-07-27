@@ -7,7 +7,7 @@
 [![Last commit](https://img.shields.io/github/last-commit/eezd/EhFavDL/main)](https://github.com/eezd/EhFavDL/commits/main)
 [![License](https://img.shields.io/badge/license-MIT-yellowgreen.svg)](LICENSE)
 
-E-Hentai / Exhentai 下载收藏夹，基于 Python3.11 编，支持 Komga 和 LANraragi。
+E-Hentai / Exhentai 下载收藏夹，基于 Python3.11 编写，支持 Komga 和 LANraragi。
 
 [中文](README.md)/[English](README-EN.md)
 
