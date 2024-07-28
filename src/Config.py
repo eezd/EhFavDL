@@ -185,7 +185,6 @@ class Config:
                 "expunged" INTEGER NOT NULL DEFAULT 0 /*是否被隐藏*/,
                 "copyright_flag" INTEGER NOT NULL DEFAULT 0 /*是否被版权*/,
                 "rating" TEXT /*评分*/,
-                "tags" TEXT /*标签*/,
                 "current_gid" INTEGER /*画廊最新gid*/,
                 "current_token" TEXT /*画廊最新token*/
             )''')
@@ -205,6 +204,23 @@ class Config:
               "original_flag" INTEGER NOT NULL DEFAULT 0 /* 1表示 通过archiver中original选择下载原图*/,
               "web_1280x_flag" INTEGER NOT NULL DEFAULT 0 /* 1表示 通过网页画廊下载/通过archiver中Resample选项下载*/
             )''')
+            
+            # 使用单独的标签列表和映射表相比字符串存储或许能实现更好的数据统计和管理
+            co.execute('''
+                CREATE TABLE IF NOT EXISTS tag_list (
+                    tid INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tag TEXT UNIQUE NOT NULL,
+                    translated_tag TEXT
+                )
+            ''')
+            co.execute('''
+                CREATE TABLE IF NOT EXISTS gid_tid (
+                    gid INTEGER UNSIGNED NOT NULL,
+                    tid INTEGER UNSIGNED NOT NULL,
+                    PRIMARY KEY (gid, tid),
+                    UNIQUE(gid, tid)
+                )
+            ''')
 
             co.commit()
             

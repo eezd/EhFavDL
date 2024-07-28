@@ -1,9 +1,13 @@
+import ast
 import asyncio
+import json
+import os
 import sqlite3
 import sys
 
 from bs4 import BeautifulSoup
 from loguru import logger
+import requests
 from tqdm import tqdm
 
 from .Config import Config
@@ -13,6 +17,45 @@ from .common import *
 class AddFavData(Config):
     def __init__(self):
         super().__init__()
+
+    @logger.catch()
+    # 使用 EhTagTranslation 的标签数据库对 tag_list 中的标签进行翻译
+    async def translate_tags(self):
+        logger.info(f"Downloading translation database...")
+        # 下载最新的标签翻译数据库
+        database_url = "https://github.com/EhTagTranslation/Database/releases/latest/download/db.text.json"
+        database_name = "db.text.json"
+        try:
+            with requests.get(database_url, stream=True) as r:
+                r.raise_for_status()
+                with open(database_name, 'wb') as f:
+                    for chunk in r.iter_content(chunk_size=4096):
+                        f.write(chunk)
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Failed to download the latest database: {e}")
+                
+        # 加载数据库中的标签数据
+        with open(database_name, 'r', encoding='utf-8') as file:
+            db_data = json.load(file)
+        namespace_data = {}
+        for item in db_data["data"]:
+            namespace_data[item["namespace"]] = item["data"]
+        with sqlite3.connect(self.dbs_name) as co:
+            result = co.execute('SELECT tid, tag FROM tag_list').fetchall()
+            for entry in result:
+                tid = entry[0]
+                tag = entry[1]
+                try:
+                    namespace, tagcontent = tag.split(":", 1)
+                except ValueError:
+                    # 使用 api 获取到的部分 tag 好像没有命名空间的结构
+                    continue
+                if namespace in namespace_data and tagcontent in namespace_data[namespace]:
+                    translated_tag = namespace_data[namespace][tagcontent]["name"]
+                    co.execute('UPDATE tag_list SET translated_tag = ? WHERE tid = ?', (translated_tag, tid))
+                    print(f"{tag}->{translated_tag}")
+                    co.commit()
+        os.remove(database_name)
 
     @logger.catch()
     async def update_category(self):
@@ -222,12 +265,21 @@ class AddFavData(Config):
                         co.execute(
                             "UPDATE eh_data SET title=?, title_jpn=?, "
                             "category=?, thumb=?, uploader=?, posted=?, filecount=?, "
-                            "filesize=?, expunged=?, rating=?, tags=?, current_gid=?, "
+                            "filesize=?, expunged=?, rating=?, current_gid=?, "
                             "current_token=? WHERE gid=?",
                             (data[0], data[1], data[2], data[3], data[4], data[5],
-                             data[6], data[7], data[8], data[9], data[10], data[11],
+                             data[6], data[7], data[8], data[9], data[11],
                              data[12], data[13])
                         )
+                        tags = ast.literal_eval(data[10])
+                        for tag in tags:
+                            result = co.execute('SELECT tid FROM tag_list WHERE tag =?', (tag,)).fetchone()
+                            if result:
+                                tid = result[0]
+                            else:
+                                co.execute('INSERT INTO tag_list (tag) VALUES (?)', (tag,))
+                                tid = co.execute('SELECT tid FROM tag_list WHERE tag =?', (tag,)).fetchone()[0]
+                            co.execute('INSERT OR IGNORE INTO gid_tid (gid, tid) VALUES (?, ?)', (gid, tid))
                     co.commit()
 
                     progress_bar.update(piece)

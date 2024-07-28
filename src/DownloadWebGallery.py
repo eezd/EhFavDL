@@ -74,18 +74,18 @@ class DownloadWebGallery(Config):
             real_url = await self.fetch_data(url=url)
             real_url = BeautifulSoup(real_url, 'html.parser')
             real_url = real_url.select_one('img#img').get('src')
-            # 配额用尽，返回的real_url会变成509.gif
+            # 配额用尽，返回的 real_url 会变成509.gif
             if real_url == "https://exhentai.org/img/509.gif":
                 logger.warning("509: YOU HAVE TEMPORARILY REACHED THE LIMIT")
                 if self.get_image_limits() == False:
-                    # 账号已被暂停，无法访问配额页面，等待12小时配额自行恢复(10hits/min) / The account has been suspended
+                    # 账号已被暂停，无法访问配额页面，等待12小时配额自行恢复 (10hits/min) / The account has been suspended
                     logger.warning("Can't get image limits as the account has been suspended, Attempt to wait for 12 hours")
                     time.sleep(12 * 60 * 60)
                 else:
                     image_limits,total_limits=self.get_image_limits()
                     logger.warning(f"Currently at {image_limits} towards the limit of {total_limits}. Waiting for quota restoration")
                     while True:
-                        # 每隔一小时检查配额是否恢复(恢复速率10hits/min) / Check every hour to see if the quota is restored
+                        # 每隔一小时检查配额是否恢复 (恢复速率 10hits/min) / Check every hour to see if the quota is restored
                         time.sleep(3600)
                         image_limits,_=self.get_image_limits()
                         print(f"Currently at {image_limits}")
@@ -119,7 +119,7 @@ class DownloadWebGallery(Config):
             if copyright_msg.find('copyright') != -1:
                 return "copyright"
         
-        # 获取页面上显示的pages，用于校验是否获取到全部的page_img_url
+        # 获取页面上显示的 pages，用于校验是否获取到全部的 page_img_url
         pages = None
         lengthtd = page_data.find('td', text='Length:')
         if lengthtd:
@@ -158,7 +158,8 @@ class DownloadWebGallery(Config):
             sub_ptb = sub_ptb + 1
             
         if len(page_img_url)==0:
-            # 加载到https://exhentai.org/img/blank.gif，导致获取链接为空
+            # 加载到 https://exhentai.org/img/blank.gif，导致获取链接为空
+            # 往往几个小时也不见恢复，这到底是为什么呢
             logger.warning("Failed to get image urls, retrying after 30mins……")
             time.sleep(30 * 60)
             return await self.get_image_url()

@@ -86,6 +86,7 @@ def main():
                 print("2. Checker().sync_local_to_sqlite_zip()")
                 print("3. Checker().sync_local_to_sqlite_zip(True)")
                 print("4. Checker().check_loc_file()")
+                print("5. add_fav_data.translate_tags()")
                 num = input("(Options) Select Number:")
                 num = int(num) if num else None
                 if num == 1:
@@ -96,6 +97,8 @@ def main():
                     Checker().sync_local_to_sqlite_zip(True)
                 elif num == 4:
                     Checker().check_loc_file()
+                elif num == 5:
+                    asyncio.run(add_fav_data.translate_tags())
                 elif num == 0:
                     break
 
