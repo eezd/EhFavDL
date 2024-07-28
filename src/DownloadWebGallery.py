@@ -42,6 +42,32 @@ class DownloadWebGallery(Config):
                 sha256.update(chunk)
         return sha256.hexdigest()
     
+    # 根据哈希判断文件内容，检查下载
+    async def check_save(self, file_path, file):
+        if os.path.exists(file_path):
+            exist_hash = await self.calc_sha256(file_path)
+            new_hash = hashlib.sha256(file).hexdigest()
+            
+            if new_hash == exist_hash:
+                return file_path  
+            
+            base_name, ext = os.path.splitext(file_path)
+            counter = 2
+            
+            while os.path.exists(file_path):
+                exist_hash = await self.calc_sha256(file_path)
+                
+                if new_hash == exist_hash:
+                    return file_path
+                
+                counter += 1
+                file_path = f"{base_name} ({counter}){ext}"
+        
+        with open(file_path, 'wb') as f:
+            f.write(file)
+        
+        return file_path
+    
     @logger.catch()
     async def download_image(self, semaphore, url, file_path):
         async with semaphore:
@@ -52,14 +78,14 @@ class DownloadWebGallery(Config):
             if real_url == "https://exhentai.org/img/509.gif":
                 logger.warning("509: YOU HAVE TEMPORARILY REACHED THE LIMIT")
                 if self.get_image_limits() == False:
-                    # 账号已被暂停，无法访问配额页面，等待12小时配额自行恢复 / The account has been suspended
+                    # 账号已被暂停，无法访问配额页面，等待12小时配额自行恢复(10hits/min) / The account has been suspended
                     logger.warning("Can't get image limits as the account has been suspended, Attempt to wait for 12 hours")
                     time.sleep(12 * 60 * 60)
                 else:
                     image_limits,total_limits=self.get_image_limits()
                     logger.warning(f"Currently at {image_limits} towards the limit of {total_limits}. Waiting for quota restoration")
                     while True:
-                        # 每隔一小时检查配额是否恢复 / Check every hour to see if the quota is restored
+                        # 每隔一小时检查配额是否恢复(恢复速率10hits/min) / Check every hour to see if the quota is restored
                         time.sleep(3600)
                         image_limits,_=self.get_image_limits()
                         print(f"Currently at {image_limits}")
@@ -67,23 +93,8 @@ class DownloadWebGallery(Config):
                             break
                 return await self.download_image(semaphore, url, file_path)
             file = await self.fetch_data(url=real_url)
-            if os.path.exists(file_path):
-                # 如果已存在该文件则进行哈希校验判断是否需要下载
-                # If the file already exists, perform a hash check to determine whether it needs to be downloaded
-                exist_hash = await self.calc_sha256(file_path)
-                base_name, ext = os.path.splitext(file_path)
-                counter = 2
-                while os.path.exists(f"{base_name} ({counter}){ext}"):
-                    counter += 1
-                file_path = f"{base_name} ({counter}){ext}"
-                with open(file_path, 'wb') as f:
-                    f.write(file)
-                new_hash = self.calc_sha256(file_path)
-                if new_hash == exist_hash:
-                    os.remove(file_path)
-            else:
-                with open(file_path, 'wb') as f:
-                    f.write(file)
+            # 哈希判断内容是否相同
+            await self.check_save(file_path, file)
 
     @logger.catch()
     async def get_image_url(self):
