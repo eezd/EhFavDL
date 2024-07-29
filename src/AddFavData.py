@@ -33,7 +33,7 @@ class AddFavData(Config):
                         f.write(chunk)
         except requests.exceptions.RequestException as e:
             logger.warning(f"Failed to download the latest database: {e}")
-                
+
         # 加载数据库中的标签数据
         with open(database_name, 'r', encoding='utf-8') as file:
             db_data = json.load(file)
@@ -53,7 +53,7 @@ class AddFavData(Config):
                 if namespace in namespace_data and tagcontent in namespace_data[namespace]:
                     translated_tag = namespace_data[namespace][tagcontent]["name"]
                     co.execute('UPDATE tag_list SET translated_tag = ? WHERE tid = ?', (translated_tag, tid))
-                    print(f"{tag}->{translated_tag}")
+                    print(f"{tag.ljust(50)} -> {translated_tag}")
                     co.commit()
         os.remove(database_name)
 
@@ -199,7 +199,19 @@ class AddFavData(Config):
 
         if not get_all:
             with sqlite3.connect(self.dbs_name) as co:
-                gid_token = co.execute('SELECT gid,token FROM eh_data WHERE title IS "" OR title IS NULL').fetchall()
+                gid_token = co.execute(
+                    '''
+                    SELECT gid, token 
+                    FROM eh_data 
+                    WHERE gid NOT IN (
+                        SELECT gid 
+                        FROM gid_tid 
+                        WHERE gid IS NOT NULL
+                    ) 
+                    OR title = "" 
+                    OR title IS NULL
+                    '''
+                ).fetchall()
         else:
             with sqlite3.connect(self.dbs_name) as co:
                 gid_token = co.execute('SELECT gid,token FROM eh_data').fetchall()
@@ -271,6 +283,13 @@ class AddFavData(Config):
                              data[6], data[7], data[8], data[9], data[11],
                              data[12], data[13])
                         )
+                        # 当执行 add_tags_data(True) 时，先删除对应 gid 的映射以适配 tag 的删减
+                        if get_all:
+                            co.execute('DELETE FROM gid_tid WHERE gid =?', (data[13],))
+                            co.commit()
+                        
+                        # 添加 tag 数据时我的代码总是会漏一些 gid_tid 的映射 (一般应该不会太多)
+                        # 我还没找到原因(，重复 1~2 次 add_tags_data(False) 情况应该会改善一些，代码在下面 line 306
                         tags = ast.literal_eval(data[10])
                         for tag in tags:
                             result = co.execute('SELECT tid FROM tag_list WHERE tag =?', (tag,)).fetchone()
@@ -279,16 +298,24 @@ class AddFavData(Config):
                             else:
                                 co.execute('INSERT INTO tag_list (tag) VALUES (?)', (tag,))
                                 tid = co.execute('SELECT tid FROM tag_list WHERE tag =?', (tag,)).fetchone()[0]
-                            co.execute('INSERT OR IGNORE INTO gid_tid (gid, tid) VALUES (?, ?)', (gid, tid))
+                            co.execute('INSERT OR IGNORE INTO gid_tid (gid, tid) VALUES (?, ?)', (data[13], tid))
                     co.commit()
 
                     progress_bar.update(piece)
+            
+            # 检查遗漏数据，一般不会太多
+            missed_tag = co.execute('SELECT gid FROM eh_data WHERE gid NOT IN (SELECT gid FROM gid_tid WHERE gid IS NOT NULL)').fetchall()
+            if len(missed_tag) >= 50:
+                await self.add_tags_data()
 
     def delete_fav_category_del_flag(self, gid_list):
         with sqlite3.connect(self.dbs_name) as co:
             if gid_list:
                 placeholders = ','.join('?' for _ in gid_list)
+                # 这里不需要删除 eh_data 吗？
+                # co.execute(f'DELETE FROM eh_data WHERE gid IN ({placeholders})', gid_list)
                 co.execute(f'DELETE FROM fav_category WHERE gid IN ({placeholders})', gid_list)
+                co.execute(f'DELETE FROM gid_tid WHERE gid IN ({placeholders})', gid_list)
                 co.commit()
 
     @logger.catch()
@@ -300,6 +327,11 @@ class AddFavData(Config):
         await self.add_tags_data()
 
         with sqlite3.connect(self.dbs_name) as co:
+            # 这里不需要删除 eh_data 吗？
+            # co.execute('DELETE FROM eh_data WHERE gid IN (SELECT gid FROM fav_category WHERE del_flag = 1 AND original_flag = 0 AND web_1280x_flag = 0)')
+            co.execute('DELETE FROM gid_tid WHERE gid IN (SELECT gid FROM fav_category WHERE del_flag = 1 AND original_flag = 0 AND web_1280x_flag = 0)')
+            # 先提交确保子查询有效
+            co.commit()
             co.execute('DELETE FROM fav_category WHERE del_flag = 1 AND original_flag = 0 AND web_1280x_flag = 0')
             co.commit()
 

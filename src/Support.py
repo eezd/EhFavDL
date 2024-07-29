@@ -102,17 +102,27 @@ class Support(Config):
             gid = int(str(i).split('-')[0])
 
             with sqlite3.connect(self.dbs_name) as co:
-                co = co.execute(f'SELECT title,category,posted,tags,token FROM eh_data WHERE gid="{gid}"')
+                co = co.execute(f'SELECT title,category,posted,token FROM eh_data WHERE gid="{gid}"')
                 db_data = co.fetchone()
                 if db_data is None:
                     logger.warning(f"The ID does not exist>> {gid}")
                     sys.exit(1)
+                    
+                # 获取 tid 列表 / Get tid_list
+                tid_list = co.execute(f'SELECT tid FROM gid_tid WHERE gid="{gid}"').fetchall()
+                tid_list = [tid[0] for tid in tid_list]
+                
+                # 在 tag_list 中查询对应 tag
+                placeholders = ','.join(['?'] * len(tid_list))
+                tag_list = co.execute(f'SELECT tag FROM tag_list WHERE tid IN ({placeholders})', tid_list).fetchall()
+                db_tags = [tag[0] for tag in tag_list]
+                
                 xml_t = xml_escape(db_data[0])
                 category = db_data[1]
 
                 posted = str(datetime.fromtimestamp(int(db_data[2]))).split(" ")[0].split("-")
 
-                tags = str(db_data[3]).replace("[", "").replace("]", "").replace("'", "").split(",")
+                tags = str(db_tags).replace("[", "").replace("]", "").replace("'", "").split(",")
 
                 art = ""
 
@@ -122,7 +132,7 @@ class Support(Config):
 
                 art = art.strip()[:-1]
 
-                tags = str(db_data[3]).replace("[", "").replace("]", "").replace("'", "")
+                tags = str(db_tags).replace("[", "").replace("]", "").replace("'", "")
 
             data_list = [
                 r'<ComicInfo xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" encoding="utf-8">',
@@ -140,7 +150,7 @@ class Support(Config):
                 f'<Series/>',
                 r'<PageCount/>',
                 r'<URL/>',
-                f'<Web>exhentai.org/g/{gid}/{db_data[4]}</Web>',
+                f'<Web>exhentai.org/g/{gid}/{db_data[3]}</Web>',
                 r'<Characters/>',
                 r'<Translated>Yes</Translated>',
                 r'</ComicInfo>',
