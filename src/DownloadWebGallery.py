@@ -1,9 +1,9 @@
 import asyncio
+import hashlib
 import os
 import shutil
 import sqlite3
 import sys
-import hashlib
 
 from bs4 import BeautifulSoup
 from loguru import logger
@@ -34,40 +34,42 @@ class DownloadWebGallery(Config):
         self.filepath_end = os.path.join(self.data_path, folder, str(self.gid) + '-' + self.title + "-1280x")
 
         self.long_url = f"https://{self.base_url}/g/{self.gid}/{self.token}/"
-    
+
     async def calc_sha256(self, file_path):
         sha256 = hashlib.sha256()
         with open(file_path, 'rb') as f:
             for chunk in iter(lambda: f.read(4096), b''):
                 sha256.update(chunk)
         return sha256.hexdigest()
-    
-    # 根据哈希判断文件内容，检查下载
+
     async def check_save(self, file_path, file):
+        """
+        根据哈希判断文件内容，检查下载
+        """
         if os.path.exists(file_path):
             exist_hash = await self.calc_sha256(file_path)
             new_hash = hashlib.sha256(file).hexdigest()
-            
+
             if new_hash == exist_hash:
-                return file_path  
-            
+                return file_path
+
             base_name, ext = os.path.splitext(file_path)
             counter = 2
-            
+
             while os.path.exists(file_path):
                 exist_hash = await self.calc_sha256(file_path)
-                
+
                 if new_hash == exist_hash:
                     return file_path
-                
+
                 counter += 1
                 file_path = f"{base_name} ({counter}){ext}"
-        
+
         with open(file_path, 'wb') as f:
             f.write(file)
-        
+
         return file_path
-    
+
     @logger.catch()
     async def download_image(self, semaphore, url, file_path):
         async with semaphore:
@@ -75,19 +77,21 @@ class DownloadWebGallery(Config):
             real_url = BeautifulSoup(real_url, 'html.parser')
             real_url = real_url.select_one('img#img').get('src')
             # 配额用尽，返回的 real_url 会变成509.gif
-            if real_url == "https://exhentai.org/img/509.gif":
+            if re.match(r'^https://(exhentai|e-hentai)\.org/img/509\.gif$', real_url):
                 logger.warning("509: YOU HAVE TEMPORARILY REACHED THE LIMIT")
-                if self.get_image_limits() == False:
+                if not await self.get_image_limits():
                     # 账号已被暂停，无法访问配额页面，等待12小时配额自行恢复 (10hits/min) / The account has been suspended
-                    logger.warning("Can't get image limits as the account has been suspended, Attempt to wait for 12 hours")
-                    time.sleep(12 * 60 * 60)
+                    logger.warning(
+                        "Can't get image limits as the account has been suspended, Attempt to wait for 12 hours")
+                    await asyncio.sleep(12 * 60 * 60)
                 else:
-                    image_limits,total_limits=self.get_image_limits()
-                    logger.warning(f"Currently at {image_limits} towards the limit of {total_limits}. Waiting for quota restoration")
+                    image_limits, total_limits = await self.get_image_limits()
+                    logger.warning(
+                        f"Currently at {image_limits} towards the limit of {total_limits}. Waiting for quota restoration")
                     while True:
                         # 每隔一小时检查配额是否恢复 (恢复速率 10hits/min) / Check every hour to see if the quota is restored
-                        time.sleep(3600)
-                        image_limits,_=self.get_image_limits()
+                        await asyncio.sleep(3600)
+                        image_limits, _ = await self.get_image_limits()
                         print(f"Currently at {image_limits}")
                         if int(image_limits) <= 200:
                             break
@@ -118,14 +122,14 @@ class DownloadWebGallery(Config):
         if copyright_msg is not None:
             if copyright_msg.find('copyright') != -1:
                 return "copyright"
-        
+
         # 获取页面上显示的 pages，用于校验是否获取到全部的 page_img_url
         pages = None
         lengthtd = page_data.find('td', text='Length:')
         if lengthtd:
             length = lengthtd.find_next_sibling('td', class_='gdt2').text.strip()
             pages = re.search(r'\d+', length).group()
-            pages=int(pages)
+            pages = int(pages)
 
         # 获取总页码 / Get the total page number
         ptb = page_data.select_one('.ptb td:nth-last-child(2)')
@@ -156,17 +160,17 @@ class DownloadWebGallery(Config):
                 page_img_url.append([img_url, filename])
 
             sub_ptb = sub_ptb + 1
-            
-        if len(page_img_url)==0:
+
+        if len(page_img_url) == 0:
             # 加载到 https://exhentai.org/img/blank.gif，导致获取链接为空
             # 往往几个小时也不见恢复，这到底是为什么呢
             logger.warning("Failed to get image urls, retrying after 30mins……")
-            time.sleep(30 * 60)
+            await asyncio.sleep(30 * 60)
             return await self.get_image_url()
         elif pages and len(page_img_url) < pages:
             # 检查是否获取到全部链接
             logger.warning("Failed for missing pages, retrying after 30mins……")
-            time.sleep(30 * 60)
+            await asyncio.sleep(30 * 60)
             return await self.get_image_url()
 
         # 返回pages用于移动时重复校验
@@ -223,7 +227,7 @@ class DownloadWebGallery(Config):
                     check_dir = None
         else:
             shutil.move(self.filepath_tmp, self.filepath_end)
-            
+
         # 再次检查是否缺页 / Recheck for missing pages
         file_count = 0
         for _, _, files in os.walk(self.filepath_end):

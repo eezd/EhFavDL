@@ -4,14 +4,13 @@ import os
 import sqlite3
 import ssl
 import sys
-import requests
 import zipfile
 
 import aiohttp
 import yaml
+from bs4 import BeautifulSoup
 from loguru import logger
 from tqdm.asyncio import tqdm_asyncio
-from bs4 import BeautifulSoup
 
 # ssl:default [[SSL: DH_KEY_TOO_SMALL] dh key too small (_ssl.c:1006)]
 ssl_context = ssl.create_default_context()
@@ -62,8 +61,7 @@ class Config:
                     'http://': proxy_url,
                     'https://': proxy_url,
                 }
-                if not proxy_status:
-                    proxy_list = None
+
                 self.proxy_list = proxy_list
 
                 headers = {
@@ -85,17 +83,19 @@ class Config:
                                          connector=aiohttp.TCPConnector(ssl_context=ssl_context)) as session:
             try:
                 if data is not None:
-                    async with session.post(url, data=data, proxy=self.proxy_url) as response:
+                    async with session.post(url, data=data,
+                                            proxy=self.proxy_url if self.proxy_status else None) as response:
                         await self.check_fetch_err(response, url)
                         return await response.read()
 
                 elif json is not None:
-                    async with session.post(url, json=json, proxy=self.proxy_url) as response:
+                    async with session.post(url, json=json,
+                                            proxy=self.proxy_url if self.proxy_status else None) as response:
                         await self.check_fetch_err(response, url)
                         return await response.json(content_type=None)
 
                 else:
-                    async with session.get(url, proxy=self.proxy_url) as response:
+                    async with session.get(url, proxy=self.proxy_url if self.proxy_status else None) as response:
                         await self.check_fetch_err(response, url)
                         return await response.read()
             except Exception as e:
@@ -120,7 +120,7 @@ class Config:
         async with aiohttp.ClientSession(headers=headers, cookies=self.eh_cookies,
                                          connector=aiohttp.TCPConnector(ssl_context=ssl_context)) as session:
             try:
-                async with session.get(url, proxy=self.proxy_url) as response:
+                async with session.get(url, proxy=self.proxy_url if self.proxy_status else None) as response:
                     await self.check_fetch_err(response, file_path)
                     with tqdm_asyncio(total=int(response.headers.get("Content-Length", 0)) + stream_range,
                                       initial=stream_range,
@@ -164,6 +164,10 @@ class Config:
                 logger.warning("Please open Gallery---Archive Download---Cancel")
                 logger.warning(msg)
                 raise Exception("You have clocked too many downloaded bytes on this gallery")
+            elif "Your IP address has been temporarily banned for excessive pageloads" in content:
+                logger.warning(content)
+                await asyncio.sleep(12 * 60 * 60)
+                raise Exception("Your IP address has been temporarily banned for excessive pageloads")
             elif response.status != 200:
                 logger.warning(f"code: {response.status_code}")
                 logger.warning(f'{content}: {msg}')
@@ -204,7 +208,7 @@ class Config:
               "original_flag" INTEGER NOT NULL DEFAULT 0 /* 1表示 通过archiver中original选择下载原图*/,
               "web_1280x_flag" INTEGER NOT NULL DEFAULT 0 /* 1表示 通过网页画廊下载/通过archiver中Resample选项下载*/
             )''')
-            
+
             # 使用单独的标签列表和映射表相比字符串存储或许能实现更好的数据统计和管理
             co.execute('''
                 CREATE TABLE IF NOT EXISTS tag_list (
@@ -223,17 +227,12 @@ class Config:
             ''')
 
             co.commit()
-            
-    def get_image_limits(self):
-        home_url="https://e-hentai.org/home.php"
-        headers=self.request_headers
-        cookies=self.eh_cookies
-        response = requests.get(home_url, headers=headers,cookies=cookies)
 
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.content, 'html.parser')
-            if "your account has been suspended" in str(soup):
-                return False
-            image_limits = soup.find_all('div', class_='homebox')[0].find('p').find_all('strong')[0].text.strip()
-            total_limits = soup.find_all('div', class_='homebox')[0].find('p').find_all('strong')[1].text.strip()
-            return image_limits,total_limits
+    async def get_image_limits(self):
+        hx_res = await self.fetch_data(url="https://e-hentai.org/home.php")
+        response = BeautifulSoup(hx_res, 'html.parser')
+        if "your account has been suspended" in str(response):
+            return False
+        image_limits = response.find_all('div', class_='homebox')[0].find('p').find_all('strong')[0].text.strip()
+        total_limits = response.find_all('div', class_='homebox')[0].find('p').find_all('strong')[1].text.strip()
+        return image_limits, total_limits
