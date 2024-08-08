@@ -307,9 +307,10 @@ class AddFavData(Config):
         with sqlite3.connect(self.dbs_name) as co:
             if gid_list:
                 placeholders = ','.join('?' for _ in gid_list)
-                co.execute(f'DELETE FROM eh_data WHERE gid IN ({placeholders})', gid_list)
+                # 假如删除了, 那么他就丢失了该 "已下载" 画廊的所有信息
+                # co.execute(f'DELETE FROM eh_data WHERE gid IN ({placeholders})', gid_list)
                 co.execute(f'DELETE FROM fav_category WHERE gid IN ({placeholders})', gid_list)
-                co.execute(f'DELETE FROM gid_tid WHERE gid IN ({placeholders})', gid_list)
+                # co.execute(f'DELETE FROM gid_tid WHERE gid IN ({placeholders})', gid_list)
                 co.commit()
 
     @logger.catch()
