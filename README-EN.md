@@ -29,7 +29,9 @@ A downloader for E-Hentai / Exhentai collections, developed in Python 3.11, with
 - [x] Generate `ComicInfo.xml` (supports Komga/LANraragi)
 - [x] Zip compression for Komga/LANraragi compatibility
 - [x] LANraragi tag additions
-
+- [ ] Recalculate the waiting time based on `IP quota`
+- [ ] Display the remaining `IP quota`
+- [ ] Optimize the strategy for **This gallery has an updated version available**
 
 
 ![main](/img/main.png)

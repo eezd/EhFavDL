@@ -1,4 +1,7 @@
+import ast
 import asyncio
+import json
+import os
 import sqlite3
 import sys
 
@@ -13,6 +16,40 @@ from .common import *
 class AddFavData(Config):
     def __init__(self):
         super().__init__()
+
+    @logger.catch()
+    # 使用 EhTagTranslation 的标签数据库对 tag_list 中的标签进行翻译
+    async def translate_tags(self):
+        logger.info(f"Downloading translation database...")
+        # 下载最新的标签翻译数据库
+        database_url = "https://github.com/EhTagTranslation/Database/releases/latest/download/db.text.json"
+        database_name = "db.text.json"
+        r = await self.fetch_data(database_url)
+        with open(database_name, 'wb') as f:
+            f.write(r)
+
+        # 加载数据库中的标签数据
+        with open(database_name, 'r', encoding='utf-8') as file:
+            db_data = json.load(file)
+        namespace_data = {}
+        for item in db_data["data"]:
+            namespace_data[item["namespace"]] = item["data"]
+        with sqlite3.connect(self.dbs_name) as co:
+            result = co.execute('SELECT tid, tag FROM tag_list').fetchall()
+            for entry in result:
+                tid = entry[0]
+                tag = entry[1]
+                try:
+                    namespace, tagcontent = tag.split(":", 1)
+                except ValueError:
+                    # 使用 api 获取到的部分 tag 好像没有命名空间的结构
+                    continue
+                if namespace in namespace_data and tagcontent in namespace_data[namespace]:
+                    translated_tag = namespace_data[namespace][tagcontent]["name"]
+                    co.execute('UPDATE tag_list SET translated_tag = ? WHERE tid = ?', (translated_tag, tid))
+                    print(f"{tag.ljust(50)} -> {translated_tag}")
+                    co.commit()
+        os.remove(database_name)
 
     @logger.catch()
     async def update_category(self):
@@ -156,7 +193,19 @@ class AddFavData(Config):
 
         if not get_all:
             with sqlite3.connect(self.dbs_name) as co:
-                gid_token = co.execute('SELECT gid,token FROM eh_data WHERE title IS "" OR title IS NULL').fetchall()
+                gid_token = co.execute(
+                    '''
+                    SELECT gid, token 
+                    FROM eh_data 
+                    WHERE gid NOT IN (
+                        SELECT gid 
+                        FROM gid_tid 
+                        WHERE gid IS NOT NULL
+                    ) 
+                    OR title = "" 
+                    OR title IS NULL
+                    '''
+                ).fetchall()
         else:
             with sqlite3.connect(self.dbs_name) as co:
                 gid_token = co.execute('SELECT gid,token FROM eh_data').fetchall()
@@ -222,21 +271,46 @@ class AddFavData(Config):
                         co.execute(
                             "UPDATE eh_data SET title=?, title_jpn=?, "
                             "category=?, thumb=?, uploader=?, posted=?, filecount=?, "
-                            "filesize=?, expunged=?, rating=?, tags=?, current_gid=?, "
+                            "filesize=?, expunged=?, rating=?, current_gid=?, "
                             "current_token=? WHERE gid=?",
                             (data[0], data[1], data[2], data[3], data[4], data[5],
-                             data[6], data[7], data[8], data[9], data[10], data[11],
+                             data[6], data[7], data[8], data[9], data[11],
                              data[12], data[13])
                         )
+                        # 当执行 add_tags_data(True) 时，先删除对应 gid 的映射以适配 tag 的删减
+                        if get_all:
+                            co.execute('DELETE FROM gid_tid WHERE gid =?', (data[13],))
+                            co.commit()
+
+                        # 添加 tag 数据时我的代码总是会漏一些 gid_tid 的映射 (一般应该不会太多)
+                        # 我还没找到原因(，重复 1~2 次 add_tags_data(False) 情况应该会改善一些，代码在下面 line 306
+                        tags = ast.literal_eval(data[10])
+                        for tag in tags:
+                            result = co.execute('SELECT tid FROM tag_list WHERE tag =?', (tag,)).fetchone()
+                            if result:
+                                tid = result[0]
+                            else:
+                                co.execute('INSERT INTO tag_list (tag) VALUES (?)', (tag,))
+                                tid = co.execute('SELECT tid FROM tag_list WHERE tag =?', (tag,)).fetchone()[0]
+                            co.execute('INSERT OR IGNORE INTO gid_tid (gid, tid) VALUES (?, ?)', (data[13], tid))
                     co.commit()
 
                     progress_bar.update(piece)
+
+            # 检查遗漏数据，一般不会太多
+            missed_tag = co.execute(
+                'SELECT gid FROM eh_data WHERE gid NOT IN (SELECT gid FROM gid_tid WHERE gid IS NOT NULL)').fetchall()
+            if len(missed_tag) >= 50:
+                await self.add_tags_data()
 
     def delete_fav_category_del_flag(self, gid_list):
         with sqlite3.connect(self.dbs_name) as co:
             if gid_list:
                 placeholders = ','.join('?' for _ in gid_list)
+                # 假如删除了, 那么他就丢失了该 "已下载" 画廊的所有信息
+                # co.execute(f'DELETE FROM eh_data WHERE gid IN ({placeholders})', gid_list)
                 co.execute(f'DELETE FROM fav_category WHERE gid IN ({placeholders})', gid_list)
+                # co.execute(f'DELETE FROM gid_tid WHERE gid IN ({placeholders})', gid_list)
                 co.commit()
 
     @logger.catch()
@@ -248,6 +322,12 @@ class AddFavData(Config):
         await self.add_tags_data()
 
         with sqlite3.connect(self.dbs_name) as co:
+            co.execute(
+                'DELETE FROM eh_data WHERE gid IN (SELECT gid FROM fav_category WHERE del_flag = 1 AND original_flag = 0 AND web_1280x_flag = 0)')
+            co.commit()
+            co.execute(
+                'DELETE FROM gid_tid WHERE gid IN (SELECT gid FROM fav_category WHERE del_flag = 1 AND original_flag = 0 AND web_1280x_flag = 0)')
+            co.commit()
             co.execute('DELETE FROM fav_category WHERE del_flag = 1 AND original_flag = 0 AND web_1280x_flag = 0')
             co.commit()
 

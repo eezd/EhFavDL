@@ -102,17 +102,27 @@ class Support(Config):
             gid = int(str(i).split('-')[0])
 
             with sqlite3.connect(self.dbs_name) as co:
-                co = co.execute(f'SELECT title,category,posted,tags,token FROM eh_data WHERE gid="{gid}"')
+                co = co.execute(f'SELECT title,category,posted,token FROM eh_data WHERE gid="{gid}"')
                 db_data = co.fetchone()
                 if db_data is None:
                     logger.warning(f"The ID does not exist>> {gid}")
                     sys.exit(1)
+
+                # 获取 tid 列表 / Get tid_list
+                tid_list = co.execute(f'SELECT tid FROM gid_tid WHERE gid="{gid}"').fetchall()
+                tid_list = [tid[0] for tid in tid_list]
+
+                # 在 tag_list 中查询对应 tag
+                placeholders = ','.join(['?'] * len(tid_list))
+                tag_list = co.execute(f'SELECT tag FROM tag_list WHERE tid IN ({placeholders})', tid_list).fetchall()
+                db_tags = [tag[0] for tag in tag_list]
+
                 xml_t = xml_escape(db_data[0])
                 category = db_data[1]
 
                 posted = str(datetime.fromtimestamp(int(db_data[2]))).split(" ")[0].split("-")
 
-                tags = str(db_data[3]).replace("[", "").replace("]", "").replace("'", "").split(",")
+                tags = str(db_tags).replace("[", "").replace("]", "").replace("'", "").split(",")
 
                 art = ""
 
@@ -122,7 +132,7 @@ class Support(Config):
 
                 art = art.strip()[:-1]
 
-                tags = str(db_data[3]).replace("[", "").replace("]", "").replace("'", "")
+                tags = str(db_tags).replace("[", "").replace("]", "").replace("'", "")
 
             data_list = [
                 r'<ComicInfo xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" encoding="utf-8">',
@@ -140,7 +150,7 @@ class Support(Config):
                 f'<Series/>',
                 r'<PageCount/>',
                 r'<URL/>',
-                f'<Web>exhentai.org/g/{gid}/{db_data[4]}</Web>',
+                f'<Web>exhentai.org/g/{gid}/{db_data[3]}</Web>',
                 r'<Characters/>',
                 r'<Translated>Yes</Translated>',
                 r'</ComicInfo>',
@@ -162,99 +172,110 @@ class Support(Config):
         if enter != "":
             sys.exit(1)
 
-        authorization_token_base64 = str(base64.b64encode(self.lan_api_psw.encode('utf-8'))).replace("b",
-                                                                                                     "").replace("'",
-                                                                                                                 "")
-
-        return aiohttp.ClientSession(headers={"Authorization": f"Bearer {authorization_token_base64}"})
+        authorization_token_base64 = base64.b64encode(self.lan_api_psw.encode('utf-8')).decode('utf-8')
+        return authorization_token_base64
 
     @logger.catch()
     async def lan_update_tags(self):
-        session = self.lan_request()
-        lan_url = self.lan_url
+        authorization_token_base64 = self.lan_request()
+        headers = {"Authorization": f"Bearer {authorization_token_base64}"}
 
-        if lan_url[-1] == "/":
-            lan_url += "api/archives"
-        else:
-            lan_url += "/api/archives"
+        async with aiohttp.ClientSession(headers=headers) as session:
+            lan_url = self.lan_url
 
-        async with session.get(lan_url) as response:
-            all_archives = await response.json(content_type=None)
+            if lan_url[-1] == "/":
+                lan_url += "api/archives"
+            else:
+                lan_url += "/api/archives"
 
-        logger.info(f"一共检查到 {len(all_archives)} 个")
-        logger.info(f"A total of {len(all_archives)} were checked")
-        if len(all_archives) == 0:
-            logger.error(f"请添加画廊后再添加Tags")
-            logger.error(f"Please add gallery before adding Tags")
-            sys.exit(1)
+            async with session.get(lan_url) as response:
+                all_archives = await response.json(content_type=None)
 
-        with tqdm(total=len(all_archives)) as progress_bar:
-            with sqlite3.connect(self.dbs_name) as co:
-                for sub_archives in all_archives:
-                    try:
-                        gid = re.compile('.*gid:([0-9]*),.*').match(str(sub_archives['tags']))
-                        if gid is not None:
-                            gid = int(gid.group(1))
-                        else:
-                            gid = int(str(sub_archives['title']).split('-')[0])
-                    except ValueError:
-                        logger.warning(
-                            f"The ID does not exist>> arcid: {str(sub_archives['arcid'])}, title: {str(sub_archives['title'])}")
-                        sys.exit(1)
+            logger.info(f"一共检查到 {len(all_archives)} 个")
+            logger.info(f"A total of {len(all_archives)} were checked")
+            if len(all_archives) == 0:
+                logger.error(f"请添加画廊后再添加Tags")
+                logger.error(f"Please add gallery before adding Tags")
+                sys.exit(1)
 
-                    # 根据 gid 查询数据库
-                    co = co.execute(
-                        f'SELECT eh.gid,eh.token,eh.title,eh.title_jpn,eh.category,eh.posted,eh.tags,fn.fav_name '
-                        f'FROM eh_data AS eh, fav_category AS fc, fav_name AS fn WHERE eh.gid="{gid}" AND fc.gid="{gid}" '
-                        f'AND fc.fav_id=fn.fav_id')
-                    fav_info = co.fetchone()
+            with tqdm(total=len(all_archives)) as progress_bar:
+                with sqlite3.connect(self.dbs_name) as co:
+                    for sub_archives in all_archives:
+                        try:
+                            gid = re.compile('.*gid:([0-9]*),.*').match(str(sub_archives['tags']))
+                            if gid is not None:
+                                gid = int(gid.group(1))
+                            else:
+                                gid = int(str(sub_archives['title']).split('-')[0])
+                        except ValueError:
+                            logger.warning(
+                                f"The ID does not exist>> arcid: {str(sub_archives['arcid'])}, title: {str(sub_archives['title'])}")
+                            sys.exit(1)
 
-                    # fav_category表中不存在该 gid , 则在eh_data表中查询↓↓↓
-                    if fav_info is None:
+                        # 根据 gid 查询数据库
                         co = co.execute(
-                            f'SELECT eh.gid,eh.token,eh.title,eh.title_jpn,eh.category,eh.posted,eh.tags '
-                            f'FROM eh_data AS eh WHERE eh.gid="{gid}"')
+                            f'SELECT eh.gid,eh.token,eh.title,eh.title_jpn,eh.category,eh.posted,fn.fav_name '
+                            f'FROM eh_data AS eh, fav_category AS fc, fav_name AS fn WHERE eh.gid="{gid}" AND fc.gid="{gid}" '
+                            f'AND fc.fav_id=fn.fav_id')
                         fav_info = co.fetchone()
 
+                        # fav_category表中不存在该 gid , 则在eh_data表中查询↓↓↓
                         if fav_info is None:
-                            logger.warning(f"The ID does not exist>> {gid}")
-                            continue
+                            co = co.execute(
+                                f'SELECT eh.gid,eh.token,eh.title,eh.title_jpn,eh.category,eh.posted '
+                                f'FROM eh_data AS eh WHERE eh.gid="{gid}"')
+                            fav_info = co.fetchone()
+
+                            if fav_info is None:
+                                logger.warning(f"The ID does not exist>> {gid}")
+                                continue
+                            else:
+                                fav_info = fav_info + ("no_category",)
+                                logger.warning(
+                                    f"The data does not exist in fav_category, but it exists in eh_data. The data has been "
+                                    f"written.>> {gid}")
+
+                        token = str(fav_info[1])
+
+                        # 优先使用 title_jpn 作为标题
+                        # title = str(gid) + "-" + str(fav_info[2])
+                        if fav_info[3] is not None and fav_info[3] != "":
+                            title = str(fav_info[3])
                         else:
-                            fav_info = fav_info + ("no_category",)
-                            logger.warning(
-                                f"The data does not exist in fav_category, but it exists in eh_data. The data has been "
-                                f"written.>> {gid}")
+                            title = str(fav_info[2])
 
-                    token = str(fav_info[1])
+                        source = f"exhentai.org/g/{gid}/{token}"
 
-                    # 优先使用 title_jpn 作为标题
-                    # title = str(gid) + "-" + str(fav_info[2])
-                    if fav_info[3] is not None and fav_info[3] != "":
-                        title = str(fav_info[3])
-                    else:
-                        title = str(fav_info[2])
+                        category = str(fav_info[4])
 
-                    source = f"exhentai.org/g/{gid}/{token}"
+                        # posted = str(datetime.datetime.fromtimestamp(int(db_tags[3]))).split(" ")[0].replace("-", "/")
+                        posted = fav_info[5]
 
-                    category = str(fav_info[4])
+                        # 使用 LANraragi 生成的 pages
+                        # https://github.com/Difegue/LANraragi/issues/586
+                        pages = int(sub_archives['pagecount'])
 
-                    # posted = str(datetime.datetime.fromtimestamp(int(db_tags[3]))).split(" ")[0].replace("-", "/")
-                    posted = fav_info[5]
+                        fav_name = ""
+                        if len(fav_info) > 6:
+                            fav_name = "fav_name:" + str(fav_info[6])
 
-                    # 使用 LANraragi 生成的 pages
-                    # https://github.com/Difegue/LANraragi/issues/586
-                    pages = int(sub_archives['pagecount'])
+                        # 获取 tid 列表 / Get tid_list
+                        tid_list = co.execute(f'SELECT tid FROM gid_tid WHERE gid="{gid}"').fetchall()
+                        tid_list = [tid[0] for tid in tid_list]
 
-                    tags = str(fav_info[6]).replace("[", "").replace("]", "").replace("'", "")
+                        # 在 tag_list 中查询对应 tag
+                        placeholders = ','.join(['?'] * len(tid_list))
+                        tag_list = co.execute(f'SELECT tag FROM tag_list WHERE tid IN ({placeholders})',
+                                              tid_list).fetchall()
+                        db_tags = [tag[0] for tag in tag_list]
+                        tags = ','.join(db_tags)
 
-                    fav_name = str(fav_info[7])
+                        lan_tags = f"gid:{gid},token:{token},source:{source},category:{category},date_added:{posted},pages:{pages},{fav_name}," + tags
 
-                    lan_tags = f"gid:{gid},token:{token},source:{source},category:{category},date_added:{posted},pages:{pages},fav_name:{fav_name}," + tags
-
-                    async with session.put(f"{lan_url}/{sub_archives['arcid']}/metadata",
-                                           data={"title": title, "tags": lan_tags.strip()}) as response:
-                        await response.read()
-                        progress_bar.update(1)
+                        async with session.put(f"{lan_url}/{sub_archives['arcid']}/metadata",
+                                               data={"title": title, "tags": lan_tags.strip()}) as response:
+                            await response.read()
+                            progress_bar.update(1)
 
         logger.info("[OK] LANraragi Add Tags")
 

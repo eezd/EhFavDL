@@ -7,7 +7,7 @@
 [![Last commit](https://img.shields.io/github/last-commit/eezd/EhFavDL/main)](https://github.com/eezd/EhFavDL/commits/main)
 [![License](https://img.shields.io/badge/license-MIT-yellowgreen.svg)](LICENSE)
 
-E-Hentai / Exhentai 下载收藏夹，基于 Python3.11 编，支持 Komga 和 LANraragi。
+E-Hentai / Exhentai 下载收藏夹，基于 Python3.11 编写，支持 Komga 和 LANraragi。
 
 [中文](README.md)/[English](README-EN.md)
 
@@ -27,6 +27,9 @@ E-Hentai / Exhentai 下载收藏夹，基于 Python3.11 编，支持 Komga 和 L
 - [x] 生成 `ComicInfo.xml` (支持 Komga/LANraragi)
 - [x] 压缩成 zip 适配 Komga/LANraragi
 - [x] LANraragi 添加 EH Tags
+- [ ] 根据 `IP quota` 重新计算等待时间
+- [ ] 显示剩余的 `IP quota`
+- [ ] 优化 **此图库有更新的版本可用** 的策略
 
 ![main](/img/main.png)
 

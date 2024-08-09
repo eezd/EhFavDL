@@ -8,6 +8,7 @@ import zipfile
 
 import aiohttp
 import yaml
+from bs4 import BeautifulSoup
 from loguru import logger
 from tqdm.asyncio import tqdm_asyncio
 
@@ -60,8 +61,7 @@ class Config:
                     'http://': proxy_url,
                     'https://': proxy_url,
                 }
-                if not proxy_status:
-                    proxy_list = None
+
                 self.proxy_list = proxy_list
 
                 headers = {
@@ -83,17 +83,19 @@ class Config:
                                          connector=aiohttp.TCPConnector(ssl_context=ssl_context)) as session:
             try:
                 if data is not None:
-                    async with session.post(url, data=data, proxy=self.proxy_url) as response:
+                    async with session.post(url, data=data,
+                                            proxy=self.proxy_url if self.proxy_status else None) as response:
                         await self.check_fetch_err(response, url)
                         return await response.read()
 
                 elif json is not None:
-                    async with session.post(url, json=json, proxy=self.proxy_url) as response:
+                    async with session.post(url, json=json,
+                                            proxy=self.proxy_url if self.proxy_status else None) as response:
                         await self.check_fetch_err(response, url)
                         return await response.json(content_type=None)
 
                 else:
-                    async with session.get(url, proxy=self.proxy_url) as response:
+                    async with session.get(url, proxy=self.proxy_url if self.proxy_status else None) as response:
                         await self.check_fetch_err(response, url)
                         return await response.read()
             except Exception as e:
@@ -118,7 +120,7 @@ class Config:
         async with aiohttp.ClientSession(headers=headers, cookies=self.eh_cookies,
                                          connector=aiohttp.TCPConnector(ssl_context=ssl_context)) as session:
             try:
-                async with session.get(url, proxy=self.proxy_url) as response:
+                async with session.get(url, proxy=self.proxy_url if self.proxy_status else None) as response:
                     await self.check_fetch_err(response, file_path)
                     with tqdm_asyncio(total=int(response.headers.get("Content-Length", 0)) + stream_range,
                                       initial=stream_range,
@@ -162,6 +164,10 @@ class Config:
                 logger.warning("Please open Gallery---Archive Download---Cancel")
                 logger.warning(msg)
                 raise Exception("You have clocked too many downloaded bytes on this gallery")
+            elif "Your IP address has been temporarily banned for excessive pageloads" in content:
+                logger.warning(content)
+                await asyncio.sleep(12 * 60 * 60)
+                raise Exception("Your IP address has been temporarily banned for excessive pageloads")
             elif response.status != 200:
                 logger.warning(f"code: {response.status_code}")
                 logger.warning(f'{content}: {msg}')
@@ -183,7 +189,6 @@ class Config:
                 "expunged" INTEGER NOT NULL DEFAULT 0 /*是否被隐藏*/,
                 "copyright_flag" INTEGER NOT NULL DEFAULT 0 /*是否被版权*/,
                 "rating" TEXT /*评分*/,
-                "tags" TEXT /*标签*/,
                 "current_gid" INTEGER /*画廊最新gid*/,
                 "current_token" TEXT /*画廊最新token*/
             )''')
@@ -204,4 +209,30 @@ class Config:
               "web_1280x_flag" INTEGER NOT NULL DEFAULT 0 /* 1表示 通过网页画廊下载/通过archiver中Resample选项下载*/
             )''')
 
+            # 使用单独的标签列表和映射表相比字符串存储或许能实现更好的数据统计和管理
+            co.execute('''
+                CREATE TABLE IF NOT EXISTS tag_list (
+                    tid INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tag TEXT UNIQUE NOT NULL,
+                    translated_tag TEXT
+                )
+            ''')
+            co.execute('''
+                CREATE TABLE IF NOT EXISTS gid_tid (
+                    gid INTEGER UNSIGNED NOT NULL,
+                    tid INTEGER UNSIGNED NOT NULL,
+                    PRIMARY KEY (gid, tid),
+                    UNIQUE(gid, tid)
+                )
+            ''')
+
             co.commit()
+
+    async def get_image_limits(self):
+        hx_res = await self.fetch_data(url="https://e-hentai.org/home.php")
+        response = BeautifulSoup(hx_res, 'html.parser')
+        if "your account has been suspended" in str(response):
+            return False
+        image_limits = response.find_all('div', class_='homebox')[0].find('p').find_all('strong')[0].text.strip()
+        total_limits = response.find_all('div', class_='homebox')[0].find('p').find_all('strong')[1].text.strip()
+        return image_limits, total_limits
