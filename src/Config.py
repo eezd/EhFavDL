@@ -251,7 +251,7 @@ class Config:
         """
         while True:
             image_limits, total_limits = await self.get_image_limits()
-            logger.info(f"Image Limits: {image_limits} / {total_limits}")
+            logger.info(f"Image Limits: {image_limits} / ({total_limits}*0.8 = {total_limits * 0.8})")
             if image_limits > total_limits * 0.8:
                 lower_value = total_limits * 0.3
                 # 每分钟回复12个, 每个需要 5s, 这里额外 +1s 并且总时长 +60s 增加容错
