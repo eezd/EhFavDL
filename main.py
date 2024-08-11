@@ -43,12 +43,25 @@ def main():
 
             dl_list = []
             with sqlite3.connect(Config().dbs_name) as co:
-                ce = co.execute(
-                    f"SELECT fc.gid, fc.token, eh.title, eh.title_jpn FROM eh_data AS eh, fav_category AS fc "
-                    f"WHERE fc.web_1280x_flag=0 AND eh.expunged=0 AND eh.gid=fc.gid AND fc.fav_id = {fav_cat} ORDER BY fc.gid DESC")
-                co.commit()
+                ce = co.execute(f'''
+                SELECT
+                    fc.gid,
+                    fc.token,
+                    eh.title,
+                    eh.title_jpn 
+                FROM
+                    eh_data AS eh,
+                    fav_category AS fc 
+                WHERE
+                    fc.web_1280x_flag = 0 
+                    AND eh.expunged = 0 
+                    AND eh.gid = fc.gid 
+                    AND fc.fav_id = {fav_cat} 
+                ORDER BY
+                    fc.gid DESC
+                ''').fetchall()
 
-                for i in ce.fetchall():
+                for i in ce:
                     if i[3] is not None and i[3] != "":
                         title = str(i[3])
                         dl_list.append([i[0], i[1], title])

@@ -102,19 +102,25 @@ class Support(Config):
             gid = int(str(i).split('-')[0])
 
             with sqlite3.connect(self.dbs_name) as co:
-                co = co.execute(f'SELECT title,category,posted,token FROM eh_data WHERE gid="{gid}"')
+                co = co.execute(f'''SELECT title,category,posted,token FROM eh_data WHERE gid="{gid}"''')
                 db_data = co.fetchone()
                 if db_data is None:
                     logger.warning(f"The ID does not exist>> {gid}")
                     sys.exit(1)
 
                 # 获取 tid 列表 / Get tid_list
-                tid_list = co.execute(f'SELECT tid FROM gid_tid WHERE gid="{gid}"').fetchall()
+                tid_list = co.execute(f'''SELECT tid FROM gid_tid WHERE gid="{gid}"''').fetchall()
                 tid_list = [tid[0] for tid in tid_list]
 
                 # 在 tag_list 中查询对应 tag
                 placeholders = ','.join(['?'] * len(tid_list))
-                tag_list = co.execute(f'SELECT tag FROM tag_list WHERE tid IN ({placeholders})', tid_list).fetchall()
+                tag_list = co.execute(f'''
+                SELECT {"translated_tag" if self.tags_translation else "tag"} 
+                FROM
+                    tag_list 
+                WHERE
+                    tid IN ( {placeholders} )
+                ''', tid_list).fetchall()
                 db_tags = [tag[0] for tag in tag_list]
 
                 xml_t = xml_escape(db_data[0])
@@ -159,7 +165,7 @@ class Support(Config):
             with open(os.path.join(self.data_path, i, "ComicInfo.xml"), 'w', encoding='utf-8') as file:
                 for data in data_list:
                     file.write(data + '\n')
-
+            logger.info(f"Create {i}/ComicInfo.xml")
         logger.info(f'[OK] Create ComicInfo.xml')
 
     @logger.catch()
@@ -213,17 +219,41 @@ class Support(Config):
                             sys.exit(1)
 
                         # 根据 gid 查询数据库
-                        co = co.execute(
-                            f'SELECT eh.gid,eh.token,eh.title,eh.title_jpn,eh.category,eh.posted,fn.fav_name '
-                            f'FROM eh_data AS eh, fav_category AS fc, fav_name AS fn WHERE eh.gid="{gid}" AND fc.gid="{gid}" '
-                            f'AND fc.fav_id=fn.fav_id')
+                        co = co.execute(f'''
+                        SELECT
+                            eh.gid,
+                            eh.token,
+                            eh.title,
+                            eh.title_jpn,
+                            eh.category,
+                            eh.posted,
+                            fn.fav_name 
+                        FROM
+                            eh_data AS eh,
+                            fav_category AS fc,
+                            fav_name AS fn 
+                        WHERE
+                            eh.gid = "{gid}" 
+                            AND fc.gid = "{gid}" 
+                            AND fc.fav_id = fn.fav_id
+                        ''')
                         fav_info = co.fetchone()
 
                         # fav_category表中不存在该 gid , 则在eh_data表中查询↓↓↓
                         if fav_info is None:
-                            co = co.execute(
-                                f'SELECT eh.gid,eh.token,eh.title,eh.title_jpn,eh.category,eh.posted '
-                                f'FROM eh_data AS eh WHERE eh.gid="{gid}"')
+                            co = co.execute(f'''
+                            SELECT
+                                eh.gid,
+                                eh.token,
+                                eh.title,
+                                eh.title_jpn,
+                                eh.category,
+                                eh.posted 
+                            FROM
+                                eh_data AS eh 
+                            WHERE
+                                eh.gid = "{gid}"
+                            ''')
                             fav_info = co.fetchone()
 
                             if fav_info is None:
@@ -260,13 +290,18 @@ class Support(Config):
                             fav_name = "fav_name:" + str(fav_info[6])
 
                         # 获取 tid 列表 / Get tid_list
-                        tid_list = co.execute(f'SELECT tid FROM gid_tid WHERE gid="{gid}"').fetchall()
+                        tid_list = co.execute(f'''SELECT tid FROM gid_tid WHERE gid="{gid}"''').fetchall()
                         tid_list = [tid[0] for tid in tid_list]
 
                         # 在 tag_list 中查询对应 tag
                         placeholders = ','.join(['?'] * len(tid_list))
-                        tag_list = co.execute(f'SELECT tag FROM tag_list WHERE tid IN ({placeholders})',
-                                              tid_list).fetchall()
+                        tag_list = co.execute(f'''
+                        SELECT {"translated_tag" if self.tags_translation else "tag"} 
+                        FROM
+                            tag_list 
+                        WHERE
+                            tid IN ( {placeholders} )
+                        ''', tid_list).fetchall()
                         db_tags = [tag[0] for tag in tag_list]
                         tags = ','.join(db_tags)
 

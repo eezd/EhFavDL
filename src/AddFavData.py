@@ -53,7 +53,7 @@ class AddFavData(Config):
                     logger.warning(f"Invalid tag: {tag}")
                     continue
                 if namespace in namespace_data and tagcontent in namespace_data[namespace]:
-                    translated_tag = namespace_data[namespace][tagcontent]["name"]
+                    translated_tag = namespace + ":" + namespace_data[namespace][tagcontent]["name"]
                     co.execute('''UPDATE tag_list SET translated_tag = ? WHERE tid = ?''', (translated_tag, tid))
                     # print(f"{tag.ljust(50)} -> {translated_tag}")
                     co.commit()

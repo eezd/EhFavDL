@@ -26,14 +26,14 @@ class Config:
                 base_url = str(config['website'])
                 self.base_url = base_url
 
-                work_path = str(config['work_path'])
-                self.work_path = work_path
-
                 data_path = str(config['data_path'])
                 self.data_path = data_path
 
                 dbs_name = str(config['dbs_name'])
                 self.dbs_name = dbs_name
+
+                tags_translation = bool(config['tags_translation'])
+                self.tags_translation = tags_translation
 
                 connect_limit = str(config['connect_limit'])
                 self.connect_limit = connect_limit
@@ -47,11 +47,13 @@ class Config:
                 eh_cookies = {
                     "ipb_member_id": str(config['cookies']['ipb_member_id']),
                     "ipb_pass_hash": str(config['cookies']['ipb_pass_hash']),
-                    "igneous": str(config['cookies']['igneous'])
+                    "igneous": str(config['cookies']['igneous']),
+                    "sk": str(config['cookies']['sk']),
+                    "hath_perks": str(config['cookies']['hath_perks']),
                 }
                 self.eh_cookies = eh_cookies
 
-                proxy_status = config['proxy']['enable']
+                proxy_status = bool(config['proxy']['enable'])
                 self.proxy_status = proxy_status
 
                 proxy_url = config['proxy']['url']
@@ -61,7 +63,6 @@ class Config:
                     'http://': proxy_url,
                     'https://': proxy_url,
                 }
-
                 self.proxy_list = proxy_list
 
                 headers = {
@@ -78,7 +79,6 @@ class Config:
 
     @logger.catch()
     async def fetch_data(self, url, data=None, json=None, retry_delay=5, retry_attempts=10):
-
         async with aiohttp.ClientSession(headers=self.request_headers, cookies=self.eh_cookies,
                                          connector=aiohttp.TCPConnector(ssl_context=ssl_context)) as session:
             try:
@@ -231,8 +231,6 @@ class Config:
     async def get_image_limits(self):
         hx_res = await self.fetch_data(url="https://e-hentai.org/home.php")
         response = BeautifulSoup(hx_res, 'html.parser')
-        if "your account has been suspended" in str(response):
-            return False
         image_limits = response.find_all('div', class_='homebox')[0].find('p').find_all('strong')[0].text.strip()
         total_limits = response.find_all('div', class_='homebox')[0].find('p').find_all('strong')[1].text.strip()
         return image_limits, total_limits

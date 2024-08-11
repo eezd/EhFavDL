@@ -11,11 +11,7 @@ E-Hentai / Exhentai 下载收藏夹，基于 Python3.11 编写，支持 Komga �
 
 [中文](README.md)/[English](README-EN.md)
 
-**v1.2 已发布, 存在重大变化**
 
-**v1.2 已发布, 存在重大变化**
-
-**v1.2 已发布, 存在重大变化**
 
 ## 📌 TODO
 
@@ -44,10 +40,14 @@ pip install -r requirements.txt
 - 2、填写 `config.yaml`
 
 ```yaml
+# 缺少 sk 和 hath_perks 会导致无法获取正确的 IP 配额
+# Missing sk and hath_perks will result in the inability to obtain the correct IP quota.
 cookies:
   ipb_member_id: 1234567
   ipb_pass_hash: 123456789abcdefg
   igneous: d2fbv51sa
+  sk: asdjnasdjk
+  hath_perks: m1.m2...
 
 User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36
 
@@ -57,19 +57,21 @@ proxy:
 
 dbs_name: ./data.db
 
-work_path: E:\Hso\exhentaiDL
-
-#data_path: E:\Hso\exhentaiDL
 data_path: E:\Hso\exhentaiDL\data
 
+# e-hentai.org / exhentai.org
 website: exhentai.org
 
 # Only DownloadWebGallery
 connect_limit: 3
 
+# 是否启用标签翻译(适用于 5. Create ComicInfo.xml & 8. Update LANraragi Tags)
+# Would you like to enable tag translation (applicable to 5. Create ComicInfo.xml & 8. Update LANraragi Tags)?
+tags_translation: False
+
 lan_url: http://127.0.0.1:22299
 # Setting >>> Security >>> API Key
-lan_api_psw: hso+zg+134-
+lan_api_psw: jskada
 ```
 
 - 3、运行
