@@ -48,9 +48,11 @@ class Config:
                     "ipb_member_id": str(config['cookies']['ipb_member_id']),
                     "ipb_pass_hash": str(config['cookies']['ipb_pass_hash']),
                     "igneous": str(config['cookies']['igneous']),
-                    "sk": str(config['cookies']['sk']),
-                    "hath_perks": str(config['cookies']['hath_perks']),
                 }
+                if 'sk' in config['cookies']:
+                    eh_cookies['sk'] = str(config['cookies']['sk'])
+                if 'hath_perks' in config['cookies']:
+                    eh_cookies['hath_perks'] = str(config['cookies']['hath_perks'])
                 self.eh_cookies = eh_cookies
 
                 proxy_status = bool(config['proxy']['enable'])
@@ -70,8 +72,9 @@ class Config:
                 }
                 self.request_headers = headers
 
-        except FileNotFoundError:
+        except FileNotFoundError as e:
             logger.error('File config.yaml not found')
+            logger.error(e)
             sys.exit(1)
         except Exception as e:
             logger.error(e)
