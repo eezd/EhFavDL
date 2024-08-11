@@ -16,18 +16,19 @@ E-Hentai / Exhentai 下载收藏夹，基于 Python3.11 编写，支持 Komga �
 ## 📌 TODO
 
 - [x] 支持 `Sqlite` 存储
-- [x] 支持通过Web下载
-- [x] 支持下载原图/归档下载
-- [x] 下载失败则自动重新下载
-- [x] 断点续传
+- [x] 支持通过Web下载(支持重新下载)
+- [x] 支持通过Archive下载原图或1280x(支持断点续传)
+- [x] 支持中文Tag(需设置config.yaml---tags_translation)
 - [x] 生成 `ComicInfo.xml` (支持 Komga/LANraragi)
 - [x] 压缩成 zip 适配 Komga/LANraragi
 - [x] LANraragi 添加 EH Tags
-- [ ] 根据 `IP quota` 重新计算等待时间
-- [ ] 显示剩余的 `IP quota`
+- [x] 根据 `IP quota` 重新计算等待时间
+- [x] 显示剩余的 `IP quota`
 - [ ] 优化 **此图库有更新的版本可用** 的策略
 
 ![main](/img/main.png)
+
+
 
 ## 🔨 安装
 
@@ -36,6 +37,8 @@ E-Hentai / Exhentai 下载收藏夹，基于 Python3.11 编写，支持 Komga �
 ```bash
 pip install -r requirements.txt
 ```
+
+
 
 - 2、填写 `config.yaml`
 
@@ -74,13 +77,19 @@ lan_url: http://127.0.0.1:22299
 lan_api_psw: jskada
 ```
 
+
+
 - 3、运行
 
 ```shell
 python main.py
 ```
 
+
+
 ****
+
+
 
 ### 1. `Update User Fav Info`
 
@@ -92,7 +101,7 @@ python main.py
 
 ### 2. `Update Gallery Metadata (Update Tags)`
 
-使用 EH API 去更新 `eh_data` 表的数据,
+使用 EH API 去更新 `eh_data` `tag_list` `gid_tid` 这三个表的数据
 
 <br/>
 
@@ -152,64 +161,62 @@ python main.py
 
 一些选项
 
-`Checker().check_gid_in_local_zip()`: 检查本地目录下的重复gid, 只能检查 `.zip` 文件, 支持区分 `1280x/original` 文件
+- `Checker().check_gid_in_local_zip()`: 检查本地目录下的重复gid, 只能检查 `.zip` 文件, 支持区分 `1280x/original` 文件
 
-`Checker().sync_local_to_sqlite_zip(cover=False)`: 据本地文件重新设置 `fav_category` 的 `original_flag`
+- `Checker().sync_local_to_sqlite_zip(cover=False)`: 据本地文件重新设置 `fav_category` 的 `original_flag`
 和 `web_1280x_flag` 字段. 如果设置 `cover=True`, 那么他就会将所有状态设置成0,
 在进行匹配. (`UPDATE fav_category SET original_flag=0, web_1280x_flag=0`)
 
-`Checker().check_loc_file()`: 检查zip文件是否有损坏
+- `Checker().check_loc_file()`: 检查zip文件是否有损坏
+
 
 
 ****
+
+
 
 ## 使用流程
 
 经过上面的步骤你已经完成了安装, 可能有些人还不知道该怎么用, 接下来简单说明下该如何使用.(以 LANraragi 为例子
 
--
-    1) 首先输入 `1` + Enter 运行 `1. Update User Fav Info`
+1. 首先输入 `1` + Enter 运行 `1. Update User Fav Info` (获取 FAV 数据)
 
-    - 获取 FAV 数据
+2. `3. Download Web Gallery` 或者 `4. Download Archive Gallery` (去下载画廊(`.zip`) 文件)
 
--
-    2) `3. Download Web Gallery` 或者 `4. Download Archive Gallery` 去下载画廊(`.zip`) 文件
-
--
-    3) 请手动解压 `*.zip` 文件, 完成后并手动删除 `*.zip`
+3. 请手动解压 `*.zip` 文件, 完成后并手动删除 `*.zip`(如果存在的话)
 
 > Tips: 从这步开始, 需要你手动将(/web/folder `OR` /archive/*.zip)文件移动到 `data_path` 中.
 > 并且我 **不建议** 将 `data_path` 设置为 `LANraragi-data` 数据目录, 我不确定代码中有没有其他BUG, 建议分开.
 
--
-    4) 运行 `5. Create ComicInfo.xml`
+4. 运行 `5. Create ComicInfo.xml` (需要保持为文件夹形式, 无法识别 `*.zip`)
 
-    - 需要保持为文件夹形式, 无法识别 `*.zip`
+5. 运行 `6. Directory To Zip File`
 
--
-    5) 运行 `6. Directory To Zip File`
+6. 运行 `7. Rename Zip File`
 
--
-    6) 运行 `7. Rename Zip File`
+7. 将你的文件移动到 `LANraragi` 对应的 `data` 文件夹下
 
--
-    7) 将你的文件移动到 `LANraragi` 对应的 `data` 文件夹下
+8. 打开浏览器, 进入 `LANraragi-Settings`
 
--
-    8) 打开浏览器, 进入 `LANraragi-Settings`
+- `Security---Enable Password` 设置为 `ON`
 
-    - `Security---Enable Password` 设置为 `ON`
-    - `Security---API Key` 设置为 `API PSW` (配合config.yaml文件中 `lan_api_psw` 字段)
-    - ` Archive Files---Rescan Archive Directory` 等待完成
+- `Security---API Key` 设置为 `API PSW` (配合config.yaml文件中 `lan_api_psw` 字段)
 
--
-    9) 运行 `8. Update LANraragi Tags` 你就可以正常使用了
+- ` Archive Files---Rescan Archive Directory` 等待完成
+
+最后: 运行 `8. Update LANraragi Tags` 你就可以正常使用了
+
+
 
 ****
+
+
 
 - 最佳用法: 现在可以使用 eh 的收藏夹来分类画廊了 `>=1.1.2`
 
 ![lan-fav](/img/lan-fav.png)
+
+
 
 ## 💡 Komga or LANraragi ？
 
@@ -228,3 +235,9 @@ python main.py
     - 2、TAG 和 EH 一样
 
 ![LANraragi](/img/LANraragi.png)
+
+
+
+# Special Thanks
+
+- Tag translation: [Database](https://github.com/EhTagTranslation/Database)

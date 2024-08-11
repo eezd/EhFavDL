@@ -100,6 +100,15 @@ class Config:
                         return await response.read()
             except Exception as e:
                 logger.error(e)
+
+                # 目前找不到解决办法
+                # TLS/SSL connection has been closed (EOF) (_ssl.c:1006)
+                if "TLS/SSL connection has been closed (EOF)" in str(e):
+                    logger.warning("SSL问题, 无法下载当前文件, 需跳过/更换节点/等待一段时间重试")
+                    logger.warning(
+                        "SSL issue, unable to download the current file. Please skip/change the node or wait for a while and try again.")
+                    return False
+
                 if retry_attempts > 0:
                     logger.warning(
                         f"Failed to retrieve data. Retrying in {retry_delay} seconds, {retry_attempts - 1} attempts remaining.")
@@ -157,7 +166,8 @@ class Config:
         if 'text' in content_type or 'json' in content_type or 'html' in content_type:
             content = await response.text()
             if "IP quota exhausted" in content:
-                logger.warning("IP quota exhausted.")
+                logger.warning("IP quota exhausted. wait 360 seconds and try again.")
+                await asyncio.sleep(360)
                 raise Exception("IP quota exhausted")
             elif "You have clocked too many downloaded bytes on this gallery" in content:
                 logger.warning("You have clocked too many downloaded bytes on this gallery.")
@@ -168,9 +178,9 @@ class Config:
                 logger.warning(content)
                 await asyncio.sleep(12 * 60 * 60)
                 raise Exception("Your IP address has been temporarily banned for excessive pageloads")
-            elif response.status != 200:
-                logger.warning(f"code: {response.status_code}")
-                logger.warning(f'{content}: {msg}')
+            # elif response.status != 200:
+            #     logger.warning(f"code: {response.status}")
+            #     logger.warning(f'{content}: {msg}')
 
     def create_database(self):
         with sqlite3.connect(self.dbs_name) as co:
@@ -231,6 +241,26 @@ class Config:
     async def get_image_limits(self):
         hx_res = await self.fetch_data(url="https://e-hentai.org/home.php")
         response = BeautifulSoup(hx_res, 'html.parser')
-        image_limits = response.find_all('div', class_='homebox')[0].find('p').find_all('strong')[0].text.strip()
-        total_limits = response.find_all('div', class_='homebox')[0].find('p').find_all('strong')[1].text.strip()
+        image_limits = int(response.find_all('div', class_='homebox')[0].find('p').find_all('strong')[0].text.strip())
+        total_limits = int(response.find_all('div', class_='homebox')[0].find('p').find_all('strong')[1].text.strip())
         return image_limits, total_limits
+
+    async def wait_image_limits(self):
+        """
+        total_limits * 30% = lower_value < image_limits < total_limits * 80%
+        """
+        while True:
+            image_limits, total_limits = await self.get_image_limits()
+            logger.info(f"Image Limits: {image_limits} / {total_limits}")
+            if image_limits > total_limits * 0.8:
+                lower_value = total_limits * 0.3
+                # 每分钟回复12个, 每个需要 5s, 这里额外 +1s 并且总时长 +60s 增加容错
+                # Reply to 12 messages per minute, with each reply taking
+                # 5 seconds. Add an extra 1 second for each reply and increase the total duration by 60 seconds to
+                # allow for error tolerance.
+                wait_time = (image_limits - lower_value) * 6
+                wait_time += 60
+                logger.warning(f"The IP quota has been exceeded. Please try again in {wait_time} Second.")
+                await asyncio.sleep(wait_time)
+            else:
+                return image_limits, total_limits

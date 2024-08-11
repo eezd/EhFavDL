@@ -16,6 +16,9 @@ def main():
     Config().create_database()
 
     while True:
+        image_limits, total_limits = asyncio.run(Config().get_image_limits())
+        logger.info(f"Image Limits: {image_limits} / {total_limits}")
+        time.sleep(1)
         print("\n1. Update User Fav Info")
         print("2. Update Gallery Metadata (Update Tags)")
         print("3. Download Web Gallery")
@@ -54,7 +57,7 @@ def main():
                     fav_category AS fc 
                 WHERE
                     fc.web_1280x_flag = 0 
-                    AND eh.expunged = 0 
+                    AND eh.copyright_flag = 0 
                     AND eh.gid = fc.gid 
                     AND fc.fav_id = {fav_cat} 
                 ORDER BY
@@ -72,7 +75,7 @@ def main():
             logger.info(
                 f"(fav_cat = {fav_cat}) total download list:{json.dumps(dl_list, indent=4, ensure_ascii=False)}")
 
-            fav_cat_check = input(f"(len: {len(dl_list)})Press Enter to confirm\n")
+            fav_cat_check = input(f"\n(len: {len(dl_list)})Press Enter to confirm\n")
             if fav_cat_check != "":
                 print("Cancel")
                 sys.exit(1)
@@ -81,16 +84,22 @@ def main():
             # start download
             for j in dl_list:
                 download_gallery = DownloadWebGallery(gid=j[0], token=j[1], title=j[2])
-                asyncio.run(download_gallery.apply())
+                status = asyncio.run(download_gallery.apply())
+                if not status:
+                    logger.warning(f"Download https://{Config().base_url}/g/{j[0]}/{j[1]} failed")
         elif num == 4:
             asyncio.run(DownloadArchiveGallery().apply())
         elif num == 5:
+            if Config().tags_translation:
+                asyncio.run(add_fav_data.translate_tags())
             Support().create_xml()
         elif num == 6:
             Support().directory_to_zip()
         elif num == 7:
             Support().rename_zip_file()
         elif num == 8:
+            if Config().tags_translation:
+                asyncio.run(add_fav_data.translate_tags())
             asyncio.run(Support().lan_update_tags())
         elif num == 9:
             while True:
@@ -99,7 +108,6 @@ def main():
                 print("2. Checker().sync_local_to_sqlite_zip()")
                 print("3. Checker().sync_local_to_sqlite_zip(True)")
                 print("4. Checker().check_loc_file()")
-                print("5. add_fav_data.translate_tags()")
                 num = input("(Options) Select Number:")
                 num = int(num) if num else None
                 if num == 1:
@@ -110,8 +118,6 @@ def main():
                     Checker().sync_local_to_sqlite_zip(True)
                 elif num == 4:
                     Checker().check_loc_file()
-                elif num == 5:
-                    asyncio.run(add_fav_data.translate_tags())
                 elif num == 0:
                     break
 

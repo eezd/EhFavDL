@@ -16,17 +16,15 @@ A downloader for E-Hentai / Exhentai collections, developed in Python 3.11, with
 ## 📌 TODO
 
 - [x] Support `Sqlite` storage
-- [x] Support downloading via the web
-- [x] Support downloading original images/archives
-- [x] Automatic retry on download failure
-- [x] Resumable downloads
-- [x] Generate `ComicInfo.xml` (supports Komga/LANraragi)
-- [x] Zip compression for Komga/LANraragi compatibility
-- [x] LANraragi tag additions
-- [ ] Recalculate the waiting time based on `IP quota`
-- [ ] Display the remaining `IP quota`
+- [x] Support for downloading via Web (re-download supported)
+- [x] Supports downloading the original image or a 1280x version via Archive (supports resume functionality).
+- [x] Support for Chinese tags (requires setting up `config.yaml---tags_translation`)
+- [x] Generate `ComicInfo.xml` (compatible with Komga/LANraragi)
+- [x] Compress into zip for Komga/LANraragi compatibility
+- [x] Add EH Tags in LANraragi
+- [x] Recalculate waiting time based on `IP quota`
+- [x] Display remaining `IP quota`
 - [ ] Optimize the strategy for **This gallery has an updated version available**
-
 
 ![main](/img/main.png)
 
@@ -101,7 +99,7 @@ python main.py
 
 ### 2. `Update Gallery Metadata (Update Tags)`
 
-Use EH API to update data in the `eh_data` table.
+Use the EH API to update the data in the `eh_data`, `tag_list`, and `gid_tid` tables.
 
 <br/>
 
@@ -161,47 +159,46 @@ Update LANraragi Tags.
 
 Some options:
 
-`Checker().check_gid_in_local_zip()`: Check for duplicate GIDs in local directories, limited to `.zip` files, supporting differentiation of `1280x/original` files.
+- `Checker().check_gid_in_local_zip()`: Check for duplicate GIDs in local directories, limited to `.zip` files, supporting differentiation of `1280x/original` files.
 
-`Checker().sync_local_to_sqlite_zip(cover=False)`: Reset `original_flag` and `web_1280x_flag` fields in `fav_category` based on local files. Set `cover=True` to reset all statuses to 0 before matching. (`UPDATE fav_category SET original_flag=0, web_1280x_flag=0`)
+- `Checker().sync_local_to_sqlite_zip(cover=False)`: Reset `original_flag` and `web_1280x_flag` fields in `fav_category` based on local files. Set `cover=True` to reset all statuses to 0 before matching. (`UPDATE fav_category SET original_flag=0, web_1280x_flag=0`)
 
-`Checker().check_loc_file()`: Check for corrupt ZIP files.
+- `Checker().check_loc_file()`: Check for corrupt ZIP files.
+
 
 
 ****
 
+
+
 ## Usage Flow
 
-After completing the installation steps, some users may need guidance on how to proceed. Here's a simple guide (using LANraragi as an example):
+After following the steps above, you have completed the installation. Some of you may not yet know how to use it, so here’s a brief guide on how to get started (using LANraragi as an example):
 
-- 1) Enter `1` and press Enter to run `1. Update User Fav Info`
+1. First, enter `1` + Enter to run `1. Update User Fav Info` (to fetch FAV data).
 
-  - Retrieve FAV data
+2. Run `3. Download Web Gallery` or `4. Download Archive Gallery` (to download gallery `.zip` files).
 
-- 2) Use `3. Download Web Gallery` or `4. Download Archive Gallery` to download gallery (`.zip`) files
+3. Manually extract the `*.zip` files, and once completed, manually delete the `*.zip` files (if they exist).
 
-- 3) Manually unzip `*.zip` files, then manually delete `*.zip` after completion.
+> Tips: From this step onward, you need to manually move the files from (/web/folder `OR` /archive/*.zip) to the `data_path`.
+> Also, I **do not recommend** setting `data_path` as the `LANraragi-data` directory. I’m not sure if there are any other bugs in the code, so it’s better to keep them separate.
 
-> Tips: From this step onward, you need to manually move files from (/web/folder `OR` /archive/*.zip) to `data_path`.
-> It's **not recommended** to set `data_path` as the `LANraragi-data` directory. There may be bugs in the code; it's safer to keep them separate.
+4. Run `5. Create ComicInfo.xml` (make sure to keep the files in a folder format, as `*.zip` files cannot be recognized).
 
-- 4) Run `5. Create ComicInfo.xml`
+5. Run `6. Directory To Zip File`.
 
-  - Must be in folder format; cannot recognize `*.zip`
+6. Run `7. Rename Zip File`.
 
-- 5) Run `6. Directory To Zip File`
+7. Move your files to the corresponding `data` folder in `LANraragi`.
 
-- 6) Run `7. Rename Zip File`
+8. Open your browser and go to `LANraragi-Settings`.
 
-- 7) Move your files to the corresponding `data` folder in LANraragi
+- Set `Security---Enable Password` to `ON`.
+- Set `Security---API Key` to `API PSW` (matching the `lan_api_psw` field in the config.yaml file).
+- In `Archive Files---Rescan Archive Directory`, wait for the process to complete.
 
-- 8) Open your browser, go to `LANraragi-Settings`
-
-    - `Security---Enable Password` set to `ON`
-    - `Security---API Key` set to `API PSW` (match `lan_api_psw` in config.yaml)
-    - ` Archive Files---Rescan Archive Directory` and wait for completion
-
-- 9) Run `8. Update LANraragi Tags` and you're good to go
+Finally, run `8. Update LANraragi Tags`, and you should be all set to use it normally.
 
 
 
@@ -232,3 +229,10 @@ After completing the installation steps, some users may need guidance on how to 
   - 2. Supports multiple TAGs like EH
 
 ![LANraragi](/img/LANraragi.png)
+
+
+
+# Special Thanks
+
+- Tag translation: [Database](https://github.com/EhTagTranslation/Database)
+

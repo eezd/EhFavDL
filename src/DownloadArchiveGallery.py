@@ -155,12 +155,32 @@ class DownloadArchiveGallery(Config):
 
         # 检查数量和下载列表 / Check Quantity and Download List
         with sqlite3.connect(self.dbs_name) as co:
-            ce = co.execute(
-                f'SELECT gid, token, title, title_jpn FROM eh_data WHERE gid in '
-                f'(SELECT gid FROM fav_category WHERE fav_id = {fav_cat} AND {download_type} = 0) ORDER BY gid DESC')
-            # ce = co.execute(
-            #     f'SELECT gid, token, title, title_jpn FROM eh_data WHERE gid in '
-            #     f'(SELECT gid FROM fav_category WHERE gid = 2826520)')  # 1593645
+            ce = co.execute(f'''
+            SELECT
+                gid,
+                token,
+                title,
+                title_jpn 
+            FROM
+                eh_data 
+            WHERE
+                gid in ( SELECT gid FROM fav_category WHERE fav_id = {fav_cat} AND {download_type} = 0 ) 
+                AND copyright_flag = 0 
+            ORDER BY
+                gid DESC
+            ''')
+            # Testing
+            # ce = co.execute(f'''
+            # SELECT
+            #     gid,
+            #     token,
+            #     title,
+            #     title_jpn
+            # FROM
+            #     eh_data
+            # WHERE
+            #     gid in ( SELECT gid FROM fav_category WHERE gid = 2826520 )
+            # ''')
 
             for i in ce.fetchall():
                 title = i[3] if i[3] else i[2]
@@ -169,7 +189,7 @@ class DownloadArchiveGallery(Config):
             logger.info(
                 f"(fav_cat = {fav_cat}) total download list:{json.dumps(dl_list, indent=4, ensure_ascii=False)}")
 
-            fav_cat_check = input(f"(len: {len(dl_list)})Press Enter to confirm\n")
+            fav_cat_check = input(f"\n(len: {len(dl_list)})Press Enter to confirm\n")
             if fav_cat_check != "":
                 print("Cancel")
                 sys.exit(1)
@@ -201,7 +221,7 @@ class DownloadArchiveGallery(Config):
                 logger.warning(
                     f"This gallery is unavailable due to a copyright claim. https://{self.base_url}/g/{gid}/{token}    {title}")
                 with sqlite3.connect(self.dbs_name) as co:
-                    co.execute(f'UPDATE eh_data SET copyright_flag=1 WHERE gid={gid}')
+                    co.execute(f'''UPDATE eh_data SET copyright_flag=1 WHERE gid={gid}''')
                     co.commit()
                 continue
 
@@ -234,6 +254,6 @@ class DownloadArchiveGallery(Config):
                 continue
             else:
                 with sqlite3.connect(self.dbs_name) as co:
-                    co.execute(f'UPDATE fav_category SET {download_type}=1 WHERE gid={j[0]}')
+                    co.execute(f'''UPDATE fav_category SET {download_type}=1 WHERE gid={j[0]}''')
                     co.commit()
                 logger.info(f"https://{self.base_url}/g/{j[0]}/{j[1]}/, download OK")

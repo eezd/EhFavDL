@@ -44,7 +44,8 @@ class DownloadWebGallery(Config):
 
     async def check_save(self, file_path, file):
         """
-        根据哈希判断文件内容，检查下载
+        假如存在相同文件, 使用哈希判断
+        If identical files exist, use hash comparison to determine.
         """
         if os.path.exists(file_path):
             exist_hash = await self.calc_sha256(file_path)
@@ -72,11 +73,16 @@ class DownloadWebGallery(Config):
 
     @logger.catch()
     async def download_image(self, semaphore, url, file_path):
+        """
+        注意: 一旦执行到这步, 那么不管你下没下载图片, 都会消耗你的 IP 配额
+        Once you reach this step, your IP quota will be consumed regardless of whether you download the image or not.
+        """
         async with semaphore:
             real_url = await self.fetch_data(url=url)
             real_url = BeautifulSoup(real_url, 'html.parser')
             real_url = real_url.select_one('img#img').get('src')
             # 配额用尽，返回的 real_url 会变成509.gif
+            # Quota exhausted, the returned real_url will change to 509.gif.
             if re.match(r'^https://(exhentai|e-hentai)\.org/img/509\.gif$', real_url):
                 logger.warning("509: YOU HAVE TEMPORARILY REACHED THE LIMIT")
                 if not await self.get_image_limits():
@@ -85,20 +91,13 @@ class DownloadWebGallery(Config):
                         "Can't get image limits as the account has been suspended, Attempt to wait for 12 hours")
                     await asyncio.sleep(12 * 60 * 60)
                 else:
-                    image_limits, total_limits = await self.get_image_limits()
-                    logger.warning(
-                        f"Currently at {image_limits} towards the limit of {total_limits}. Waiting for quota restoration")
-                    while True:
-                        # 每隔一小时检查配额是否恢复 (恢复速率 10hits/min) / Check every hour to see if the quota is restored
-                        await asyncio.sleep(3600)
-                        image_limits, _ = await self.get_image_limits()
-                        print(f"Currently at {image_limits}")
-                        if int(image_limits) <= 200:
-                            break
+                    await self.wait_image_limits()
                 return await self.download_image(semaphore, url, file_path)
             file = await self.fetch_data(url=real_url)
-            # 哈希判断内容是否相同
+            if not file:
+                return False
             await self.check_save(file_path, file)
+            return True
 
     @logger.catch()
     async def get_image_url(self):
@@ -110,8 +109,10 @@ class DownloadWebGallery(Config):
         Returns:[
             [url, filename],
             ...
-            ["https://exhentai.org/s/57a822bab0/2614866-3", "110030937_p2.jpg"]
+            ["https://exhentai.org/s/57a822bab0/2614866-3", "00000003.jpg"]
         ]
+        OR
+        Returns: "copyright"
         """
 
         hx_res = await self.fetch_data(url=self.long_url)
@@ -156,7 +157,8 @@ class DownloadWebGallery(Config):
 
             for i in page_data:
                 img_url = str(i.get('href'))
-                filename = str(i.select_one('img').get("title").split(" ")[-1:][0])
+                # filename = str(i.select_one('img').get("title").split(" ")[-1:][0])
+                filename = str(i.select_one('img').get("alt")).zfill(8) + ".jpg"
                 page_img_url.append([img_url, filename])
 
             sub_ptb = sub_ptb + 1
@@ -178,17 +180,21 @@ class DownloadWebGallery(Config):
 
     @logger.catch()
     async def apply(self):
+        before_image_limits, _ = await self.wait_image_limits()
         logger.info(f"Download Web Gallery...: {self.long_url}")
 
-        img_url_res, pages = await self.get_image_url()
+        res_image_list = await self.get_image_url()
 
-        if img_url_res == "copyright":
-            logger.warning(
-                f"This gallery is unavailable due to a copyright claim. {self.long_url}    {self.title}")
-            with sqlite3.connect(self.dbs_name) as co:
-                co.execute(f'UPDATE eh_data SET copyright_flag=1 WHERE gid={self.gid}')
-                co.commit()
-            return False
+        if isinstance(res_image_list, str):
+            if res_image_list == "copyright":
+                logger.warning(
+                    f"This gallery is unavailable due to a copyright claim. {self.long_url}    {self.title}")
+                with sqlite3.connect(self.dbs_name) as co:
+                    co.execute(f'UPDATE eh_data SET copyright_flag=1 WHERE gid={self.gid}')
+                    co.commit()
+                return False
+
+        img_url_res, pages = res_image_list
 
         # Download images
         semaphore = asyncio.Semaphore(int(self.connect_limit))
@@ -197,16 +203,23 @@ class DownloadWebGallery(Config):
         for _p in img_url_res:
             url = _p[0]
             file_path = os.path.join(self.filepath_tmp, _p[1])
-            # if os.path.exists(file_path):
-            #     logger.info(f"File {_p[1]} already exists. Skipping download.")
-            # else:
-            #     req = self.download_image(semaphore, url, file_path)
-            #     task_list.append(req)
+            if os.path.exists(file_path):
+                logger.info(f"File {_p[1]} already exists. Skipping download.")
+            else:
+                req = self.download_image(semaphore, url, file_path)
+                task_list.append(req)
             # 部分画廊的图片文件名存在相同的情况，跳过下载会导致缺页
-            req = self.download_image(semaphore, url, file_path)
-            task_list.append(req)
+            # 处理办法: 已将文件名改为 0000000+index.jpg 的方式
+            # req = self.download_image(semaphore, url, file_path)
+            # task_list.append(req)
 
-        await tqdm_asyncio.gather(*task_list)
+        results = await tqdm_asyncio.gather(*task_list)
+
+        # 如果存在 False 直接跳过, 只有一种可能: TLS/SSL connection has been closed (EOF) (_ssl.c:1006)
+        # If False is present, skip directly. There is only one possibility: TLS/SSL connection has been closed (EOF) (_ssl.c:1006)
+        for result in results:
+            if not result:
+                return False
 
         # 判断 new_path 是否存在文件夹
         # Determine whether there is a folder in new_path
@@ -245,4 +258,7 @@ class DownloadWebGallery(Config):
             co.execute(f'UPDATE fav_category SET web_1280x_flag = 1 WHERE gid = {self.gid}')
             co.commit()
 
-        logger.info(f"OK: {self.long_url}")
+        after_image_limits, after_total_limits = await self.get_image_limits()
+        logger.info(
+            f"OK, {after_image_limits - before_image_limits} IP quotas used({after_image_limits} / {after_total_limits}): {self.long_url}")
+        return True
