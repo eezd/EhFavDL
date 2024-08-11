@@ -272,7 +272,7 @@ class AddFavData(Config):
                             str(sub_post_data.get('rating', '')),
                             str(sub_post_data.get('tags', '')),
                             int(sub_post_data.get('current_gid', gid)),
-                            str(sub_post_data.get('current_token', token)),
+                            str(sub_post_data.get('current_key', token)),
                             gid
                         ))
 
