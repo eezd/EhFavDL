@@ -115,13 +115,18 @@ class Support(Config):
                 # 在 tag_list 中查询对应 tag
                 placeholders = ','.join(['?'] * len(tid_list))
                 tag_list = co.execute(f'''
-                SELECT {"translated_tag" if self.tags_translation else "tag"} 
+                SELECT tag, translated_tag 
                 FROM
                     tag_list 
                 WHERE
                     tid IN ( {placeholders} )
                 ''', tid_list).fetchall()
-                db_tags = [tag[0] for tag in tag_list]
+                db_tags = []
+                for tag in tag_list:
+                    if tag[1] is not None and tag[1] != "" and self.tags_translation == True:
+                        db_tags.append(tag[1])
+                    else:
+                        db_tags.append(tag[0])
 
                 xml_t = xml_escape(db_data[0])
                 category = db_data[1]
@@ -296,15 +301,19 @@ class Support(Config):
                         # 在 tag_list 中查询对应 tag
                         placeholders = ','.join(['?'] * len(tid_list))
                         tag_list = co.execute(f'''
-                        SELECT {"translated_tag" if self.tags_translation else "tag"} 
+                        SELECT tag, translated_tag 
                         FROM
                             tag_list 
                         WHERE
                             tid IN ( {placeholders} )
                         ''', tid_list).fetchall()
-                        db_tags = [tag[0] for tag in tag_list]
+                        db_tags = []
+                        for tag in tag_list:
+                            if tag[1] is not None and tag[1] != "" and self.tags_translation == True:
+                                db_tags.append(tag[1])
+                            else:
+                                db_tags.append(tag[0])
                         tags = ','.join(db_tags)
-
                         lan_tags = f"gid:{gid},token:{token},source:{source},category:{category},date_added:{posted},pages:{pages},{fav_name}," + tags
 
                         async with session.put(f"{lan_url}/{sub_archives['arcid']}/metadata",
