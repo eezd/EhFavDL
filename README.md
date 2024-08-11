@@ -24,7 +24,7 @@ E-Hentai / Exhentai 下载收藏夹，基于 Python3.11 编写，支持 Komga �
 - [x] LANraragi 添加 EH Tags
 - [x] 根据 `IP quota` 重新计算等待时间
 - [x] 显示剩余的 `IP quota`
-- [ ] 优化 **此图库有更新的版本可用** 的策略
+- [x] 优化 **此图库有更新的版本可用** 的策略
 
 ![main](/img/main.png)
 
@@ -97,6 +97,42 @@ python main.py
 
 ![UpdateUserFavInfo](/img/UpdateUserFavInfo.png)
 
+#### 注意1
+
+执行 `1. Update User Fav Info` 可能会出现下面这种情况。
+
+- 这意味着下列画廊存在新版本
+  - 此时需要你根据指示下载了新画廊
+  - 然后删除了旧画廊
+  - 最后需要运行 `3. Checker().sync_local_to_sqlite_zip(True)` 将旧画廊的 original_flag 和 web_1280x_flag 字段重新设置为 `0`。
+    - `1. Update User Fav Info` 默认规则会自动移除 `del_flag = 1 AND original_flag = 0 AND web_1280x_flag = 0` 的画廊
+
+具体原理请看代码注解
+
+```log
+Tips: 当前判断是基于 eh_data.current_gid。如果需要准确判断, 请使用`2. Update Gallery Metadata (Update Tags)` 重新获取数据
+
+Tips: The current judgment is based on eh_data.current_gid. For accurate assessment, please use `2. Update Gallery Metadata (
+Update Tags)` to retrieve the data again.
+
+下列画廊存在新版本可用/The current gallery has a new version available.: 
+```
+
+#### 注意2
+
+执行 `1. Update User Fav Info` 可能会出现下面这种情况。
+
+- 这意味着首先你下载了该画廊
+  - 要么你从收藏夹移除了
+  - 要么你没有及时使用 `2. Update Gallery Metadata (Update Tags)` 导致无法获取到新画廊的`gid&token`
+
+```log
+下列画廊无法根据 eh_data.current_gid 判断是否存在新版本可用
+The following gallery cannot determine whether a new version is available based on `eh_data.current_gid`.
+如果你确定要在数据库中移除下列画廊, 输入确认(y/n)
+If you are sure you want to remove the following gallery from the database, type ‘confirm’ (y/n).
+```
+
 <br/>
 
 ### 2. `Update Gallery Metadata (Update Tags)`
@@ -163,9 +199,8 @@ python main.py
 
 - `Checker().check_gid_in_local_zip()`: 检查本地目录下的重复gid, 只能检查 `.zip` 文件, 支持区分 `1280x/original` 文件
 
-- `Checker().sync_local_to_sqlite_zip(cover=False)`: 据本地文件重新设置 `fav_category` 的 `original_flag`
-和 `web_1280x_flag` 字段. 如果设置 `cover=True`, 那么他就会将所有状态设置成0,
-在进行匹配. (`UPDATE fav_category SET original_flag=0, web_1280x_flag=0`)
+- `Checker().sync_local_to_sqlite_zip(cover=False)`: 根据本地文件设置对应的 `original_flag`和 `web_1280x_flag` 字段. 
+- 如果设置 `cover=True`, 先将所有数据`original_flag`和 `web_1280x_flag` 字段设置为0, 再根据本地文件重新设置
 
 - `Checker().check_loc_file()`: 检查zip文件是否有损坏
 

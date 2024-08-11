@@ -81,7 +81,7 @@ class Config:
             sys.exit(1)
 
     @logger.catch()
-    async def fetch_data(self, url, data=None, json=None, retry_delay=5, retry_attempts=10):
+    async def fetch_data(self, url, data=None, json=None, retry_delay=10, retry_attempts=10):
         async with aiohttp.ClientSession(headers=self.request_headers, cookies=self.eh_cookies,
                                          connector=aiohttp.TCPConnector(ssl_context=ssl_context)) as session:
             try:
@@ -123,7 +123,7 @@ class Config:
                     sys.exit(1)
 
     @logger.catch()
-    async def fetch_data_stream(self, url, file_path, stream_range=0, retry_delay=10, retry_attempts=5):
+    async def fetch_data_stream(self, url, file_path, stream_range=0, retry_delay=10, retry_attempts=10):
         headers = copy.deepcopy(self.request_headers)
         mode = 'wb'
         if stream_range != 0:

@@ -24,7 +24,7 @@ A downloader for E-Hentai / Exhentai collections, developed in Python 3.11, with
 - [x] Add EH Tags in LANraragi
 - [x] Recalculate waiting time based on `IP quota`
 - [x] Display remaining `IP quota`
-- [ ] Optimize the strategy for **This gallery has an updated version available**
+- [x] Optimize the strategy for **This gallery has an updated version available**
 
 ![main](/img/main.png)
 
@@ -95,6 +95,40 @@ python main.py
 
 ![UpdateUserFavInfo](/img/UpdateUserFavInfo.png)
 
+#### Note 1
+
+When executing `1. Update User Fav Info`, the following situation might occur:
+
+- This indicates that there are new versions available for the following galleries:
+  - In this case, you'll need to download the new gallery as instructed.
+  - Then, delete the old gallery.
+  - Finally, run `3. Checker().sync_local_to_sqlite_zip(True)` to reset the `original_flag` and `web_1280x_flag` fields of the old gallery to `0`.
+    - The default behavior of `1. Update User Fav Info` will automatically remove galleries where `del_flag = 1 AND original_flag = 0 AND web_1280x_flag = 0`.
+
+For more details, please refer to the code comments.
+
+```log
+Tips: The current judgment is based on eh_data.current_gid. For accurate assessment, please use `2. Update Gallery Metadata (
+Update Tags)` to retrieve the data again.
+
+The current gallery has a new version available.: 
+```
+
+Here’s the English translation of the provided Chinese text:
+
+#### Note 2
+
+Executing `1. Update User Fav Info` may result in the following situation.
+
+- This means you have downloaded the gallery first.
+  - Either you removed it from your favorites.
+  - Or you didn’t promptly use `2. Update Gallery Metadata (Update Tags)`, which caused the failure to retrieve the new gallery's `gid&token`.
+
+```log
+The following gallery cannot determine whether a new version is available based on `eh_data.current_gid`.
+If you are sure you want to remove the following gallery from the database, type ‘confirm’ (y/n).
+```
+
 <br/>
 
 ### 2. `Update Gallery Metadata (Update Tags)`
@@ -159,11 +193,12 @@ Update LANraragi Tags.
 
 Some options:
 
-- `Checker().check_gid_in_local_zip()`: Check for duplicate GIDs in local directories, limited to `.zip` files, supporting differentiation of `1280x/original` files.
+- `Checker().check_gid_in_local_zip()`: Checks for duplicate `gid` values in the local directory, only inspecting `.zip` files. It supports distinguishing between `1280x` and `original` files.
 
-- `Checker().sync_local_to_sqlite_zip(cover=False)`: Reset `original_flag` and `web_1280x_flag` fields in `fav_category` based on local files. Set `cover=True` to reset all statuses to 0 before matching. (`UPDATE fav_category SET original_flag=0, web_1280x_flag=0`)
+- `Checker().sync_local_to_sqlite_zip(cover=False)`: Sets the `original_flag` and `web_1280x_flag` fields based on local files.
+  - If `cover=True` is set, all `original_flag` and `web_1280x_flag` fields are first reset to 0, and then re-set according to the local files.
 
-- `Checker().check_loc_file()`: Check for corrupt ZIP files.
+- `Checker().check_loc_file()`: Checks if any `.zip` files are corrupted.
 
 
 
