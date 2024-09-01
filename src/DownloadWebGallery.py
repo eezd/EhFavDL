@@ -96,7 +96,8 @@ class DownloadWebGallery(Config):
             file = await self.fetch_data(url=real_url)
             if not file:
                 return False
-            await self.check_save(file_path, file)
+            with open(file_path, 'wb') as f:
+                f.write(file)
             return True
 
     @logger.catch()

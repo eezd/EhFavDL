@@ -1,6 +1,7 @@
 import asyncio
 import copy
 import os
+import re
 import sqlite3
 import ssl
 import sys
@@ -11,10 +12,6 @@ import yaml
 from bs4 import BeautifulSoup
 from loguru import logger
 from tqdm.asyncio import tqdm_asyncio
-
-# ssl:default [[SSL: DH_KEY_TOO_SMALL] dh key too small (_ssl.c:1006)]
-ssl_context = ssl.create_default_context()
-ssl_context.set_ciphers('HIGH:!DH:!aNULL')
 
 
 class Config:
@@ -81,7 +78,15 @@ class Config:
             sys.exit(1)
 
     @logger.catch()
-    async def fetch_data(self, url, data=None, json=None, retry_delay=10, retry_attempts=10):
+    async def fetch_data(self, url, data=None, json=None, retry_delay=5, retry_attempts=5, open_ssl=True):
+        ssl_context = ssl.create_default_context()
+        # ssl:default [[SSL: DH_KEY_TOO_SMALL] dh key too small (_ssl.c:1006)]
+        ssl_context.set_ciphers('HIGH:!DH:!aNULL')
+        # 有时下载会出现https证书失效的问题 [SSLCertVerificationError] SSL: CERTIFICATE_VERIFY_FAILED
+        if not open_ssl:
+            ssl_context.check_hostname = False  # 禁用主机名检查
+            ssl_context.verify_mode = ssl.CERT_NONE  # 不验证证书
+
         async with aiohttp.ClientSession(headers=self.request_headers, cookies=self.eh_cookies,
                                          connector=aiohttp.TCPConnector(ssl_context=ssl_context)) as session:
             try:
@@ -109,21 +114,29 @@ class Config:
                 if "TLS/SSL connection has been closed (EOF)" in str(e):
                     logger.warning("SSL问题, 无法下载当前文件, 需跳过/更换节点/等待一段时间重试")
                     logger.warning(
-                        "SSL issue, unable to download the current file. Please skip/change the node or wait for a while and try again.")
+                        f"SSL issue, unable to download the current file. Please skip/change the node or wait for a while and try again.. {url}")
                     return False
+
+                if "CERTIFICATE_VERIFY_FAILED" in str(e) or "ssl:default" in str(e):
+                    logger.error(f"SSLCertVerificationError. {url}")
+                    await asyncio.sleep(3)
+                    return await self.fetch_data(url=url, data=data, json=json, open_ssl=False)
 
                 if retry_attempts > 0:
                     logger.warning(
-                        f"Failed to retrieve data. Retrying in {retry_delay} seconds, {retry_attempts - 1} attempts remaining.")
+                        f"Failed to retrieve data. Retrying in {retry_delay} seconds, {retry_attempts - 1} attempts remaining. {url}")
                     await asyncio.sleep(retry_delay)
                     return await self.fetch_data(url=url, data=data, json=json, retry_delay=retry_delay,
                                                  retry_attempts=retry_attempts - 1)
                 else:
-                    logger.warning(f"The request limit has been exceeded. Program terminated.")
-                    sys.exit(1)
+                    logger.warning(f"The request limit has been exceeded. Program terminated.. {url}")
+                    return False
 
     @logger.catch()
     async def fetch_data_stream(self, url, file_path, stream_range=0, retry_delay=10, retry_attempts=10):
+        ssl_context = ssl.create_default_context()
+        # ssl:default [[SSL: DH_KEY_TOO_SMALL] dh key too small (_ssl.c:1006)]
+        ssl_context.set_ciphers('HIGH:!DH:!aNULL')
         headers = copy.deepcopy(self.request_headers)
         mode = 'wb'
         if stream_range != 0:
@@ -143,6 +156,7 @@ class Config:
                             async for data in response.content.iter_chunked(1024):
                                 f.write(data)
                                 progress_bar.update(len(data))
+                return True
             except BaseException as e:
                 # logger.error(e)
                 if retry_attempts > 0:
@@ -172,6 +186,14 @@ class Config:
                 logger.warning("IP quota exhausted. wait 360 seconds and try again.")
                 await asyncio.sleep(360)
                 raise Exception("IP quota exhausted")
+            elif "This IP address has been temporarily banned due to an excessive request rate" in content:
+                match = re.search(r'(\d+)\s+minutes?\s+and\s+(\d+)\s+seconds', content)
+                minutes = int(match.group(1))
+                seconds = int(match.group(2))
+                total_seconds = minutes * 60 + seconds
+                await asyncio.sleep(total_seconds)
+                raise Exception(
+                    f"This IP address has been temporarily banned due to an excessive request rate. wait {total_seconds} s")
             elif "You have clocked too many downloaded bytes on this gallery" in content:
                 logger.warning("You have clocked too many downloaded bytes on this gallery.")
                 logger.warning("Please open Gallery---Archive Download---Cancel")
