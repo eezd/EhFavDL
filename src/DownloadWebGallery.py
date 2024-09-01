@@ -2,14 +2,11 @@ import asyncio
 import hashlib
 import os
 import shutil
-import sqlite3
 import sys
 
 from bs4 import BeautifulSoup
-from loguru import logger
 from tqdm.asyncio import tqdm_asyncio
 
-from .Config import Config
 from .common import *
 
 # 下载路径为: data_path + "web"

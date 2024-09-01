@@ -70,10 +70,11 @@ class Checker(Config):
         gid_list_original = []
         gid_list_1280x = []
 
-        folder = input(f"Please enter the file directory.\n")
-        if folder == "":
-            print("Cancel")
-            sys.exit(1)
+        folder = self.data_path
+        # folder = input(f"Please enter the file directory.\n")
+        # if folder == "":
+        #     print("Cancel")
+        #     sys.exit(1)
 
         for i in os.listdir(folder):
             if i.find('-') == -1 or not os.path.isfile(os.path.join(folder, i)):
@@ -89,11 +90,11 @@ class Checker(Config):
         logger.info(f'gid_list_1280x count: {len(gid_list_1280x)}')
         logger.info(f'gid_list_original count: {len(gid_list_original)}')
 
-        enter = input(f"Please press Enter to confirm.\n")
-
-        if enter != "":
-            print("Cancel")
-            sys.exit(1)
+        # enter = input(f"Please press Enter to confirm.\n")
+        #
+        # if enter != "":
+        #     print("Cancel")
+        #     sys.exit(1)
 
         if cover:
             with sqlite3.connect(self.dbs_name) as co:

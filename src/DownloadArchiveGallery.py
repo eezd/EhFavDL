@@ -1,14 +1,10 @@
-import json
 import os
-import sqlite3
 import sys
 import zipfile
 from urllib.parse import urlsplit
 
 from bs4 import BeautifulSoup
-from loguru import logger
 
-from .Config import Config
 from .common import *
 
 # 下载路径为: data_path + "archive"

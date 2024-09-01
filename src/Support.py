@@ -1,23 +1,21 @@
 import base64
 import os.path
 import shutil
-import sqlite3
 import sys
 import zipfile
 from datetime import datetime
 
 import aiohttp
-from loguru import logger
 from tqdm import tqdm
 
-from .Config import Config
 from .common import *
 
 
 class Support(Config):
 
-    def __init__(self):
+    def __init__(self, watch_status=False):
         super().__init__()
+        self.watch_status = watch_status
 
     @logger.catch()
     def create_zip(self, directory_path, zip_file_path):
@@ -175,13 +173,14 @@ class Support(Config):
 
     @logger.catch()
     def lan_request(self):
-        logger.info("请按回车确认你的 LANraragi 地址及密码:")
-        logger.info("Please press Enter to confirm your LANraragi address and password.")
-        print("lan_url: " + self.lan_url)
-        print("lan_api_psw: " + self.lan_api_psw)
-        enter = input()
-        if enter != "":
-            sys.exit(1)
+        if not self.watch_status:
+            logger.info("请按回车确认你的 LANraragi 地址及密码:")
+            logger.info("Please press Enter to confirm your LANraragi address and password.")
+            print("lan_url: " + self.lan_url)
+            print("lan_api_psw: " + self.lan_api_psw)
+            enter = input()
+            if enter != "":
+                sys.exit(1)
 
         authorization_token_base64 = base64.b64encode(self.lan_api_psw.encode('utf-8')).decode('utf-8')
         return authorization_token_base64

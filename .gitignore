@@ -1,4 +1,4 @@
-data/
+data*/
 config.yaml
 data.db
 data*.db

@@ -1,19 +1,23 @@
+import argparse
 import asyncio
-import json
-import sqlite3
 import sys
 from datetime import datetime
-
-from loguru import logger
 
 from src import *
 
 logger.add(f'./log/{datetime.today().date()}.log', rotation='10 MB')
 
+parser = argparse.ArgumentParser(description="Process some arguments.")
+parser.add_argument('-w', action='store_true', help="Listen to EH Fav and fetch data every 30 minutes.")
+args = parser.parse_args()
+
 
 @logger.catch()
 def main():
     Config().create_database()
+
+    if args.w:
+        asyncio.run(Watch().apply())
 
     while True:
         image_limits, total_limits = asyncio.run(Config().get_image_limits())
@@ -42,40 +46,12 @@ def main():
             asyncio.run(add_fav_data.update_category())
             asyncio.run(add_fav_data.add_tags_data(True))
         elif num == 3:
-            fav_cat = int(input("请输入你需要下载的收藏夹ID(0-9)\nPlease enter the collection you want to download.:"))
+            fav_cat = str(input("请输入你需要下载的收藏夹ID(0-9)\nPlease enter the collection you want to download.:"))
 
-            dl_list = []
-            with sqlite3.connect(Config().dbs_name) as co:
-                ce = co.execute(f'''
-                SELECT
-                    fc.gid,
-                    fc.token,
-                    eh.title,
-                    eh.title_jpn 
-                FROM
-                    eh_data AS eh,
-                    fav_category AS fc 
-                WHERE
-                    fc.web_1280x_flag = 0 
-                    AND eh.copyright_flag = 0 
-                    AND eh.gid = fc.gid 
-                    AND fc.fav_id = {fav_cat} 
-                ORDER BY
-                    fc.gid DESC
-                ''').fetchall()
-
-                for i in ce:
-                    if i[3] is not None and i[3] != "":
-                        title = str(i[3])
-                        dl_list.append([i[0], i[1], title])
-                    else:
-                        title = str(i[2])
-                        dl_list.append([i[0], i[1], title])
-
-            logger.info(
-                f"(fav_cat = {fav_cat}) total download list:{json.dumps(dl_list, indent=4, ensure_ascii=False)}")
+            dl_list = get_web_gallery_download_list(fav_cat=fav_cat)
 
             fav_cat_check = input(f"\n(len: {len(dl_list)})Press Enter to confirm\n")
+
             if fav_cat_check != "":
                 print("Cancel")
                 sys.exit(1)

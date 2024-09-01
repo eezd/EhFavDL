@@ -1,21 +1,18 @@
 import ast
 import asyncio
-import json
 import os
-import sqlite3
 import sys
 
 from bs4 import BeautifulSoup
-from loguru import logger
 from tqdm import tqdm
 
-from .Config import Config
 from .common import *
 
 
 class AddFavData(Config):
-    def __init__(self):
+    def __init__(self, watch_status=False):
         super().__init__()
+        self.watch_status = watch_status
 
     @logger.catch()
     async def translate_tags(self):
@@ -340,7 +337,8 @@ class AddFavData(Config):
 
         await self.add_fav_data()
 
-        await self.add_tags_data()
+        if not self.watch_status:
+            await self.add_tags_data()
 
         with sqlite3.connect(self.dbs_name) as co:
             # 清除所有 del_flag=1 并且没有下载的画廊 original_flag = 0 AND web_1280x_flag = 0
@@ -404,6 +402,9 @@ class AddFavData(Config):
                     logger.warning(
                         f"https://exhentai.org/g/{gid_token[0]}/{gid_token[1]}>>>https://exhentai.org/g/{gid_token[2]}/{gid_token[3]}")
                 await asyncio.sleep(2)
+
+            if self.watch_status:
+                return update_list
 
             # del_flag = 1
             gid_values = [item[0] for item in update_list]

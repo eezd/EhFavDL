@@ -69,6 +69,12 @@ class Config:
                 }
                 self.request_headers = headers
 
+                # Watch
+                watch_fav_ids = str(config['watch_fav_ids'])
+                self.watch_fav_ids = watch_fav_ids
+                watch_lan_status = bool(config['watch_lan_status'])
+                self.watch_lan_status = watch_lan_status
+
         except FileNotFoundError as e:
             logger.error('File config.yaml not found')
             logger.error(e)
