@@ -209,15 +209,9 @@ class DownloadWebGallery(Config):
             else:
                 req = self.download_image(semaphore, url, file_path)
                 task_list.append(req)
-            # 部分画廊的图片文件名存在相同的情况，跳过下载会导致缺页
-            # 处理办法: 已将文件名改为 0000000+index.jpg 的方式
-            # req = self.download_image(semaphore, url, file_path)
-            # task_list.append(req)
 
         results = await tqdm_asyncio.gather(*task_list)
 
-        # 如果存在 False 直接跳过, 只有一种可能: TLS/SSL connection has been closed (EOF) (_ssl.c:1006)
-        # If False is present, skip directly. There is only one possibility: TLS/SSL connection has been closed (EOF) (_ssl.c:1006)
         for result in results:
             if not result:
                 return False
