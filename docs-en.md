@@ -169,6 +169,8 @@ Create `ComicInfo.xml` for folders that meet the specified criteria.
 
 Create or update `ComicInfo.xml` for both folders and `.cbz` files that meet the specified criteria.
 
+Regarding `9. Update ComicInfo.xml (folder & .cbz)`, please be very cautious. The reason I didn’t include it in `-w` is that it would result in a massive amount of data being written. For example, if I’ve already downloaded 200GB of galleries, this method would decompress and then recompress them, resulting in 400GB of write operations in a single cycle. If this runs every hour, my SSD wouldn’t be able to handle it. Therefore, I recommend using LANraragi, which doesn’t read the metadata from `.cbz` files, but instead reads from the `LANraragi` database.
+
 10. Directory To CBZ File
 
 Create `.cbz` files based on folders in the directory that meet the specified criteria.

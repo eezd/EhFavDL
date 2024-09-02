@@ -168,6 +168,8 @@ Select Number: 11
 
 为符合规则的文件夹以及 `.cbz` 文件创建 `ComicInfo.xml`
 
+关于 `9. Update ComicInfo.xml(folder&.cbz)` 一定要慎重, 我之所以不添加到 `-w` 里面是因为，会造成非常巨大的写入数据。比如我现在已经下了200g的画廊，那么该方法会解压再压缩，一次循环就造成400g的写入，如果每1小时运行一次我SSD顶不住了。所以我推荐使用 LANraragi, 他不是读取 `.cbz` 的元数据，而是读取 `LANraragi` 数据库。
+
 10. Directory To CBZ File
 
 根据目录下的符合规则的文件夹, 创建 `cbz` 文件
