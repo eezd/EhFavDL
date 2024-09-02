@@ -410,4 +410,4 @@ class AddFavData(Config):
 
         await self.add_tags_data()
 
-        return self.clear_del_flag()
+        return await self.clear_del_flag()

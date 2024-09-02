@@ -1,10 +1,13 @@
+import asyncio
 import os
+import shutil
 import sys
 import zipfile
 from urllib.parse import urlsplit
 
 from bs4 import BeautifulSoup
 
+from . import Support
 from .common import *
 
 # 下载路径为: data_path + "archive"
@@ -127,28 +130,77 @@ class DownloadArchiveGallery(Config):
         return True
 
     @logger.catch()
-    async def apply(self):
-        fav_cat = -1
-        while not 0 <= fav_cat <= 9:
-            fav_cat = int(input("请输入你需要下载的收藏夹ID(0-9)\nPlease enter the collection you want to download.:"))
+    async def dl_gallery(self, gid, token, title, original_flag):
+        file_name = (str(gid) + "-" + windows_escape(str(title)) + ".zip") if original_flag else (
+                str(gid) + "-" + windows_escape(str(title)) + "-1280x.zip")
+        sub_path = os.path.join(self.data_path, folder)
+        file_path = os.path.join(sub_path, file_name)
 
-        download_type = ""
-        while download_type != "o" and download_type != "r":
-            download_type = str(
-                input(
-                    "下载 Original 还是 Resample-1280x, 请输入 O / R. \n "
-                    "For downloading, choose Original or Resample-1280x. Please enter O / R.")).lower()
+        if os.path.exists(file_path):
+            try:
+                with zipfile.ZipFile(file_path, 'r') as zip_file:
+                    zip_file.testzip()
+                logger.warning(f"The file already exists, skipping: {file_path}")
+                return False
+            except (zipfile.BadZipFile, OSError):
+                pass
 
-        # 判断下载类型 / Determine download type
-        if download_type == "o":
-            original_flag = True
+        _search_dl = await self.search_download_url(gid=gid, token=token, original_flag=original_flag)
+
+        if _search_dl[0] is False and _search_dl[1] == "copyright":
+            logger.warning(
+                f"This gallery is unavailable due to a copyright claim. https://{self.base_url}/g/{gid}/{token}    {title}")
+            with sqlite3.connect(self.dbs_name) as co:
+                co.execute(f'''UPDATE eh_data SET copyright_flag=1 WHERE gid={gid}''')
+                co.commit()
+            return False
+
+        dl_url = _search_dl[0]
+
+        # original or 1280x
+        dl_type = _search_dl[1]
+        if dl_type == "1280x":
+            file_name = str(gid) + "-" + windows_escape(str(title)) + "-1280x.zip"
+            download_type = "web_1280x_flag"
+        elif dl_type == "original":
+            file_name = str(gid) + "-" + windows_escape(str(title)) + ".zip"
             download_type = "original_flag"
         else:
-            original_flag = False
-            download_type = "web_1280x_flag"
+            logger.warning(f"_search_dl: {_search_dl}")
+            logger.error(f"Please provide the log file to the GitHub issue >>> github.com/eezd/EhFavDL/issues")
+            sys.exit(1)
 
+        if dl_url is False:
+            logger.warning(f"⚠️ not found: https://{self.base_url}/g/{gid}/{token}/")
+            return False
+        else:
+            logger.info(f"https://{self.base_url}/g/{gid}/{token}/, dl_url={dl_url}")
+
+        file_path = os.path.join(sub_path, file_name)
+        dl_status = await self.download_file(dl_url, file_path)
+        # dl_status = True
+
+        if dl_status is False:
+            logger.warning(f"⚠️ download failed: https://{self.base_url}/g/{gid}/{token}/")
+            return False
+        else:
+            extract_to = os.path.splitext(file_path)[0]
+            with zipfile.ZipFile(file_path, 'r') as zip_ref:
+                zip_ref.extractall(extract_to)
+            support = Support()
+            support.create_xml(gid=gid, path=extract_to)
+            support.create_cbz(src_path=extract_to)
+            support.rename_cbz_file(target_path=extract_to)
+            shutil.rmtree(extract_to, ignore_errors=True)
+            os.remove(file_path)
+            with sqlite3.connect(self.dbs_name) as co:
+                co.execute(f'''UPDATE fav_category SET {download_type}=1 WHERE gid={gid}''')
+                co.commit()
+            logger.info(f"https://{self.base_url}/g/{gid}/{token}/, download OK")
+
+    @logger.catch()
+    async def go_dl(self, fav_cat, original_flag=False):
         dl_list = []
-
         # 检查数量和下载列表 / Check Quantity and Download List
         with sqlite3.connect(self.dbs_name) as co:
             ce = co.execute(f'''
@@ -160,7 +212,7 @@ class DownloadArchiveGallery(Config):
             FROM
                 eh_data 
             WHERE
-                gid in ( SELECT gid FROM fav_category WHERE fav_id = {fav_cat} AND {download_type} = 0 ) 
+                gid in ( SELECT gid FROM fav_category WHERE fav_id IN ({fav_cat}) AND web_1280x_flag = 0 AND original_flag = 0 ) 
                 AND copyright_flag = 0 
             ORDER BY
                 gid DESC
@@ -185,71 +237,32 @@ class DownloadArchiveGallery(Config):
             logger.info(
                 f"(fav_cat = {fav_cat}) total download list:{json.dumps(dl_list, indent=4, ensure_ascii=False)}")
 
-            fav_cat_check = input(f"\n(len: {len(dl_list)})Press Enter to confirm\n")
-            if fav_cat_check != "":
-                print("Cancel")
-                sys.exit(1)
+            await asyncio.sleep(5)
 
         # Start downloading
         for j in dl_list:
             gid = j[0]
             token = j[1]
             title = j[2]
+            await self.dl_gallery(gid=gid, token=token, title=title, original_flag=original_flag)
 
-            file_name = (str(gid) + "-" + windows_escape(str(title)) + ".zip") if original_flag else (
-                    str(gid) + "-" + windows_escape(str(title)) + "-1280x.zip")
+    @logger.catch()
+    async def apply(self):
+        fav_cat = -1
+        while not 0 <= fav_cat <= 9:
+            fav_cat = int(input("请输入你需要下载的收藏夹ID(0-9)\nPlease enter the collection you want to download.:"))
 
-            sub_path = os.path.join(self.data_path, folder)
-            file_path = os.path.join(sub_path, file_name)
+        download_type = ""
+        while download_type != "o" and download_type != "r":
+            download_type = str(
+                input(
+                    "下载 Original 还是 Resample-1280x, 请输入 O / R. \n "
+                    "For downloading, choose Original or Resample-1280x. Please enter O / R.")).lower()
 
-            if os.path.exists(file_path):
-                try:
-                    with zipfile.ZipFile(file_path, 'r') as zip_file:
-                        zip_file.testzip()
-                    logger.warning(f"The file already exists, skipping: {file_path}")
-                    continue
-                except (zipfile.BadZipFile, OSError):
-                    pass
+        # 判断下载类型 / Determine download type
+        if download_type == "o":
+            original_flag = True
+        else:
+            original_flag = False
 
-            _search_dl = await self.search_download_url(gid=gid, token=token, original_flag=original_flag)
-
-            if _search_dl[0] is False and _search_dl[1] == "copyright":
-                logger.warning(
-                    f"This gallery is unavailable due to a copyright claim. https://{self.base_url}/g/{gid}/{token}    {title}")
-                with sqlite3.connect(self.dbs_name) as co:
-                    co.execute(f'''UPDATE eh_data SET copyright_flag=1 WHERE gid={gid}''')
-                    co.commit()
-                continue
-
-            dl_url = _search_dl[0]
-
-            # original or 1280x
-            dl_type = _search_dl[1]
-            if dl_type == "1280x":
-                file_name = str(gid) + "-" + windows_escape(str(title)) + "-1280x.zip"
-                download_type = "web_1280x_flag"
-            elif dl_type == "original":
-                file_name = str(gid) + "-" + windows_escape(str(title)) + ".zip"
-                download_type = "original_flag"
-            else:
-                logger.warning(f"_search_dl: {_search_dl}")
-                logger.error(f"Please provide the log file to the GitHub issue >>> github.com/eezd/EhFavDL/issues")
-                sys.exit(1)
-
-            if dl_url is False:
-                logger.warning(f"⚠️ not found: https://{self.base_url}/g/{gid}/{token}/")
-                continue
-            else:
-                logger.info(f"https://{self.base_url}/g/{gid}/{token}/, dl_url={dl_url}")
-
-            file_path = os.path.join(sub_path, file_name)
-            dl_status = await self.download_file(dl_url, file_path)
-
-            if dl_status is False:
-                logger.warning(f"⚠️ download failed: https://{self.base_url}/g/{j[0]}/{j[1]}/")
-                continue
-            else:
-                with sqlite3.connect(self.dbs_name) as co:
-                    co.execute(f'''UPDATE fav_category SET {download_type}=1 WHERE gid={j[0]}''')
-                    co.commit()
-                logger.info(f"https://{self.base_url}/g/{j[0]}/{j[1]}/, download OK")
+        return await self.go_dl(fav_cat=fav_cat, original_flag=original_flag)

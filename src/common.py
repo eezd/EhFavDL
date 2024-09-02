@@ -22,6 +22,7 @@ def get_web_gallery_download_list(fav_cat):
             fav_category AS fc 
         WHERE
             fc.web_1280x_flag = 0 
+            AND fc.original_flag = 0
             AND eh.copyright_flag = 0 
             AND eh.gid = fc.gid 
             AND fc.fav_id IN ({fav_cat}) 

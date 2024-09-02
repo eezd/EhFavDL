@@ -14,20 +14,17 @@ class Checker(Config):
     def __init__(self):
         super().__init__()
 
-    def check_gid_in_local_cbz(self, folder=""):
+    def check_gid_in_local_cbz(self, target_path=""):
         """
         移动目录下的重复gid的CBZ文件到 duplicate_del 文件夹
         """
         gid_list_original = []
         gid_list_1280x = []
 
-        if folder == "":
-            folder = input(f"Please enter the file directory.\n")
-            if folder == "":
-                print("Cancel")
-                sys.exit(1)
+        if target_path == "":
+            target_path = self.data_path
 
-        for i in os.listdir(folder):
+        for i in os.listdir(target_path):
             if not re.match(r'^\d+-.*\.cbz', i):
                 continue
             if i.find('-1280x') != -1:
@@ -43,15 +40,15 @@ class Checker(Config):
             g1 = re.match(r'^(\d+)-', gid_list_original[count - 1]).group(1)
             g2 = re.match(r'^(\d+)-', gid_list_original[count]).group(1)
             if g1 == g2:
-                os.makedirs(os.path.join(folder, "duplicate_del"), exist_ok=True)
+                os.makedirs(os.path.join(target_path, "duplicate_del"), exist_ok=True)
                 front_name = gid_list_original[count - 1]
                 back_name = gid_list_original[count]
                 if len(front_name) > len(back_name):
-                    old_path = os.path.join(folder, front_name)
-                    new_path = os.path.join(os.path.join(folder, "duplicate_del"), front_name)
+                    old_path = os.path.join(target_path, front_name)
+                    new_path = os.path.join(os.path.join(target_path, "duplicate_del"), front_name)
                 else:
-                    old_path = os.path.join(folder, back_name)
-                    new_path = os.path.join(os.path.join(folder, "duplicate_del"), back_name)
+                    old_path = os.path.join(target_path, back_name)
+                    new_path = os.path.join(os.path.join(target_path, "duplicate_del"), back_name)
                 logger.warning(f'(gid_list_original) Duplicate gid, Move: {old_path} -> {new_path}')
                 shutil.move(old_path, new_path)
             count += 1
@@ -61,20 +58,20 @@ class Checker(Config):
             g1 = re.match(r'^(\d+)-', gid_list_1280x[count - 1]).group(1)
             g2 = re.match(r'^(\d+)-', gid_list_1280x[count]).group(1)
             if g1 == g2:
-                os.makedirs(os.path.join(folder, "duplicate_del"), exist_ok=True)
+                os.makedirs(os.path.join(target_path, "duplicate_del"), exist_ok=True)
                 front_name = gid_list_1280x[count - 1]
                 back_name = gid_list_1280x[count]
                 if len(front_name) > len(back_name):
-                    old_path = os.path.join(folder, front_name)
-                    new_path = os.path.join(os.path.join(folder, "duplicate_del"), front_name)
+                    old_path = os.path.join(target_path, front_name)
+                    new_path = os.path.join(os.path.join(target_path, "duplicate_del"), front_name)
                 else:
-                    old_path = os.path.join(folder, back_name)
-                    new_path = os.path.join(os.path.join(folder, "duplicate_del"), back_name)
+                    old_path = os.path.join(target_path, back_name)
+                    new_path = os.path.join(os.path.join(target_path, "duplicate_del"), back_name)
                 logger.warning(f'(gid_list_1280x) Duplicate gid, Move: {old_path} -> {new_path}')
                 shutil.move(old_path, new_path)
             count += 1
 
-        for i in os.listdir(folder):
+        for i in os.listdir(target_path):
             if not re.match(r'^\d+-.*\.cbz', i):
                 continue
             if i.find('-1280x') != -1:
@@ -84,19 +81,16 @@ class Checker(Config):
         logger.info(f'gid_list_1280x count: {len(gid_list_1280x)}')
         logger.info(f'gid_list_original count: {len(gid_list_original)}')
 
-    def sync_local_to_sqlite_cbz(self, cover=False):
+    def sync_local_to_sqlite_cbz(self, cover=False, target_path=""):
         """
         cover: 默认不覆盖
         cover=True会重置 fav_category 表 original_flag 和 web_1280x_flag 字段值, 根据本地文件重新设置
         """
         gid_list_original = []
         gid_list_1280x = []
-        folder = self.data_path
-        # folder = input(f"Please enter the file directory.\n")
-        # if folder == "":
-        #     print("Cancel")
-        #     sys.exit(1)
-        for i in os.listdir(folder):
+        if target_path == "":
+            target_path = self.data_path
+        for i in os.listdir(target_path):
             if not re.match(r'^\d+-.*\.cbz', i):
                 continue
             if i.find('-1280x') != -1:

@@ -1,6 +1,9 @@
 import argparse
 import asyncio
+import os
+import shutil
 import sys
+import zipfile
 from datetime import datetime
 
 from src import *
@@ -106,11 +109,23 @@ def main():
                 num = input("(Options) Select Number:")
                 num = int(num) if num else None
                 if num == 1:
-                    Checker().check_gid_in_local_cbz()
+                    folder = input(f"Please enter the file directory.\n")
+                    if folder == "":
+                        print("Cancel")
+                        sys.exit(1)
+                    Checker().check_gid_in_local_cbz(target_path=folder)
                 elif num == 2:
-                    Checker().sync_local_to_sqlite_cbz()
+                    folder = input(f"Please enter the file directory.\n")
+                    if folder == "":
+                        print("Cancel")
+                        sys.exit(1)
+                    Checker().sync_local_to_sqlite_cbz(target_path=folder)
                 elif num == 3:
-                    Checker().sync_local_to_sqlite_cbz(True)
+                    folder = input(f"Please enter the file directory.\n")
+                    if folder == "":
+                        print("Cancel")
+                        sys.exit(1)
+                    Checker().sync_local_to_sqlite_cbz(cover=True, target_path=folder)
                 elif num == 4:
                     Checker().check_loc_file()
                 elif num == 0:
@@ -120,8 +135,21 @@ def main():
 # if __name__ == "__main__":
 #     main()
 
-download_gallery = DownloadWebGallery(gid=2855960, token="ef31575a5d", title="123")
-status = asyncio.run(download_gallery.apply())
+gid = 3008265
+file_path = r"E:\Code\GitHub\EhFavDL\data2\archive\3008265-[あるぷ] アモラルアイランド2 (COMIC アンスリウム 2024年8月号) [中国翻訳] [DL版].zip"
+extract_to = os.path.splitext(file_path)[0]
+with zipfile.ZipFile(file_path, 'r') as zip_ref:
+    zip_ref.extractall(extract_to)
+support = Support()
+support.create_xml(gid=gid, path=extract_to)
+support.create_cbz(src_path=extract_to)
+support.rename_cbz_file(target_path=extract_to)
+shutil.rmtree(extract_to, ignore_errors=True)
+os.remove(file_path)
+
+# asyncio.run(DownloadArchiveGallery().dl_gallery(gid=3008265, token="ef31575a5d", title="123", original_flag=False))
+# download_gallery = DownloadWebGallery(gid=2855960, token="ef31575a5d", title="123")
+# status = asyncio.run(download_gallery.apply())
 
 # asyncio.run(Config().fetch_data(
 #     url=f"https://fzplaay.mxodeprmrzoc.hath.network:7878/h/632691cce87d3f0adbc82e537805e9f716b8018b-361036-1280-1807-jpg/keystamp=1725262500-50f6aabdf9;fileindex=145385188;xres=1280/PG02_06.jpg",

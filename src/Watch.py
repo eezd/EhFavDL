@@ -3,7 +3,7 @@ import os
 import shutil
 import zipfile
 
-from . import Support, Checker, AddFavData, DownloadWebGallery
+from . import Support, Checker, DownloadWebGallery, AddFavData, DownloadArchiveGallery
 from .common import *
 
 
@@ -38,7 +38,7 @@ class Watch(Config):
         for gid in move_list:
             for folder_name in os.listdir(self.data_path):
                 folder_path = os.path.join(self.data_path, folder_name)
-                if os.path.isdir(folder_path) and folder_name.startswith(f"{gid}-"):
+                if folder_name.startswith(f"{gid}-"):
                     dest_path = os.path.join(del_dir, folder_name)
                     if os.path.exists(dest_path):
                         timestamp = time.strftime("%Y%m%d%H%M%S")
@@ -68,15 +68,23 @@ class Watch(Config):
                 await add_fav_data.translate_tags()
 
             update_list = await add_fav_data.apply()
-            self.clear_old_file(move_list=gid for gid in update_list)
+            # update_list = await add_fav_data.clear_del_flag()
+            self.clear_old_file(move_list=[item[0] for item in update_list])
+            # 再次同步数据
             Checker().sync_local_to_sqlite_cbz(True)
+            # 清理数据库中del=1的字段
+            await add_fav_data.clear_del_flag()
 
             while True:
                 dl_list_status = True
                 dl_list = get_web_gallery_download_list(fav_cat=self.watch_fav_ids)
                 for j in dl_list:
-                    download_gallery = DownloadWebGallery(gid=j[0], token=j[1], title=j[2])
-                    status = await download_gallery.apply()
+                    if self.watch_archive_status:
+                        # 默认归档下载 Resample(1280x) 版本
+                        await DownloadArchiveGallery().dl_gallery(gid=j[0], token=j[1], title=j[2], original_flag=False)
+                    else:
+                        download_gallery = DownloadWebGallery(gid=j[0], token=j[1], title=j[2])
+                        status = await download_gallery.apply()
                     if not status:
                         dl_list_status = False
                         logger.warning(f"Download https://{Config().base_url}/g/{j[0]}/{j[1]} failed")

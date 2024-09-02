@@ -73,6 +73,8 @@ class Config:
                 self.watch_fav_ids = watch_fav_ids
                 watch_lan_status = bool(config['watch_lan_status'])
                 self.watch_lan_status = watch_lan_status
+                watch_archive_status = bool(config['watch_archive_status'])
+                self.watch_archive_status = watch_archive_status
 
         except FileNotFoundError as e:
             logger.error('File config.yaml not found')
@@ -83,13 +85,18 @@ class Config:
             sys.exit(1)
 
     @logger.catch()
-    async def fetch_data(self, url, json=None, tqdm_file_path=None, retry_delay=5, retry_attempts=5):
+    async def fetch_data(self, url, json=None, data=None, tqdm_file_path=None, retry_delay=5, retry_attempts=5):
         """
         tqdm_file_path: None | file_path
         """
         try:
             async with aiohttp.ClientSession(headers=self.request_headers, cookies=self.eh_cookies) as session:
-                if json is not None:
+                if data is not None:
+                    async with session.post(url, data=data,
+                                            proxy=self.proxy_url if self.proxy_status else None) as response:
+                        await self.check_fetch_err(response, url)
+                        return await response.read()
+                elif json is not None:
                     async with session.post(url, json=json,
                                             proxy=self.proxy_url if self.proxy_status else None) as response:
                         await self.check_fetch_err(response, url)
@@ -128,7 +135,8 @@ class Config:
                 #                                  retry_attempts=retry_attempts - 1, DH_KEY_TOO_SMALL=True)
 
                 await asyncio.sleep(retry_delay)
-                return await self.fetch_data(url=url, json=json, tqdm_file_path=None, retry_delay=retry_delay,
+                return await self.fetch_data(url=url, json=json, data=None, tqdm_file_path=None,
+                                             retry_delay=retry_delay,
                                              retry_attempts=retry_attempts - 1)
             else:
                 logger.warning(f"The request limit has been exceeded. Program terminated.. {url}")
