@@ -114,14 +114,16 @@ $ python main.py
 1. Update User Fav Info
 2. Update Gallery Metadata (Update Tags)
 3. Download Web Gallery
-4. Download Archive Gallery
-5. Update Tags Translation
-6. Create ComicInfo.xml(only-folder)
-7. Update ComicInfo.xml(folder&.cbz)
-8. Directory To CBZ File
-9. Rename CBZ File
-10. Update LANraragi Tags
-11. Options (Checker)...
+4. Download Web Gallery (Download clear_del_flag())
+5. Download Archive Gallery
+6. Download Archive Gallery (Download clear_del_flag())
+7. Update Tags Translation
+8. Create ComicInfo.xml(only-folder)
+9. Update ComicInfo.xml(folder&.cbz)
+10. Directory To CBZ File
+11. Rename CBZ File
+12. Update LANraragi Tags
+13. Options (Checker)...
 Select Number: 11
 
 0. Return
@@ -144,36 +146,46 @@ Select Number: 11
 
 下载Web画廊, 文件会下载到: `data_path\web` 文件夹下
 
-4. Download Archive Gallery
+4. Download Web Gallery (Download clear_del_flag())
+
+`AddFavData().clear_del_flag()` 方法会返回存在更新的画廊, 然后调用 `Watch().dl_new_gallery()` 去下载画廊
+
+5. Download Archive Gallery
 
 使用 `GP` 点数下载, 文件会下载到: `data_path\archive` 文件夹下
 
-5. Update Tags Translation
+6. Download Archive Gallery (Download clear_del_flag())
 
-6. Create ComicInfo.xml(only-folder)
+`AddFavData().clear_del_flag()` 方法会返回存在更新的画廊, 然后调用 `Watch().dl_new_gallery()` 去下载画廊
+
+7. Update Tags Translation
+
+8. Create ComicInfo.xml(only-folder)
 
 为符合规则的文件夹创建 `ComicInfo.xml`
 
-7. Update ComicInfo.xml(folder&.cbz)
+9. Update ComicInfo.xml(folder&.cbz)
 
 为符合规则的文件夹以及 `.cbz` 文件创建 `ComicInfo.xml`
 
-8. Directory To CBZ File
+10. Directory To CBZ File
 
 根据目录下的符合规则的文件夹, 创建 `cbz` 文件
 
-9. Rename CBZ File
+11. Rename CBZ File
 
 在 `LANraragi` 中如果你文件名称过长，它会卡住报错. 因此你需要就可以使用这个功能格式化文件名长度
 
-
-10. Update LANraragi Tags
+12. Update LANraragi Tags
 
 更新 LANraragi Tags
 
-11. Options (Checker)...
+13. Options (Checker)...
 
-- `Checker().check_gid_in_local_cbz(target_path="")`: 移动目录下的重复 gid 的 CBZ 文件到 duplicate_del 文件夹
-- `Checker().sync_local_to_sqlite_cbz(cover=False, target_path="")`: 根据本地文件设置对应的 `original_flag`和 `web_1280x_flag` 字段. 
-- `cover=True` 会重置 fav_category 表 original_flag 和 web_1280x_flag 字段值, 根据本地文件重新设置
-- `Checker().check_loc_file()`: 检查zip文件是否有损坏
+`Checker().check_gid_in_local_cbz(target_path="")`: 移动目录下的重复 gid 的 CBZ 文件到 duplicate_del 文件夹
+
+`Checker().sync_local_to_sqlite_cbz(cover=False, target_path="")`: 根据本地文件设置对应的 `original_flag`和 `web_1280x_flag` 字段. 
+
+`cover=True` 会重置 fav_category 表 original_flag 和 web_1280x_flag 字段值, 根据本地文件重新设置
+
+`Checker().check_loc_file()`: 检查zip文件是否有损坏

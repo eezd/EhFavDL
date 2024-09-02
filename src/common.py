@@ -1,6 +1,7 @@
 import json
 import re
 import sqlite3
+import sys
 import time
 
 from loguru import logger
@@ -8,26 +9,34 @@ from loguru import logger
 from src.Config import Config
 
 
-def get_web_gallery_download_list(fav_cat):
+def get_web_gallery_download_list(fav_cat="", gids=""):
     dl_list = []
     with sqlite3.connect(Config().dbs_name) as co:
+        _sql = ""
+        if fav_cat != "":
+            _sql += f"AND fc.fav_id IN ({fav_cat}) "
+        if gids != "":
+            _sql += f"AND eh.gid IN ({gids}) "
+        if fav_cat == "" and gids == "":
+            logger.warning("fav_cat AND gids both are empty.")
+            sys.exit(1)
         ce = co.execute(f'''
         SELECT
-            fc.gid,
-            fc.token,
-            eh.title,
-            eh.title_jpn 
+                fc.gid,
+                fc.token,
+                eh.title,
+                eh.title_jpn 
         FROM
-            eh_data AS eh,
-            fav_category AS fc 
+                eh_data AS eh,
+                fav_category AS fc 
         WHERE
-            fc.web_1280x_flag = 0 
-            AND fc.original_flag = 0
-            AND eh.copyright_flag = 0 
-            AND eh.gid = fc.gid 
-            AND fc.fav_id IN ({fav_cat}) 
+                fc.web_1280x_flag = 0 
+                AND fc.original_flag = 0
+                AND eh.copyright_flag = 0 
+                AND eh.gid = fc.gid 
+                {_sql} 
         ORDER BY
-            fc.gid DESC
+                fc.gid DESC
         ''').fetchall()
         for i in ce:
             if i[3] is not None and i[3] != "":

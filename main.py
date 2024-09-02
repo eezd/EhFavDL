@@ -1,6 +1,5 @@
 import argparse
 import asyncio
-import sys
 from datetime import datetime
 
 from src import *
@@ -13,27 +12,29 @@ args = parser.parse_args()
 
 
 @logger.catch()
-def main():
+async def main():
     Config().create_database()
 
     if args.w:
-        asyncio.run(Watch().apply())
+        await Watch().apply()
 
     while True:
-        image_limits, total_limits = asyncio.run(Config().get_image_limits())
+        image_limits, total_limits = await Config().get_image_limits()
         logger.info(f"Image Limits: {image_limits} / {total_limits}")
         time.sleep(1)
         print("\n1. Update User Fav Info")
         print("2. Update Gallery Metadata (Update Tags)")
         print("3. Download Web Gallery")
-        print("4. Download Archive Gallery")
-        print("5. Update Tags Translation")
-        print("6. Create ComicInfo.xml(only-folder)")
-        print("7. Update ComicInfo.xml(folder&.cbz)")
-        print("8. Directory To CBZ File")
-        print("9. Rename CBZ File")
-        print("10. Update LANraragi Tags")
-        print("11. Options (Checker)...")
+        print("4. Download Web Gallery (Download clear_del_flag())")
+        print("5. Download Archive Gallery")
+        print("6. Download Archive Gallery (Download clear_del_flag())")
+        print("7. Update Tags Translation")
+        print("8. Create ComicInfo.xml(only-folder)")
+        print("9. Update ComicInfo.xml(folder&.cbz)")
+        print("10. Directory To CBZ File")
+        print("11. Rename CBZ File")
+        print("12. Update LANraragi Tags")
+        print("13. Options (Checker)...")
 
         num = input("Select Number:")
         num = int(num) if num else None
@@ -43,10 +44,10 @@ def main():
         add_fav_data = AddFavData()
 
         if num == 1:
-            asyncio.run(add_fav_data.apply())
+            await add_fav_data.apply()
         elif num == 2:
-            asyncio.run(add_fav_data.update_category())
-            asyncio.run(add_fav_data.add_tags_data(True))
+            await add_fav_data.update_category()
+            await add_fav_data.add_tags_data(True)
         elif num == 3:
             fav_cat = str(input("请输入你需要下载的收藏夹ID(0-9)\nPlease enter the collection you want to download.:"))
             dl_list = get_web_gallery_download_list(fav_cat=fav_cat)
@@ -58,41 +59,71 @@ def main():
             # start download
             for j in dl_list:
                 download_gallery = DownloadWebGallery(gid=j[0], token=j[1], title=j[2])
-                status = asyncio.run(download_gallery.apply())
+                status = await download_gallery.apply()
                 if not status:
                     logger.warning(f"Download https://{Config().base_url}/g/{j[0]}/{j[1]} failed")
         elif num == 4:
-            asyncio.run(DownloadArchiveGallery().apply())
+            update_list = await add_fav_data.clear_del_flag()
+            gids = [item[0] for item in update_list]
+            current_gids = [item[2] for item in update_list]
+            Watch().clear_old_file(move_list=gids)
+            # 下载新画廊 / Download new gallery
+            while True:
+                dl_list_status = await Watch().dl_new_gallery(gids=str(current_gids).replace("[", "").replace("]", ""),
+                                                              archive_status=False)
+                # 下载失败重新下载 / Download failed, retrying download
+                if dl_list_status:
+                    break
+                else:
+                    logger.warning("Download failed, retry in 120 seconds")
+                    await asyncio.sleep(120)
         elif num == 5:
-            if Config().tags_translation:
-                asyncio.run(add_fav_data.translate_tags())
+            await DownloadArchiveGallery().apply()
         elif num == 6:
-            folder = input(f"Please enter the file directory.\n")
-            if folder == "":
-                print("Cancel")
-                sys.exit(1)
-            Support().update_meta_info(target_path=folder, only_folder=True)
+            update_list = await add_fav_data.clear_del_flag()
+            gids = [item[0] for item in update_list]
+            current_gids = [item[2] for item in update_list]
+            Watch().clear_old_file(move_list=gids)
+            # 下载新画廊 / Download new gallery
+            while True:
+                dl_list_status = await Watch().dl_new_gallery(gids=str(current_gids).replace("[", "").replace("]", ""),
+                                                              archive_status=True)
+                # 下载失败重新下载 / Download failed, retrying download
+                if dl_list_status:
+                    break
+                else:
+                    logger.warning("Download failed, retry in 120 seconds")
+                    await asyncio.sleep(120)
         elif num == 7:
-            folder = input(f"Please enter the file directory.\n")
-            if folder == "":
-                print("Cancel")
-                sys.exit(1)
-            Support().update_meta_info(target_path=folder)
+            if Config().tags_translation:
+                await add_fav_data.translate_tags()
         elif num == 8:
             folder = input(f"Please enter the file directory.\n")
             if folder == "":
                 print("Cancel")
                 sys.exit(1)
-            Support().directory_to_cbz(target_path=folder)
+            Support().update_meta_info(target_path=folder, only_folder=True)
         elif num == 9:
             folder = input(f"Please enter the file directory.\n")
             if folder == "":
                 print("Cancel")
                 sys.exit(1)
-            Support().rename_cbz_file(target_path=folder)
+            Support().update_meta_info(target_path=folder)
         elif num == 10:
-            asyncio.run(Support().lan_update_tags())
+            folder = input(f"Please enter the file directory.\n")
+            if folder == "":
+                print("Cancel")
+                sys.exit(1)
+            Support().directory_to_cbz(target_path=folder)
         elif num == 11:
+            folder = input(f"Please enter the file directory.\n")
+            if folder == "":
+                print("Cancel")
+                sys.exit(1)
+            Support().rename_cbz_file(target_path=folder)
+        elif num == 12:
+            await Support().lan_update_tags()
+        elif num == 13:
             while True:
                 print("0. Return")
                 print("1. Checker().check_gid_in_local_cbz()")
@@ -126,4 +157,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

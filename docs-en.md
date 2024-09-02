@@ -114,14 +114,17 @@ $ python main.py
 1. Update User Fav Info
 2. Update Gallery Metadata (Update Tags)
 3. Download Web Gallery
-4. Download Archive Gallery
-5. Update Tags Translation
-6. Create ComicInfo.xml(only-folder)
-7. Update ComicInfo.xml(folder&.cbz)
-8. Directory To CBZ File
-9. Rename CBZ File
-10. Update LANraragi Tags
-11. Options (Checker)...
+4. Download Web Gallery (Download clear_del_flag())
+5. Download Archive Gallery
+6. Download Archive Gallery (Download clear_del_flag())
+7. Update Tags Translation
+8. Create ComicInfo.xml(only-folder)
+9. Update ComicInfo.xml(folder&.cbz)
+10. Directory To CBZ File
+11. Rename CBZ File
+12. Update LANraragi Tags
+13. Options (Checker)...
+
 Select Number: 11
 
 0. Return
@@ -144,34 +147,41 @@ Use the EH API to update data in the `eh_data`, `tag_list`, and `gid_tid` tables
 
 Download the Web gallery. Files will be saved in the `data_path\web` folder.
 
-4. Download Archive Gallery
+4. Download Web Gallery (Download clear_del_flag())
+
+The `AddFavData().clear_del_flag()` method will return the galleries with updates, and then the `Watch().dl_new_gallery()` method will be called to download the galleries.
+
+5. Download Archive Gallery
 
 Use `GP` points to download. Files will be saved in the `data_path\archive` folder.
 
-5. Update Tags Translation
+6. Download Archive Gallery (Download clear_del_flag())
 
-6. Create ComicInfo.xml(only-folder)
+The `AddFavData().clear_del_flag()` method will return the galleries with updates, and then the `Watch().dl_new_gallery()` method will be called to download the galleries.
+
+7. Update Tags Translation
+
+8. Create ComicInfo.xml(only-folder)
 
 Create `ComicInfo.xml` for folders that meet the specified criteria.
 
-7. Update ComicInfo.xml(folder&.cbz)
+9. Update ComicInfo.xml(folder&.cbz)
 
 Create or update `ComicInfo.xml` for both folders and `.cbz` files that meet the specified criteria.
 
-8. Directory To CBZ File
+10. Directory To CBZ File
 
 Create `.cbz` files based on folders in the directory that meet the specified criteria.
 
-9. Rename CBZ File
+11. Rename CBZ File
 
 In `LANraragi`, if a file name is too long, it may cause the system to freeze and throw an error. Use this feature to format file names to a manageable length.
 
-
-10. Update LANraragi Tags
+12. Update LANraragi Tags
 
 Update LANraragi Tags.
 
-11. Options (Checker)...
+13. Options (Checker)...
 
 - `Checker().check_gid_in_local_cbz(target_path="")`: Move CBZ files with duplicate GIDs in the directory to the `duplicate_del` folder.
 - `Checker().sync_local_to_sqlite_cbz(cover=False, target_path="")`: Set the `original_flag` and `web_1280x_flag` fields based on local files.

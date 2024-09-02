@@ -1,7 +1,6 @@
 import ast
 import asyncio
 import os
-import sys
 
 from bs4 import BeautifulSoup
 from tqdm import tqdm
@@ -373,7 +372,7 @@ class AddFavData(Config):
             ''')
             co.commit()
 
-            # 搜索 del_flag=1 并且 已下载 并且 当前字段的current_gid=其他字段的gid
+            # 搜索 del_flag=1 并且 已下载 并且 当前字段的current_gid=其他字段的gid (并且current_gid的画廊未下载为del_flag=0)
             # 就可以得出结论, 当前画廊存在更新
             # Search for records where `del_flag=1` and `already downloaded`,
             # and where the current field's `current_gid` matches another field's `gid`.
@@ -393,6 +392,7 @@ class AddFavData(Config):
                 AND ( fc.original_flag = 1 OR fc.web_1280x_flag = 1 )
                 AND eh.gid != eh.current_gid
                 AND eh.current_gid IN ( SELECT gid FROM eh_data )
+                AND eh.current_gid IN ( SELECT gid FROM fav_category WHERE del_flag = 0 AND original_flag = 0 AND web_1280x_flag = 0 )
             ''').fetchall()
             if len(update_list) > 0:
                 logger.warning(f"下列画廊存在新版本可用/The current gallery has a new version available.: ")
