@@ -3,7 +3,6 @@ import copy
 import os
 import re
 import sqlite3
-import ssl
 import sys
 import zipfile
 
@@ -84,34 +83,29 @@ class Config:
             sys.exit(1)
 
     @logger.catch()
-    async def fetch_data(self, url, data=None, json=None, retry_delay=5, retry_attempts=5, open_ssl=True):
+    async def fetch_data(self, url, json=None, tqdm_file_path=None, retry_delay=5, retry_attempts=5):
+        """
+        tqdm_file_path: None | file_path
+        """
         try:
-            ssl_context = ssl.create_default_context()
-            # ssl:default [[SSL: DH_KEY_TOO_SMALL] dh key too small (_ssl.c:1006)]
-            ssl_context.set_ciphers('HIGH:!DH:!aNULL')
-            # 有时下载会出现https证书失效的问题 [SSLCertVerificationError] SSL: CERTIFICATE_VERIFY_FAILED
-            if not open_ssl:
-                ssl_context.check_hostname = False  # 禁用主机名检查
-                ssl_context.verify_mode = ssl.CERT_NONE  # 不验证证书
-
-            async with aiohttp.ClientSession(headers=self.request_headers, cookies=self.eh_cookies,
-                                             connector=aiohttp.TCPConnector(ssl_context=ssl_context)) as session:
-
-                if data is not None:
-                    async with session.post(url, data=data,
-                                            proxy=self.proxy_url if self.proxy_status else None) as response:
-                        await self.check_fetch_err(response, url)
-                        return await response.read()
-
-                elif json is not None:
+            async with aiohttp.ClientSession(headers=self.request_headers, cookies=self.eh_cookies) as session:
+                if json is not None:
                     async with session.post(url, json=json,
                                             proxy=self.proxy_url if self.proxy_status else None) as response:
                         await self.check_fetch_err(response, url)
                         return await response.json(content_type=None)
-
                 else:
                     async with session.get(url, proxy=self.proxy_url if self.proxy_status else None) as response:
                         await self.check_fetch_err(response, url)
+                        if tqdm_file_path is not None:
+                            total_size = int(response.headers.get('Content-Length', 0))
+                            file_name = url.split('/')[-1] + "/" + os.path.basename(tqdm_file_path)
+                            with open(tqdm_file_path, 'wb') as f:
+                                with tqdm_asyncio(total=total_size, unit='B', unit_scale=True, desc=file_name) as pbar:
+                                    async for chunk in response.content.iter_chunked(1024):
+                                        f.write(chunk)
+                                        pbar.update(len(chunk))
+                            return True
                         return await response.read()
         except Exception as e:
             logger.error(e)
@@ -128,13 +122,13 @@ class Config:
                 logger.warning(
                     f"Failed to retrieve data. Retrying in {retry_delay} seconds, {retry_attempts - 1} attempts remaining. {url}")
 
-                if "CERTIFICATE_VERIFY_FAILED" in str(e) or "ssl:default" in str(e):
-                    await asyncio.sleep(retry_delay)
-                    return await self.fetch_data(url=url, data=data, json=json, retry_delay=retry_delay,
-                                                 retry_attempts=retry_attempts - 1, open_ssl=False)
+                # if "CERTIFICATE_VERIFY_FAILED" in str(e) or "ssl:default" in str(e):
+                #     await asyncio.sleep(retry_delay)
+                #     return await self.fetch_data(url=url, json=json, tqdm_file_path=None, retry_delay=retry_delay,
+                #                                  retry_attempts=retry_attempts - 1, DH_KEY_TOO_SMALL=True)
 
                 await asyncio.sleep(retry_delay)
-                return await self.fetch_data(url=url, data=data, json=json, retry_delay=retry_delay,
+                return await self.fetch_data(url=url, json=json, tqdm_file_path=None, retry_delay=retry_delay,
                                              retry_attempts=retry_attempts - 1)
             else:
                 logger.warning(f"The request limit has been exceeded. Program terminated.. {url}")
@@ -143,16 +137,12 @@ class Config:
     @logger.catch()
     async def fetch_data_stream(self, url, file_path, stream_range=0, retry_delay=10, retry_attempts=10):
         try:
-            ssl_context = ssl.create_default_context()
-            # ssl:default [[SSL: DH_KEY_TOO_SMALL] dh key too small (_ssl.c:1006)]
-            ssl_context.set_ciphers('HIGH:!DH:!aNULL')
             headers = copy.deepcopy(self.request_headers)
             mode = 'wb'
             if stream_range != 0:
                 headers.update({'Range': f'bytes={stream_range}-'})
                 mode = 'ab'
-            async with aiohttp.ClientSession(headers=headers, cookies=self.eh_cookies,
-                                             connector=aiohttp.TCPConnector(ssl_context=ssl_context)) as session:
+            async with aiohttp.ClientSession(headers=headers, cookies=self.eh_cookies) as session:
                 async with session.get(url, proxy=self.proxy_url if self.proxy_status else None) as response:
                     await self.check_fetch_err(response, file_path)
                     with tqdm_asyncio(total=int(response.headers.get("Content-Length", 0)) + stream_range,
@@ -166,7 +156,7 @@ class Config:
                                 progress_bar.update(len(data))
                 return True
         except BaseException as e:
-            # logger.error(e)
+            logger.error(e)
             if retry_attempts > 0:
                 logger.warning(
                     f"Failed to fetch data. Retrying in {retry_delay} seconds, {retry_attempts - 1} attempts left")

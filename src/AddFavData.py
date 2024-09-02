@@ -10,9 +10,8 @@ from .common import *
 
 
 class AddFavData(Config):
-    def __init__(self, watch_status=False):
+    def __init__(self):
         super().__init__()
-        self.watch_status = watch_status
 
     @logger.catch()
     async def translate_tags(self):
@@ -332,14 +331,18 @@ class AddFavData(Config):
                 await self.add_tags_data()
 
     @logger.catch()
-    async def apply(self):
-        await self.update_category()
+    async def clear_del_flag(self):
+        """
+        1. 清理 del_falg=1 并且没有下载的画廊
+        2. 返回存在更新的画廊
+        1. Clean up galleries with `del_flag=1` that have not been downloaded.
+        2. Return galleries with updates.
 
-        await self.add_fav_data()
-
-        if not self.watch_status:
-            await self.add_tags_data()
-
+        :return: [] | [
+        [gid, token, current_gid, current_token]
+        ...
+        ]
+        """
         with sqlite3.connect(self.dbs_name) as co:
             # 清除所有 del_flag=1 并且没有下载的画廊 original_flag = 0 AND web_1280x_flag = 0
             # Clear all items where del_flag=1 and have not been downloaded, with original_flag=0 and web_1280x_flag=0.
@@ -392,52 +395,19 @@ class AddFavData(Config):
                 AND eh.current_gid IN ( SELECT gid FROM eh_data )
             ''').fetchall()
             if len(update_list) > 0:
-                logger.warning(
-                    f"Tips: 当前判断是基于 eh_data.current_gid。如果需要准确判断, 请使用`2. Update Gallery Metadata (Update Tags)` 重新获取数据")
-                logger.warning(
-                    f"Tips: The current judgment is based on eh_data.current_gid. For accurate assessment, please use "
-                    f"`2. Update Gallery Metadata (Update Tags)` to retrieve the data again.")
                 logger.warning(f"下列画廊存在新版本可用/The current gallery has a new version available.: ")
                 for gid_token in update_list:
                     logger.warning(
                         f"https://exhentai.org/g/{gid_token[0]}/{gid_token[1]}>>>https://exhentai.org/g/{gid_token[2]}/{gid_token[3]}")
-                await asyncio.sleep(2)
-
-            if self.watch_status:
                 return update_list
+            return []
 
-            # del_flag = 1
-            gid_values = [item[0] for item in update_list]
-            placeholders = ','.join('?' for _ in gid_values)
-            del_flag_list = co.execute(f'''
-                SELECT
-                    gid,
-                    token 
-                FROM
-                    fav_category 
-                WHERE
-                    del_flag = 1 
-                    AND ( original_flag = 1 OR web_1280x_flag = 1 )
-                    AND gid NOT IN ({placeholders})
-            ''', gid_values).fetchall()
-            if len(del_flag_list) > 0:
-                logger.warning(f"下列画廊无法根据 eh_data.current_gid 判断是否存在新版本可用")
-                logger.warning(
-                    f"The following gallery cannot determine whether a new version is available based on "
-                    f"`eh_data.current_gid`.")
-                logger.warning(f"如果你确定要在数据库中移除下列画廊, 输入确认(y/n)")
-                logger.warning(
-                    f"If you are sure you want to remove the following gallery from the database, type ‘confirm’ (y/n).")
-                for gid_token in del_flag_list:
-                    logger.warning(f"https://exhentai.org/g/{gid_token[0]}/{gid_token[1]}")
+    @logger.catch()
+    async def apply(self):
+        await self.update_category()
 
-                del_enter = input("\n")
-                if del_enter.lower() == 'y':
-                    gid_list = [row[0] for row in del_flag_list]
-                    if gid_list:
-                        placeholders = ','.join('?' for _ in gid_list)
-                        co.execute(f'DELETE FROM eh_data WHERE gid IN ({placeholders})', gid_list)
-                        co.execute(f'''DELETE FROM fav_category WHERE gid IN ({placeholders})''', gid_list)
-                        co.execute(f'DELETE FROM gid_tid WHERE gid IN ({placeholders})', gid_list)
-                        co.commit()
-                        logger.warning(f"DELETE https://exhentai.org/g/{gid_token[0]}/{gid_token[1]}")
+        await self.add_fav_data()
+
+        await self.add_tags_data()
+
+        return self.clear_del_flag()

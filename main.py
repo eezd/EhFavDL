@@ -27,11 +27,13 @@ def main():
         print("2. Update Gallery Metadata (Update Tags)")
         print("3. Download Web Gallery")
         print("4. Download Archive Gallery")
-        print("5. Create ComicInfo.xml")
-        print("6. Directory To Zip File")
-        print("7. Rename Zip File")
-        print("8. Update LANraragi Tags")
-        print("9. Options (Checker)...")
+        print("5. Update Tags Translation")
+        print("6. Create ComicInfo.xml(only-folder)")
+        print("7. Update ComicInfo.xml(folder&.cbz)")
+        print("8. Directory To CBZ File")
+        print("9. Rename CBZ File")
+        print("10. Update LANraragi Tags")
+        print("11. Options (Checker)...")
 
         num = input("Select Number:")
         num = int(num) if num else None
@@ -68,35 +70,63 @@ def main():
         elif num == 5:
             if Config().tags_translation:
                 asyncio.run(add_fav_data.translate_tags())
-            Support().create_xml()
         elif num == 6:
-            Support().directory_to_zip()
+            folder = input(f"Please enter the file directory.\n")
+            if folder == "":
+                print("Cancel")
+                sys.exit(1)
+            Support().update_meta_info(target_path=folder, only_folder=True)
         elif num == 7:
-            Support().rename_zip_file()
+            folder = input(f"Please enter the file directory.\n")
+            if folder == "":
+                print("Cancel")
+                sys.exit(1)
+            Support().update_meta_info(target_path=folder)
         elif num == 8:
-            if Config().tags_translation:
-                asyncio.run(add_fav_data.translate_tags())
-            asyncio.run(Support().lan_update_tags())
+            folder = input(f"Please enter the file directory.\n")
+            if folder == "":
+                print("Cancel")
+                sys.exit(1)
+            Support().directory_to_cbz(target_path=folder)
         elif num == 9:
+            folder = input(f"Please enter the file directory.\n")
+            if folder == "":
+                print("Cancel")
+                sys.exit(1)
+            Support().rename_cbz_file(target_path=folder)
+        elif num == 10:
+            asyncio.run(Support().lan_update_tags())
+        elif num == 11:
             while True:
                 print("0. Return")
-                print("1. Checker().check_gid_in_local_zip()")
-                print("2. Checker().sync_local_to_sqlite_zip()")
-                print("3. Checker().sync_local_to_sqlite_zip(True)")
+                print("1. Checker().check_gid_in_local_cbz()")
+                print("2. Checker().sync_local_to_sqlite_cbz()")
+                print("3. Checker().sync_local_to_sqlite_cbz(True)")
                 print("4. Checker().check_loc_file()")
                 num = input("(Options) Select Number:")
                 num = int(num) if num else None
                 if num == 1:
-                    Checker().check_gid_in_local_zip()
+                    Checker().check_gid_in_local_cbz()
                 elif num == 2:
-                    Checker().sync_local_to_sqlite_zip()
+                    Checker().sync_local_to_sqlite_cbz()
                 elif num == 3:
-                    Checker().sync_local_to_sqlite_zip(True)
+                    Checker().sync_local_to_sqlite_cbz(True)
                 elif num == 4:
                     Checker().check_loc_file()
                 elif num == 0:
                     break
 
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
+
+download_gallery = DownloadWebGallery(gid=2855960, token="ef31575a5d", title="123")
+status = asyncio.run(download_gallery.apply())
+
+# asyncio.run(Config().fetch_data(
+#     url=f"https://fzplaay.mxodeprmrzoc.hath.network:7878/h/632691cce87d3f0adbc82e537805e9f716b8018b-361036-1280-1807-jpg/keystamp=1725262500-50f6aabdf9;fileindex=145385188;xres=1280/PG02_06.jpg",
+#     tqdm_file_path="./a.jpg"))
+
+# Checker().sync_local_to_sqlite_cbz(True)
+
+# Support().update_meta_info()

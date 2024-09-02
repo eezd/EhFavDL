@@ -2,11 +2,11 @@ import asyncio
 import hashlib
 import os
 import shutil
-import sys
 
 from bs4 import BeautifulSoup
 from tqdm.asyncio import tqdm_asyncio
 
+from src.Support import Support
 from .common import *
 
 # 下载路径为: data_path + "web"
@@ -90,12 +90,7 @@ class DownloadWebGallery(Config):
                 else:
                     await self.wait_image_limits()
                 return await self.download_image(semaphore, url, file_path)
-            file = await self.fetch_data(url=real_url)
-            if not file:
-                return False
-            with open(file_path, 'wb') as f:
-                f.write(file)
-            return True
+            return await self.fetch_data(url=real_url, tqdm_file_path=file_path)
 
     @logger.catch()
     async def get_image_url(self):
@@ -132,11 +127,6 @@ class DownloadWebGallery(Config):
 
         # 获取总页码 / Get the total page number
         ptb = page_data.select_one('.ptb td:nth-last-child(2)')
-        if ptb is None:
-            # 这通常意味着当前ip已被暂时封禁 / This usually means that the current ip has been temporarily banned
-            logger.warning(page_data)
-            sys.exit(0)
-
         ptb = ptb.get_text()
         ptb = int(ptb) - 1
 
@@ -172,17 +162,13 @@ class DownloadWebGallery(Config):
             logger.warning("Failed for missing pages, retrying after 30mins……")
             await asyncio.sleep(30 * 60)
             return await self.get_image_url()
-
-        # 返回pages用于移动时重复校验
-        return page_img_url, pages
+        return page_img_url
 
     @logger.catch()
     async def apply(self):
         before_image_limits, _ = await self.wait_image_limits()
         logger.info(f"Download Web Gallery...: {self.long_url}")
-
         res_image_list = await self.get_image_url()
-
         if isinstance(res_image_list, str):
             if res_image_list == "copyright":
                 logger.warning(
@@ -192,13 +178,11 @@ class DownloadWebGallery(Config):
                     co.commit()
                 return False
 
-        img_url_res, pages = res_image_list
-
         # Download images
         semaphore = asyncio.Semaphore(int(self.connect_limit))
         task_list = []
         os.makedirs(self.filepath_tmp, exist_ok=True)
-        for _p in img_url_res:
+        for _p in res_image_list:
             url = _p[0]
             file_path = os.path.join(self.filepath_tmp, _p[1])
             if os.path.exists(file_path):
@@ -206,49 +190,38 @@ class DownloadWebGallery(Config):
             else:
                 req = self.download_image(semaphore, url, file_path)
                 task_list.append(req)
-
-        results = await tqdm_asyncio.gather(*task_list)
-
+        results = await tqdm_asyncio.gather(*task_list, desc=F"DownloadWebGallery>>{self.long_url}")
         for result in results:
             if not result:
+                logger.warning(f"Failed to download image: {self.long_url}")
                 return False
-
-        # 判断 new_path 是否存在文件夹
-        # Determine whether there is a folder in new_path
-        check_dir = None
-        if os.path.isdir(self.filepath_end):
-            logger.warning("Directory already exists, Whether to delete the overlay? Y/N\n")
-            logger.warning(f"{self.filepath_tmp}\n>>>\n{self.filepath_end}")
-
-            while check_dir is None:
-                check_dir = input()
-                if check_dir.lower() == "n":
-                    logger.warning("[OK] skip coverage")
-                elif check_dir.lower() == "y":
-                    shutil.rmtree(self.filepath_end)
-                    shutil.move(self.filepath_tmp, self.filepath_end)
-                    logger.warning("[OK] del and coverage")
-                else:
-                    check_dir = None
-        else:
-            shutil.move(self.filepath_tmp, self.filepath_end)
 
         # 再次检查是否缺页 / Recheck for missing pages
         file_count = 0
-        for _, _, files in os.walk(self.filepath_end):
+        for _, _, files in os.walk(self.filepath_tmp):
             file_count += len(files)
-        if pages:
-            if file_count < pages:
-                logger.warning(f"Failed for missing pages: {self.long_url}")
-                return False
+        if file_count != len(res_image_list):
+            logger.warning(f"Failed for missing pages: {self.long_url}")
+            return False
+
+        # 判断 new_path 是否存在文件夹
+        # Determine whether there is a folder in new_path
+        if os.path.isdir(self.filepath_end):
+            logger.warning(f"Directory already exists, coverage {self.filepath_end}")
+            shutil.rmtree(self.filepath_end)
+            shutil.move(self.filepath_tmp, self.filepath_end)
         else:
-            if file_count < len(img_url_res):
-                logger.warning(f"Failed for missing pages: {self.long_url}")
-                return False
+            shutil.move(self.filepath_tmp, self.filepath_end)
+
+        Support().create_xml(gid=self.gid, path=self.filepath_end)
+        Support().create_cbz(src_path=self.filepath_end, target_path=self.filepath_end)
+        shutil.rmtree(self.filepath_end)
 
         with sqlite3.connect(self.dbs_name) as co:
             co.execute(f'UPDATE fav_category SET web_1280x_flag = 1 WHERE gid = {self.gid}')
             co.commit()
+
+        logger.info(f"[OK] Download Web Gallery...: {self.long_url}")
 
         after_image_limits, after_total_limits = await self.get_image_limits()
         logger.info(

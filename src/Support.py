@@ -18,158 +18,181 @@ class Support(Config):
         self.watch_status = watch_status
 
     @logger.catch()
-    def create_zip(self, directory_path, zip_file_path):
+    def create_cbz(self, src_path, target_path=""):
         """
-        创建一个ZIP文件
-        Create a ZIP file
+        创建一个 CBZ 文件, 不传递 target_path 时默认在当前位置创建
+        Create a CBZ file
         """
-        with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_STORED) as zipf:
-            for root, _, files in os.walk(directory_path):
+        if target_path == "":
+            target_path = src_path + ".cbz"
+        elif not target_path.endswith(".cbz"):
+            target_path = target_path + ".cbz"
+        with zipfile.ZipFile(target_path, 'w', zipfile.ZIP_STORED) as cbz:
+            for root, _, files in os.walk(src_path):
                 for file in files:
                     file_path = os.path.join(root, file)
                     # 使用os.path.relpath()获取文件相对于目录的路径
                     # Using os.path.relpath() to get the file path relative to a directory.
-                    zipf.write(file_path, os.path.relpath(file_path, directory_path))
+                    cbz.write(file_path, os.path.relpath(file_path, src_path))
+        logger.info(f'Create CBZ: {target_path}')
 
     @logger.catch()
-    def directory_to_zip(self):
-        logger.info(f'Create ZIP ...')
+    def directory_to_cbz(self, target_path=""):
+        """
+        转换 self.data_path 下的 gid- 文件夹为CBZ文件
+        Convert the "gid-" folders under self.data_path to CBZ files
+        """
+        logger.info(f'Create CBZ ...')
+        if target_path == "":
+            target_path = self.data_path
         path_list = []
-        for i in os.listdir(self.data_path):
-            if i.find('-') == -1 or os.path.isfile(os.path.join(self.data_path, i)):
+        for i in os.listdir(target_path):
+            if not re.match(r'^\d+-', i) or os.path.isfile(os.path.join(target_path, i)):
                 continue
-            path_list.append([os.path.join(self.data_path, i), os.path.join(self.data_path, i + ".zip")])
-
+            path_list.append(os.path.join(target_path, i))
         logger.info(f'Total {len(path_list)}...')
 
         with tqdm(total=len(path_list)) as progress_bar:
             for i in path_list:
-                self.create_zip(i[0], i[1])
+                self.create_cbz(src_path=i)
                 progress_bar.update(1)
-        logger.info(f'[OK] Create ZIP')
+        logger.info(f'[OK] Create CBZ')
 
     @logger.catch()
-    def rename_zip_file(self):
+    def rename_cbz_file(self, target_path=""):
         """
-        重命名  (gid-name.zip) OR (gid-name-1280x.zip)  ZIP文件
-        Rename the ZIP file (gid-name.zip) OR (gid-name-1280x.zip).
+        重命名  (gid-name.cbz) OR (gid-name-1280x.cbz)  CBZ文件
+        Rename the CBZ file (gid-name.cbz) OR (gid-name-1280x.cbz).
+
+        限制文件名称最长 114位 并且转化为 base64 不超过280位
+        Limit the file name to a maximum of 114 characters and ensure that its base64 encoding does not exceed 280 characters.
         """
-        for i in os.listdir(self.data_path):
-            if i.find('-') == -1 or os.path.isdir(os.path.join(self.data_path, i)):
+        if target_path == "":
+            target_path = self.data_path
+        for i in os.listdir(target_path):
+            if not re.match(r'^\d+-', i) or os.path.isdir(os.path.join(target_path, i)):
                 continue
-
-            if i.find(".zip") == -1:
+            if not i.endswith(".cbz"):
                 continue
-
-            new_i = i.replace(".zip", "")
-
+            new_i = i.replace(".cbz", "")
             # -1280x
             web_1280x_flag = False
             if new_i.find("-1280X") != -1 or new_i.find("-1280x") != -1:
                 new_i = new_i.replace("-1280x", "")
                 new_i = new_i.replace("-1280X", "")
                 web_1280x_flag = True
-
             base64_max_len = 280
-
             if len(str(base64.b64encode(new_i.encode('utf-8')))) > base64_max_len or len(new_i) > 114:
                 while len(str(base64.b64encode(new_i.encode('utf-8')))) > base64_max_len:
                     new_i = new_i[:-1]
                 if len(new_i) > 114:
                     new_i = new_i[:114]
-                new_name = new_i + (".zip" if not web_1280x_flag else "-1280x.zip")
-                shutil.move(os.path.join(self.data_path, i), os.path.join(self.data_path, new_name))
+                new_name = new_i + (".cbz" if not web_1280x_flag else "-1280x.cbz")
+                shutil.move(os.path.join(target_path, i), os.path.join(target_path, new_name))
                 logger.info(F"\nold_name: {i} \n new_name: {new_name} \n")
             elif web_1280x_flag and "-1280X" in i:
                 new_name = i.replace("-1280X", "-1280x")
-                shutil.move(os.path.join(self.data_path, i), os.path.join(self.data_path, new_name))
+                shutil.move(os.path.join(target_path, i), os.path.join(target_path, new_name))
                 logger.info(F"\nold_name: {i} \n new_name: {new_name} \n")
 
     @logger.catch()
-    def create_xml(self):
-        logger.info(f'[Running] Create ComicInfo.xml')
+    def create_xml(self, gid, path):
+        with sqlite3.connect(self.dbs_name) as co:
+            co = co.execute(f'''SELECT title,category,posted,token FROM eh_data WHERE gid="{gid}"''')
+            db_data = co.fetchone()
+            if db_data is None:
+                logger.warning(f"The ID does not exist>> {gid}")
+                sys.exit(1)
+            # 获取 tid 列表 / Get tid_list
+            tid_list = co.execute(f'''SELECT tid FROM gid_tid WHERE gid="{gid}"''').fetchall()
+            tid_list = [tid[0] for tid in tid_list]
+            # 在 tag_list 中查询对应 tag
+            placeholders = ','.join(['?'] * len(tid_list))
+            tag_list = co.execute(f'''
+            SELECT tag, translated_tag 
+            FROM
+                tag_list 
+            WHERE
+                tid IN ( {placeholders} )
+            ''', tid_list).fetchall()
+            db_tags = []
+            for tag in tag_list:
+                if tag[1] is not None and tag[1] != "" and self.tags_translation == True:
+                    db_tags.append(tag[1])
+                else:
+                    db_tags.append(tag[0])
+            xml_t = xml_escape(db_data[0])
+            category = db_data[1]
+            posted = str(datetime.fromtimestamp(int(db_data[2]))).split(" ")[0].split("-")
+            tags = str(db_tags).replace("[", "").replace("]", "").replace("'", "").split(",")
+            art = ""
+            for _tags in tags:
+                if _tags.find("artist") != -1:
+                    art = art + _tags.split(":")[1] + ", "
+            art = art.strip()[:-1]
+            tags = str(db_tags).replace("[", "").replace("]", "").replace("'", "")
+        data_list = [
+            r'<ComicInfo xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" encoding="utf-8">',
+            r'<Manga/>',
+            f'<Title>{xml_t}</Title>',
+            r'<Summary/>',
+            f'<Genre>{category}</Genre>',
+            f'<Tags>{tags}</Tags>',
+            r'<BlackAndWhite/>',
+            f'<Year>{posted[0]}</Year>',
+            f'<Month>{posted[1]}</Month>',
+            f'<Day>{posted[2]}</Day>',
+            r'<LanguageISO/>',
+            f'<Writer>{art}</Writer>',
+            f'<Series/>',
+            r'<PageCount/>',
+            r'<URL/>',
+            f'<Web>{self.base_url}/g/{gid}/{db_data[3]}</Web>',
+            r'<Characters/>',
+            r'<Translated>Yes</Translated>',
+            r'</ComicInfo>',
+        ]
+        with open(os.path.join(path, "ComicInfo.xml"), 'w', encoding='utf-8') as file:
+            for data in data_list:
+                file.write(data + '\n')
+        logger.info(f"Create {path}/ComicInfo.xml")
 
-        # 遍历本地目录
-        # traverse the local directory
-
-        # os.makedirs(init.data_path, exist_ok=True)
-        for i in os.listdir(self.data_path):
-            if i.find('-') == -1 or os.path.isfile(os.path.join(self.data_path, i)):
+    @logger.catch()
+    def update_meta_info(self, target_path="", only_folder=False):
+        """
+        更新符合条件的文件夹以及 cbz 文件的 ComicInfo 数据
+        Update the ComicInfo data for eligible folders and CBZ files.
+        """
+        logger.info(f'update_meta_info ...')
+        if target_path == "":
+            target_path = self.data_path
+        path_list = []
+        for i in os.listdir(target_path):
+            if not re.match(r'^\d+-', i):
                 continue
-
-            gid = int(str(i).split('-')[0])
-
-            with sqlite3.connect(self.dbs_name) as co:
-                co = co.execute(f'''SELECT title,category,posted,token FROM eh_data WHERE gid="{gid}"''')
-                db_data = co.fetchone()
-                if db_data is None:
-                    logger.warning(f"The ID does not exist>> {gid}")
-                    sys.exit(1)
-
-                # 获取 tid 列表 / Get tid_list
-                tid_list = co.execute(f'''SELECT tid FROM gid_tid WHERE gid="{gid}"''').fetchall()
-                tid_list = [tid[0] for tid in tid_list]
-
-                # 在 tag_list 中查询对应 tag
-                placeholders = ','.join(['?'] * len(tid_list))
-                tag_list = co.execute(f'''
-                SELECT tag, translated_tag 
-                FROM
-                    tag_list 
-                WHERE
-                    tid IN ( {placeholders} )
-                ''', tid_list).fetchall()
-                db_tags = []
-                for tag in tag_list:
-                    if tag[1] is not None and tag[1] != "" and self.tags_translation == True:
-                        db_tags.append(tag[1])
-                    else:
-                        db_tags.append(tag[0])
-
-                xml_t = xml_escape(db_data[0])
-                category = db_data[1]
-
-                posted = str(datetime.fromtimestamp(int(db_data[2]))).split(" ")[0].split("-")
-
-                tags = str(db_tags).replace("[", "").replace("]", "").replace("'", "").split(",")
-
-                art = ""
-
-                for _tags in tags:
-                    if _tags.find("artist") != -1:
-                        art = art + _tags.split(":")[1] + ", "
-
-                art = art.strip()[:-1]
-
-                tags = str(db_tags).replace("[", "").replace("]", "").replace("'", "")
-
-            data_list = [
-                r'<ComicInfo xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" encoding="utf-8">',
-                r'<Manga/>',
-                f'<Title>{xml_t}</Title>',
-                r'<Summary/>',
-                f'<Genre>{category}</Genre>',
-                f'<Tags>{tags}</Tags>',
-                r'<BlackAndWhite/>',
-                f'<Year>{posted[0]}</Year>',
-                f'<Month>{posted[1]}</Month>',
-                f'<Day>{posted[2]}</Day>',
-                r'<LanguageISO/>',
-                f'<Writer>{art}</Writer>',
-                f'<Series/>',
-                r'<PageCount/>',
-                r'<URL/>',
-                f'<Web>exhentai.org/g/{gid}/{db_data[3]}</Web>',
-                r'<Characters/>',
-                r'<Translated>Yes</Translated>',
-                r'</ComicInfo>',
-            ]
-
-            with open(os.path.join(self.data_path, i, "ComicInfo.xml"), 'w', encoding='utf-8') as file:
-                for data in data_list:
-                    file.write(data + '\n')
-            logger.info(f"Create {i}/ComicInfo.xml")
-        logger.info(f'[OK] Create ComicInfo.xml')
+            if not i.endswith(".cbz") and os.path.isfile(os.path.join(target_path, i)):
+                continue
+            if only_folder and os.path.isfile(os.path.join(target_path, i)):
+                continue
+            path_list.append(os.path.join(target_path, i))
+        logger.info(f'Total {len(path_list)}...')
+        with tqdm(total=len(path_list)) as progress_bar:
+            for file_path in path_list:
+                filename = os.path.basename(file_path)
+                gid = re.match(r'^(\d+)-', filename).group(1)
+                if not os.path.isfile(file_path):
+                    self.create_xml(gid, file_path)
+                else:
+                    temp_dir = file_path + '-tmp'
+                    os.makedirs(temp_dir, exist_ok=True)
+                    with zipfile.ZipFile(file_path, 'r') as zip_ref:
+                        zip_ref.extractall(temp_dir)
+                    self.create_xml(gid, temp_dir)
+                    self.create_cbz(src_path=temp_dir, target_path=file_path)
+                    shutil.rmtree(temp_dir)
+                    logger.info(f"update_meta_info >> {file_path}")
+                progress_bar.update(1)
+        logger.info(f'[OK] update_meta_info')
 
     @logger.catch()
     def lan_request(self):
@@ -181,7 +204,6 @@ class Support(Config):
             enter = input()
             if enter != "":
                 sys.exit(1)
-
         authorization_token_base64 = base64.b64encode(self.lan_api_psw.encode('utf-8')).decode('utf-8')
         return authorization_token_base64
 

@@ -1,4 +1,6 @@
 import os.path
+import re
+import shutil
 import sqlite3
 import sys
 import zipfile
@@ -12,104 +14,110 @@ class Checker(Config):
     def __init__(self):
         super().__init__()
 
-    def check_gid_in_local_zip(self):
+    def check_gid_in_local_cbz(self, folder=""):
         """
-        检查本地目录下的重复gid (Only Zip)
-        Repeat the gid in the local directory (Only Zip)
+        移动目录下的重复gid的CBZ文件到 duplicate_del 文件夹
         """
         gid_list_original = []
         gid_list_1280x = []
 
-        folder = input(f"Please enter the file directory.\n")
         if folder == "":
-            print("Cancel")
-            sys.exit(1)
+            folder = input(f"Please enter the file directory.\n")
+            if folder == "":
+                print("Cancel")
+                sys.exit(1)
 
         for i in os.listdir(folder):
-            if i.find('-') == -1 or not os.path.isfile(os.path.join(folder, i)):
+            if not re.match(r'^\d+-.*\.cbz', i):
                 continue
-
-            if i.find('-1280x.zip') != -1:
-                gid_list_1280x.append(int(str(i).split('-')[0]))
+            if i.find('-1280x') != -1:
+                gid_list_1280x.append(i)
             else:
-                gid_list_original.append(int(str(i).split('-')[0]))
+                gid_list_original.append(i)
 
         gid_list_1280x.sort()
         gid_list_original.sort()
+
+        count = 1
+        while count < len(gid_list_original):
+            g1 = re.match(r'^(\d+)-', gid_list_original[count - 1]).group(1)
+            g2 = re.match(r'^(\d+)-', gid_list_original[count]).group(1)
+            if g1 == g2:
+                os.makedirs(os.path.join(folder, "duplicate_del"), exist_ok=True)
+                front_name = gid_list_original[count - 1]
+                back_name = gid_list_original[count]
+                if len(front_name) > len(back_name):
+                    old_path = os.path.join(folder, front_name)
+                    new_path = os.path.join(os.path.join(folder, "duplicate_del"), front_name)
+                else:
+                    old_path = os.path.join(folder, back_name)
+                    new_path = os.path.join(os.path.join(folder, "duplicate_del"), back_name)
+                logger.warning(f'(gid_list_original) Duplicate gid, Move: {old_path} -> {new_path}')
+                shutil.move(old_path, new_path)
+            count += 1
+
+        count = 1
+        while count < len(gid_list_1280x):
+            g1 = re.match(r'^(\d+)-', gid_list_1280x[count - 1]).group(1)
+            g2 = re.match(r'^(\d+)-', gid_list_1280x[count]).group(1)
+            if g1 == g2:
+                os.makedirs(os.path.join(folder, "duplicate_del"), exist_ok=True)
+                front_name = gid_list_1280x[count - 1]
+                back_name = gid_list_1280x[count]
+                if len(front_name) > len(back_name):
+                    old_path = os.path.join(folder, front_name)
+                    new_path = os.path.join(os.path.join(folder, "duplicate_del"), front_name)
+                else:
+                    old_path = os.path.join(folder, back_name)
+                    new_path = os.path.join(os.path.join(folder, "duplicate_del"), back_name)
+                logger.warning(f'(gid_list_1280x) Duplicate gid, Move: {old_path} -> {new_path}')
+                shutil.move(old_path, new_path)
+            count += 1
+
+        for i in os.listdir(folder):
+            if not re.match(r'^\d+-.*\.cbz', i):
+                continue
+            if i.find('-1280x') != -1:
+                gid_list_1280x.append(i)
+            else:
+                gid_list_original.append(i)
         logger.info(f'gid_list_1280x count: {len(gid_list_1280x)}')
         logger.info(f'gid_list_original count: {len(gid_list_original)}')
 
-        count = 1
-        repeat_list = []
-        while count < len(gid_list_original):
-            if gid_list_original[count - 1] == gid_list_original[count]:
-                repeat_list.append(gid_list_original[count])
-            count += 1
-        if len(repeat_list) != 0:
-            logger.error(f'(gid_list_original) Duplicate gid, Please Check: {repeat_list}')
-        else:
-            logger.info("(gid_list_original) OK")
-
-        count = 1
-        repeat_list = []
-        while count < len(gid_list_1280x):
-            if gid_list_1280x[count - 1] == gid_list_1280x[count]:
-                repeat_list.append(gid_list_1280x[count])
-            count += 1
-        if len(repeat_list) != 0:
-            logger.error(f'(gid_list_1280x) Duplicate gid, Please Check: {repeat_list}')
-        else:
-            logger.info("(gid_list_1280x) OK")
-
-    def sync_local_to_sqlite_zip(self, cover=False):
+    def sync_local_to_sqlite_cbz(self, cover=False):
         """
-        cover: 默认不覆盖, True代表重置 fav_category 表 original_flag 和 web_1280x_flag 字段值, 以本地数据位准
-        根据本地文件重新设置 fav_category 的 original_flag 和 web_1280x_flag 字段
+        cover: 默认不覆盖
+        cover=True会重置 fav_category 表 original_flag 和 web_1280x_flag 字段值, 根据本地文件重新设置
         """
-
         gid_list_original = []
         gid_list_1280x = []
-
         folder = self.data_path
         # folder = input(f"Please enter the file directory.\n")
         # if folder == "":
         #     print("Cancel")
         #     sys.exit(1)
-
         for i in os.listdir(folder):
-            if i.find('-') == -1 or not os.path.isfile(os.path.join(folder, i)):
+            if not re.match(r'^\d+-.*\.cbz', i):
                 continue
-
-            if i.find('-1280x.zip') != -1:
-                gid_list_1280x.append(int(str(i).split('-')[0]))
+            if i.find('-1280x') != -1:
+                gid_list_1280x.append(re.match(r'^(\d+)-', i).group(1))
             else:
-                gid_list_original.append(int(str(i).split('-')[0]))
-
+                gid_list_original.append(re.match(r'^(\d+)-', i).group(1))
         gid_list_1280x.sort()
         gid_list_original.sort()
         logger.info(f'gid_list_1280x count: {len(gid_list_1280x)}')
         logger.info(f'gid_list_original count: {len(gid_list_original)}')
-
-        # enter = input(f"Please press Enter to confirm.\n")
-        #
-        # if enter != "":
-        #     print("Cancel")
-        #     sys.exit(1)
-
         if cover:
             with sqlite3.connect(self.dbs_name) as co:
                 co.execute(f'UPDATE fav_category SET original_flag=0, web_1280x_flag=0')
                 co.commit()
-
         with sqlite3.connect(self.dbs_name) as co:
             for data in gid_list_1280x:
                 co.execute(f'UPDATE fav_category SET web_1280x_flag=1 WHERE gid = ?', (data,))
                 co.commit()
-
             for data2 in gid_list_original:
                 co.execute(f'UPDATE fav_category SET original_flag=1 WHERE gid = ?', (data2,))
                 co.commit()
-
             web_len = co.execute('SELECT count(*) FROM fav_category WHERE web_1280x_flag = 1').fetchone()[0]
             original_len = co.execute('SELECT count(*) FROM fav_category WHERE original_flag = 1').fetchone()[0]
             logger.info(f'Finish sync local to sqlite. web_1280x_flag: {web_len}, original_flag: {original_len}')
