@@ -1,9 +1,6 @@
 import argparse
 import asyncio
-import os
-import shutil
 import sys
-import zipfile
 from datetime import datetime
 
 from src import *
@@ -52,15 +49,11 @@ def main():
             asyncio.run(add_fav_data.add_tags_data(True))
         elif num == 3:
             fav_cat = str(input("请输入你需要下载的收藏夹ID(0-9)\nPlease enter the collection you want to download.:"))
-
             dl_list = get_web_gallery_download_list(fav_cat=fav_cat)
-
             fav_cat_check = input(f"\n(len: {len(dl_list)})Press Enter to confirm\n")
-
             if fav_cat_check != "":
                 print("Cancel")
                 sys.exit(1)
-
             # 开始下载
             # start download
             for j in dl_list:
@@ -132,29 +125,5 @@ def main():
                     break
 
 
-# if __name__ == "__main__":
-#     main()
-
-gid = 3008265
-file_path = r"E:\Code\GitHub\EhFavDL\data2\archive\3008265-[あるぷ] アモラルアイランド2 (COMIC アンスリウム 2024年8月号) [中国翻訳] [DL版].zip"
-extract_to = os.path.splitext(file_path)[0]
-with zipfile.ZipFile(file_path, 'r') as zip_ref:
-    zip_ref.extractall(extract_to)
-support = Support()
-support.create_xml(gid=gid, path=extract_to)
-support.create_cbz(src_path=extract_to)
-support.rename_cbz_file(target_path=extract_to)
-shutil.rmtree(extract_to, ignore_errors=True)
-os.remove(file_path)
-
-# asyncio.run(DownloadArchiveGallery().dl_gallery(gid=3008265, token="ef31575a5d", title="123", original_flag=False))
-# download_gallery = DownloadWebGallery(gid=2855960, token="ef31575a5d", title="123")
-# status = asyncio.run(download_gallery.apply())
-
-# asyncio.run(Config().fetch_data(
-#     url=f"https://fzplaay.mxodeprmrzoc.hath.network:7878/h/632691cce87d3f0adbc82e537805e9f716b8018b-361036-1280-1807-jpg/keystamp=1725262500-50f6aabdf9;fileindex=145385188;xres=1280/PG02_06.jpg",
-#     tqdm_file_path="./a.jpg"))
-
-# Checker().sync_local_to_sqlite_cbz(True)
-
-# Support().update_meta_info()
+if __name__ == "__main__":
+    main()

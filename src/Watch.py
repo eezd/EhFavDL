@@ -3,7 +3,7 @@ import os
 import shutil
 import zipfile
 
-from . import Support, Checker, DownloadWebGallery, AddFavData, DownloadArchiveGallery
+from src import Support, Checker, DownloadWebGallery, AddFavData, DownloadArchiveGallery
 from .common import *
 
 
@@ -81,7 +81,8 @@ class Watch(Config):
                 for j in dl_list:
                     if self.watch_archive_status:
                         # 默认归档下载 Resample(1280x) 版本
-                        await DownloadArchiveGallery().dl_gallery(gid=j[0], token=j[1], title=j[2], original_flag=False)
+                        status = await DownloadArchiveGallery().dl_gallery(gid=j[0], token=j[1], title=j[2],
+                                                                           original_flag=False)
                     else:
                         download_gallery = DownloadWebGallery(gid=j[0], token=j[1], title=j[2])
                         status = await download_gallery.apply()

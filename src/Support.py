@@ -20,8 +20,8 @@ class Support(Config):
     @logger.catch()
     def create_cbz(self, src_path, target_path=""):
         """
-        创建一个 CBZ 文件, 不传递 target_path 时默认在当前位置创建
-        Create a CBZ file
+        创建一个 CBZ 文件, 默认在当前位置创建
+        Create a CBZ file, defaulting to the current location.
         """
         if target_path == "":
             target_path = src_path + ".cbz"
@@ -265,7 +265,8 @@ class Support(Config):
                         ''')
                         fav_info = co.fetchone()
 
-                        # fav_category表中不存在该 gid , 则在eh_data表中查询↓↓↓
+                        # 如果fav_category表中不存在该 gid , 则在eh_data表中查询↓↓↓
+                        # If the `gid` does not exist in the `fav_category` table, then query the `eh_data` table.
                         if fav_info is None:
                             co = co.execute(f'''
                             SELECT

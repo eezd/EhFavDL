@@ -7,7 +7,7 @@ import zipfile
 
 from loguru import logger
 
-from .Config import Config
+from src.Config import Config
 
 
 class Checker(Config):
@@ -16,7 +16,8 @@ class Checker(Config):
 
     def check_gid_in_local_cbz(self, target_path=""):
         """
-        移动目录下的重复gid的CBZ文件到 duplicate_del 文件夹
+        移动目录下的重复 gid 的 CBZ 文件到 duplicate_del 文件夹
+        Move CBZ files with duplicate GIDs in the directory to the `duplicate_del` folder.
         """
         gid_list_original = []
         gid_list_1280x = []
@@ -83,8 +84,9 @@ class Checker(Config):
 
     def sync_local_to_sqlite_cbz(self, cover=False, target_path=""):
         """
-        cover: 默认不覆盖
-        cover=True会重置 fav_category 表 original_flag 和 web_1280x_flag 字段值, 根据本地文件重新设置
+        cover=True 重置 fav_category 表 original_flag 和 web_1280x_flag 字段值, 根据本地文件重新设置
+        If `cover=True`, reset the `original_flag` and `web_1280x_flag` fields in the `fav_category` table,
+         and then reconfigure them based on the local files.
         """
         gid_list_original = []
         gid_list_1280x = []

@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 
 from bs4 import BeautifulSoup
 
-from . import Support
+from src.Support import Support
 from .common import *
 
 # 下载路径为: data_path + "archive"
@@ -32,6 +32,8 @@ class DownloadArchiveGallery(Config):
         Returns:
             return [dl_url, "1280x"]
             return [dl_url, "original"]
+            return [False, "copyright"]
+            return [False, ""]
         """
 
         if gid is None or token is None:
@@ -141,7 +143,7 @@ class DownloadArchiveGallery(Config):
                 with zipfile.ZipFile(file_path, 'r') as zip_file:
                     zip_file.testzip()
                 logger.warning(f"The file already exists, skipping: {file_path}")
-                return False
+                return True
             except (zipfile.BadZipFile, OSError):
                 pass
 
@@ -197,6 +199,7 @@ class DownloadArchiveGallery(Config):
                 co.execute(f'''UPDATE fav_category SET {download_type}=1 WHERE gid={gid}''')
                 co.commit()
             logger.info(f"https://{self.base_url}/g/{gid}/{token}/, download OK")
+            return True
 
     @logger.catch()
     async def go_dl(self, fav_cat, original_flag=False):
