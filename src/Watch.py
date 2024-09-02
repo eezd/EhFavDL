@@ -11,9 +11,14 @@ class Watch(Config):
     def __init__(self):
         super().__init__()
 
+    @logger.catch
     def watch_move_data_path(self):
         """
-        移动 data_path 目录下的 web 和 archive 文件夹下的以 gid- 开头的文件和文件夹到到 data_path 目录
+        移动 data_path 目录下的 web 和 archive 文件夹下的以 gid- 开头的文件及文件夹到到 data_path 目录
+        Here is the translation:
+
+        Move the files and folders starting with 'gid-' from the `web` and `archive` folders under the
+        `data_path` directory to the `data_path` directory.
         """
         os.makedirs(self.data_path, exist_ok=True)
         for folder_name in os.listdir(self.data_path):
@@ -26,12 +31,13 @@ class Watch(Config):
                         shutil.move(full_path, dest_path)
                         logger.info(f"Moved: {full_path} -> {dest_path}")
 
+    @logger.catch
     def clear_old_file(self, move_list):
         """
         将目标文件/文件夹 移动到 del 文件夹下
+        Move the target file/folder to the `del` folder.
 
-        只需传入 old_gid
-        move_list: [old_gid, old_token, new_gid, new_token]
+        :param move_list: [gid1, gid2, gid3]
         """
         del_dir = os.path.join(self.data_path, 'del')
         os.makedirs(del_dir, exist_ok=True)
@@ -46,15 +52,8 @@ class Watch(Config):
                     shutil.move(folder_path, dest_path)
                     logger.info(f"Moved: {folder_path} -> {dest_path}")
 
+    @logger.catch
     async def apply(self):
-        """
-        1. 移动 data_path/web 以及 data_path/archive 的以 gid- 开头的文件和文件夹到 data_path 目录
-        2. Support().create_xml() Support().directory_to_zip() Support().rename_zip_file()
-        3. 执行Checker().sync_local_to_sqlite_zip(True)重置数据库下载状态
-        2. 更新数据信息
-        3. 开始下载
-        """
-
         while True:
             image_limits, total_limits = await Config().get_image_limits()
             logger.info(f"Image Limits: {image_limits} / {total_limits}")
@@ -70,9 +69,9 @@ class Watch(Config):
             update_list = await add_fav_data.apply()
             # update_list = await add_fav_data.clear_del_flag()
             self.clear_old_file(move_list=[item[0] for item in update_list])
-            # 再次同步数据
+            # 再次同步数据 / Sync data again
             Checker().sync_local_to_sqlite_cbz(True)
-            # 清理数据库中del=1的字段
+            # 清理数据库中del=1的字段 / Clean up fields with del=1 in the database
             await add_fav_data.clear_del_flag()
 
             while True:
@@ -80,7 +79,8 @@ class Watch(Config):
                 dl_list = get_web_gallery_download_list(fav_cat=self.watch_fav_ids)
                 for j in dl_list:
                     if self.watch_archive_status:
-                        # 默认归档下载 Resample(1280x) 版本
+                        # 归档默认下载 Resample(1280x) 版本
+                        # Archive the default download Resample(1280x) version
                         status = await DownloadArchiveGallery().dl_gallery(gid=j[0], token=j[1], title=j[2],
                                                                            original_flag=False)
                     else:
@@ -90,7 +90,7 @@ class Watch(Config):
                         dl_list_status = False
                         logger.warning(f"Download https://{Config().base_url}/g/{j[0]}/{j[1]} failed")
 
-                # 下载失败则重新下载
+                # 下载失败重新下载 / Download failed, retrying download
                 if dl_list_status:
                     break
                 else:
@@ -103,13 +103,15 @@ class Watch(Config):
 
             sleep_time = 60 * 60
             logger.info(f"Done! Wait {sleep_time} s")
-            # 1小时后重新检查
+            # 1小时后重新检查 / Recheck in 1 hour
             await asyncio.sleep(sleep_time)
 
 
+@logger.catch
 def unzip_data_path(data_path):
     """
     解压 data_path 目录下的以 gid- 开头的 CBZ 文件(不会删除CBZ)
+    Unzip CBZ files starting with gid- in the data_path directory (do not delete the CBZ files).
     """
     for folder_name in os.listdir(data_path):
         file_path = os.path.join(data_path, folder_name)
