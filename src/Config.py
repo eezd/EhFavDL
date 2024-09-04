@@ -193,11 +193,13 @@ class Config:
                 await asyncio.sleep(360)
                 raise Exception("IP quota exhausted")
             elif "This IP address has been temporarily banned due to an excessive request rate" in content:
+                hours_match = re.search(r'(\d+) hours?', content)
                 minutes_match = re.search(r'(\d+) minutes?', content)
                 seconds_match = re.search(r'(\d+) seconds?', content)
+                hours = int(hours_match.group(1)) if hours_match else 0
                 minutes = int(minutes_match.group(1)) if minutes_match else 0
                 seconds = int(seconds_match.group(1)) if seconds_match else 0
-                total_seconds = minutes * 60 + seconds + 10
+                total_seconds = hours * 60 * 60 + minutes * 60 + seconds + 10
                 logger.warning(
                     f"This IP address has been temporarily banned due to an excessive request rate. Wait {total_seconds} Seconds")
                 await asyncio.sleep(total_seconds)

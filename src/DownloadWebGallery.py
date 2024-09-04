@@ -76,6 +76,10 @@ class DownloadWebGallery(Config):
         """
         async with semaphore:
             real_url = await self.fetch_data(url=url)
+            while real_url is False:
+                logger.warning(f"real_url is False, retrying... {url}")
+                await asyncio.sleep(1)
+                real_url = await self.fetch_data(url=url)
             real_url = BeautifulSoup(real_url, 'html.parser')
             real_url = real_url.select_one('img#img').get('src')
             # 配额用尽，返回的 real_url 会变成509.gif
