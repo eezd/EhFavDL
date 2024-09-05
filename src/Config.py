@@ -95,7 +95,8 @@ class Config:
         """
         try:
             async with aiohttp.ClientSession(headers=self.request_headers, cookies=self.eh_cookies,
-                                             connector=aiohttp.TCPConnector(ssl_context=ssl_context)) as session:
+                                             connector=aiohttp.TCPConnector(ssl_context=ssl_context),
+                                             timeout=aiohttp.ClientTimeout(connect=30)) as session:
                 if data is not None:
                     async with session.post(url, data=data,
                                             proxy=self.proxy_url if self.proxy_status else None) as response:
@@ -131,14 +132,12 @@ class Config:
                 return False
 
             if retry_attempts > 0:
+                if "CERTIFICATE_VERIFY_FAILED" in str(e) or \
+                        "ssl:default" in str(e) or \
+                        "hath.network" in str(url):
+                    return "reload_image"
                 logger.warning(
                     f"Failed to retrieve data. Retrying in {retry_delay} seconds, {retry_attempts - 1} attempts remaining. {url}")
-
-                # if "CERTIFICATE_VERIFY_FAILED" in str(e) or "ssl:default" in str(e):
-                #     await asyncio.sleep(retry_delay)
-                #     return await self.fetch_data(url=url, json=json, tqdm_file_path=None, retry_delay=retry_delay,
-                #                                  retry_attempts=retry_attempts - 1, DH_KEY_TOO_SMALL=True)
-
                 await asyncio.sleep(retry_delay)
                 return await self.fetch_data(url=url, json=json, data=None, tqdm_file_path=None,
                                              retry_delay=retry_delay,

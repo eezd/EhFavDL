@@ -75,26 +75,39 @@ class DownloadWebGallery(Config):
         Once you reach this step, your IP quota will be consumed regardless of whether you download the image or not.
         """
         async with semaphore:
-            real_url = await self.fetch_data(url=url)
-            while real_url is False:
-                logger.warning(f"real_url is False, retrying... {url}")
-                await asyncio.sleep(1)
+            reload_count = 0
+            while reload_count < 6:
+                reload_count += 1
                 real_url = await self.fetch_data(url=url)
-            real_url = BeautifulSoup(real_url, 'html.parser')
-            real_url = real_url.select_one('img#img').get('src')
-            # 配额用尽，返回的 real_url 会变成509.gif
-            # Quota exhausted, the returned real_url will change to 509.gif.
-            if re.match(r'^https://(exhentai|e-hentai)\.org/img/509\.gif$', real_url):
-                logger.warning("509: YOU HAVE TEMPORARILY REACHED THE LIMIT")
-                if not await self.get_image_limits():
-                    # 账号已被暂停，无法访问配额页面，等待12小时配额自行恢复 (10hits/min) / The account has been suspended
-                    logger.warning(
-                        "Can't get image limits as the account has been suspended, Attempt to wait for 12 hours")
-                    await asyncio.sleep(12 * 60 * 60)
+                while real_url is False:
+                    logger.warning(f"real_url is False, retrying... {url}")
+                    await asyncio.sleep(1)
+                    real_url = await self.fetch_data(url=url)
+                soup = BeautifulSoup(real_url, 'html.parser')
+                real_url = soup.select_one('img#img').get('src')
+
+                load_fail = soup.select_one('#loadfail').get('onclick')
+                url = url + "&nl=" + str(re.search(r'return nl\(\'(.*)\'\)', load_fail).group(1))
+
+                # 配额用尽，返回的 real_url 会变成509.gif
+                # Quota exhausted, the returned real_url will change to 509.gif.
+                if re.match(r'^https://(exhentai|e-hentai)\.org/img/509\.gif$', real_url):
+                    logger.warning("509: YOU HAVE TEMPORARILY REACHED THE LIMIT")
+                    if not await self.get_image_limits():
+                        # 账号已被暂停，无法访问配额页面，等待12小时配额自行恢复 (10hits/min) / The account has been suspended
+                        logger.warning(
+                            "Can't get image limits as the account has been suspended, Attempt to wait for 12 hours")
+                        await asyncio.sleep(12 * 60 * 60)
+                    else:
+                        await self.wait_image_limits()
+                    return await self.download_image(semaphore=semaphore, url=url, file_path=file_path)
+                dl_status = await self.fetch_data(url=real_url, tqdm_file_path=file_path)
+                if isinstance(dl_status, str):
+                    if dl_status == "reload_image":
+                        logger.info(F"Reload Image. Retrying... {reload_count} / 6 ")
                 else:
-                    await self.wait_image_limits()
-                return await self.download_image(semaphore, url, file_path)
-            return await self.fetch_data(url=real_url, tqdm_file_path=file_path)
+                    return dl_status
+            return False
 
     @logger.catch()
     async def get_image_url(self):
