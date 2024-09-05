@@ -3,6 +3,7 @@ import copy
 import os
 import re
 import sqlite3
+import ssl
 import sys
 import zipfile
 
@@ -11,6 +12,9 @@ import yaml
 from bs4 import BeautifulSoup
 from loguru import logger
 from tqdm.asyncio import tqdm_asyncio
+
+ssl_context = ssl.create_default_context()
+ssl_context.set_ciphers('HIGH:!DH:!aNULL')
 
 
 class Config:
@@ -90,7 +94,8 @@ class Config:
         tqdm_file_path: None | file_path
         """
         try:
-            async with aiohttp.ClientSession(headers=self.request_headers, cookies=self.eh_cookies) as session:
+            async with aiohttp.ClientSession(headers=self.request_headers, cookies=self.eh_cookies,
+                                             connector=aiohttp.TCPConnector(ssl_context=ssl_context)) as session:
                 if data is not None:
                     async with session.post(url, data=data,
                                             proxy=self.proxy_url if self.proxy_status else None) as response:
@@ -150,7 +155,8 @@ class Config:
             if stream_range != 0:
                 headers.update({'Range': f'bytes={stream_range}-'})
                 mode = 'ab'
-            async with aiohttp.ClientSession(headers=headers, cookies=self.eh_cookies) as session:
+            async with aiohttp.ClientSession(headers=headers, cookies=self.eh_cookies,
+                                             connector=aiohttp.TCPConnector(ssl_context=ssl_context)) as session:
                 async with session.get(url, proxy=self.proxy_url if self.proxy_status else None) as response:
                     await self.check_fetch_err(response, file_path)
                     with tqdm_asyncio(total=int(response.headers.get("Content-Length", 0)) + stream_range,
