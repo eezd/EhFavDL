@@ -79,7 +79,7 @@ class DownloadWebGallery(Config):
             while reload_count < 6:
                 reload_count += 1
                 real_url = await self.fetch_data(url=url)
-                while real_url is False:
+                if real_url is False:
                     return real_url
                 soup = BeautifulSoup(real_url, 'html.parser')
                 real_url = soup.select_one('img#img').get('src')
