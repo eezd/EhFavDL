@@ -80,9 +80,7 @@ class DownloadWebGallery(Config):
                 reload_count += 1
                 real_url = await self.fetch_data(url=url)
                 while real_url is False:
-                    logger.warning(f"real_url is False, retrying... {url}")
-                    await asyncio.sleep(1)
-                    real_url = await self.fetch_data(url=url)
+                    return real_url
                 soup = BeautifulSoup(real_url, 'html.parser')
                 real_url = soup.select_one('img#img').get('src')
 

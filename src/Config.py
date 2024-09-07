@@ -132,9 +132,7 @@ class Config:
                 return False
 
             if retry_attempts > 0:
-                if "CERTIFICATE_VERIFY_FAILED" in str(e) or \
-                        "ssl:default" in str(e) or \
-                        "hath.network" in str(url):
+                if "hath.network" in str(url):
                     return "reload_image"
                 logger.warning(
                     f"Failed to retrieve data. Retrying in {retry_delay} seconds, {retry_attempts - 1} attempts remaining. {url}")
