@@ -1,7 +1,6 @@
 import base64
 import os.path
 import shutil
-import sys
 import zipfile
 from datetime import datetime
 

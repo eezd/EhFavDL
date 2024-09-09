@@ -14,18 +14,16 @@ class Watch(Config):
     @logger.catch
     def watch_move_data_path(self):
         """
-        移动 data_path 目录下的 web 和 archive 文件夹下的以 gid- 开头的文件及文件夹到到 data_path 目录
-        Here is the translation:
+        web 和 archive 目录下的以 gid- 开头的 CBZ 文件到 data_path 根目录
 
-        Move the files and folders starting with 'gid-' from the `web` and `archive` folders under the
-        `data_path` directory to the `data_path` directory.
+        Move the CBZ files starting with gid- from the web and archive directories to the data_path root directory.
         """
         os.makedirs(self.data_path, exist_ok=True)
         for folder_name in os.listdir(self.data_path):
             if folder_name == 'web' or folder_name == 'archive':
                 sub_path = os.path.join(self.data_path, folder_name)
                 for sub_name in os.listdir(sub_path):
-                    if re.match(r'^\d+-', sub_name):
+                    if re.match(r'^\d+-.*\.cbz$', sub_name) and os.path.isfile(os.path.join(sub_path, sub_name)):
                         full_path = os.path.join(sub_path, sub_name)
                         dest_path = os.path.join(self.data_path, sub_name)
                         shutil.move(full_path, dest_path)
@@ -41,7 +39,7 @@ class Watch(Config):
         """
         del_dir = os.path.join(self.data_path, 'del')
         os.makedirs(del_dir, exist_ok=True)
-        with sqlite3.connect(Config().dbs_name) as co:
+        with sqlite3.connect(self.dbs_name) as co:
             for gid in move_list:
                 for folder_name in os.listdir(self.data_path):
                     folder_path = os.path.join(self.data_path, folder_name)
@@ -51,15 +49,14 @@ class Watch(Config):
                             timestamp = time.strftime("%Y%m%d%H%M%S")
                             dest_path = os.path.join(del_dir, f"{folder_name}_{timestamp}")
                         shutil.move(folder_path, dest_path)
-                        co.execute(
-                            f"UPDATE fav_category SET original_flag = 0 , web_1280x_flag = 0 WHERE gid = {gid}")
+                        co.execute(f'''DELETE FROM fav_category WHERE gid = {gid} ''')
                         co.commit()
                         logger.info(f"Moved: {folder_path} -> {dest_path}")
 
     @logger.catch()
     async def dl_new_gallery(self, fav_cat="", gids="", archive_status=False):
-        dl_list_status = True
         dl_list = []
+        failed_gid_list = ""
         if fav_cat != "":
             dl_list = get_web_gallery_download_list(fav_cat=self.watch_fav_ids)
         if gids != "":
@@ -72,59 +69,53 @@ class Watch(Config):
                 # Archive the default download Resample(1280x) version
                 status = await DownloadArchiveGallery().dl_gallery(gid=j[0], token=j[1], title=j[2],
                                                                    original_flag=False)
+            elif len(dl_list) == 3 and j[0] == 1633417:
+                status = False
+            elif len(dl_list) == 3 and j[0] == 1633421:
+                status = False
             else:
                 download_gallery = DownloadWebGallery(gid=j[0], token=j[1], title=j[2])
                 status = await download_gallery.apply()
             if not status:
-                dl_list_status = False
-                logger.warning(f"Download https://{Config().base_url}/g/{j[0]}/{j[1]} failed")
-        return dl_list_status
+                failed_gid_list += "," + str(j[0])
+                logger.warning(f"Download https://{self.base_url}/g/{j[0]}/{j[1]} failed")
+
+        # 下载失败重新下载 / Download failed, retrying download
+        failed_gid_list = failed_gid_list[1:]
+        if len(failed_gid_list) > 0:
+            logger.warning(f"Download failed, retry in 30 seconds. gids = {failed_gid_list}")
+            await asyncio.sleep(30)
+            return await self.dl_new_gallery(gids=failed_gid_list)
+        return True
 
     @logger.catch
     async def apply(self):
         while True:
-            image_limits, total_limits = await Config().get_image_limits()
+            image_limits, total_limits = await self.get_image_limits()
             logger.info(f"Image Limits: {image_limits} / {total_limits}")
             self.watch_move_data_path()
             Checker().check_gid_in_local_cbz()
             Checker().sync_local_to_sqlite_cbz(cover=True)
 
+            # 更新 tags 信息, 用于判断是否存在新画廊
+            # Update tags information to determine if a new gallery exists.
             add_fav_data = AddFavData()
-            # await add_fav_data.add_tags_data(True)
-            if Config().tags_translation:
+            await add_fav_data.add_tags_data(True)
+            if self.tags_translation:
                 await add_fav_data.translate_tags()
 
-            # update_list = await add_fav_data.apply()
-            update_list = await add_fav_data.clear_del_flag()
+            # 清理旧画廊并下载新画廊 / Clean up old galleries and download new galleries.
+            update_list = await add_fav_data.apply()
+            # update_list = await add_fav_data.clear_del_flag()
             gids = [item[0] for item in update_list]
-            current_gids = [item[2] for item in update_list]
             self.clear_old_file(move_list=gids)
-            # 下载新画廊 / Download new gallery
-            while True:
-                dl_list_status = await self.dl_new_gallery(gids=str(current_gids).replace("[", "").replace("]", ""),
-                                                           archive_status=self.watch_archive_status)
-                # 下载失败重新下载 / Download failed, retrying download
-                if dl_list_status:
-                    break
-                else:
-                    logger.warning("Download failed, retry in 120 seconds")
-                    await asyncio.sleep(120)
-            # 再次同步数据 / Sync data again
-            Checker().sync_local_to_sqlite_cbz(True)
-            # 清理数据库中del=1的字段 / Clean up fields with del=1 in the database
+            current_gids = [item[2] for item in update_list]
+            await self.dl_new_gallery(gids=str(current_gids).replace("[", "").replace("]", ""),
+                                      archive_status=self.watch_archive_status)
+            self.watch_move_data_path()
             await add_fav_data.clear_del_flag()
 
-            # 下载收藏夹 / Download Favorite
-            while True:
-                dl_list_status = await self.dl_new_gallery(fav_cat=self.watch_fav_ids,
-                                                           archive_status=self.watch_archive_status)
-                # 下载失败重新下载 / Download failed, retrying download
-                if dl_list_status:
-                    break
-                else:
-                    logger.warning("Download failed, retry in 120 seconds")
-                    await asyncio.sleep(120)
-
+            await self.dl_new_gallery(fav_cat=self.watch_fav_ids, archive_status=self.watch_archive_status)
             self.watch_move_data_path()
             if self.watch_lan_status:
                 await Support().lan_update_tags()

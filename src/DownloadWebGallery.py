@@ -91,13 +91,7 @@ class DownloadWebGallery(Config):
                 # Quota exhausted, the returned real_url will change to 509.gif.
                 if re.match(r'^https://(exhentai|e-hentai)\.org/img/509\.gif$', real_url):
                     logger.warning("509: YOU HAVE TEMPORARILY REACHED THE LIMIT")
-                    if not await self.get_image_limits():
-                        # 账号已被暂停，无法访问配额页面，等待12小时配额自行恢复 (10hits/min) / The account has been suspended
-                        logger.warning(
-                            "Can't get image limits as the account has been suspended, Attempt to wait for 12 hours")
-                        await asyncio.sleep(12 * 60 * 60)
-                    else:
-                        await self.wait_image_limits()
+                    await self.wait_image_limits()
                     return await self.download_image(semaphore=semaphore, url=url, file_path=file_path)
                 dl_status = await self.fetch_data(url=real_url, tqdm_file_path=file_path)
                 if isinstance(dl_status, str):

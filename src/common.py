@@ -32,6 +32,7 @@ def get_web_gallery_download_list(fav_cat="", gids=""):
         WHERE
                 fc.web_1280x_flag = 0 
                 AND fc.original_flag = 0
+                AND fc.del_flag = 0
                 AND eh.copyright_flag = 0 
                 AND eh.gid = fc.gid 
                 {_sql} 

@@ -1,7 +1,6 @@
 import asyncio
 import os
 import shutil
-import sys
 import zipfile
 from urllib.parse import urlsplit
 
