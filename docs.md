@@ -191,3 +191,20 @@ Select Number: 11
 `cover=True` 会重置 fav_category 表 original_flag 和 web_1280x_flag 字段值, 根据本地文件重新设置
 
 `Checker().check_loc_file()`: 检查zip文件是否有损坏
+
+## Tips
+
+在使用 `Watch` 模式的时候, 如果你需要下载的画廊过多，一次无法下载完毕。觉得第二次运行又要重新获取数据库 `tags` 以及 `fav` 的数据太耗费时间，可以跳过更新 `tags&fav` 数据。(但是你下完记得改回来，否则该模式会失效)
+
+```python
+class Watch(Config):
+    @logger.catch
+    async def apply(self):
+        while True:
+            ...
+            add_fav_data = AddFavData()
+            #await add_fav_data.add_tags_data(True)
+            ...
+            #update_list = await add_fav_data.apply()
+            update_list = await add_fav_data.clear_del_flag()
+```

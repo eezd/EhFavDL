@@ -189,3 +189,20 @@ Update LANraragi Tags.
 - `Checker().sync_local_to_sqlite_cbz(cover=False, target_path="")`: Set the `original_flag` and `web_1280x_flag` fields based on local files.
 - Setting `cover=True` will reset the `original_flag` and `web_1280x_flag` fields in the `fav_category` table and reassign values based on local files.
 - `Checker().check_loc_file()`: Check if ZIP files are corrupted.
+
+## Tips
+
+When using the `Watch` mode, if there are too many galleries to download and you can't finish downloading them all at once, and you find that running it again to fetch the database `tags` and `fav` data takes too much time, you can skip updating the `tags & fav` data. (But remember to change it back after you're done, or this mode will not work properly.)
+
+```python
+class Watch(Config):
+    @logger.catch
+    async def apply(self):
+        while True:
+            ...
+            add_fav_data = AddFavData()
+            #await add_fav_data.add_tags_data(True)
+            ...
+            #update_list = await add_fav_data.apply()
+            update_list = await add_fav_data.clear_del_flag()
+```
