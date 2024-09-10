@@ -71,7 +71,8 @@ class Checker(Config):
                 logger.warning(f'(gid_list_1280x) Duplicate gid, Move: {old_path} -> {new_path}')
                 shutil.move(old_path, new_path)
             count += 1
-
+        gid_list_1280x = []
+        gid_list_original = []
         for i in os.listdir(target_path):
             if not re.match(r'^\d+-.*\.cbz', i):
                 continue
