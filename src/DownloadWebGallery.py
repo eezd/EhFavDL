@@ -81,8 +81,15 @@ class DownloadWebGallery(Config):
                 real_url = await self.fetch_data(url=url)
                 if real_url is False:
                     return real_url
-                soup = BeautifulSoup(real_url, 'html.parser')
-                real_url = soup.select_one('img#img').get('src')
+                try:
+                    soup = BeautifulSoup(real_url, 'html.parser')
+                    real_url = soup.select_one('img#img').get('src')
+                    # <title>503 Backend fetch failed</title>
+                    # <h1>Error 503 Backend fetch failed</h1>...
+                except Exception as e:
+                    logger.error(e)
+                    logger.warning(f"download_image, retrying...{reload_count}/6")
+                    continue
 
                 load_fail = soup.select_one('#loadfail').get('onclick')
                 url = url + "&nl=" + str(re.search(r'return nl\(\'(.*)\'\)', load_fail).group(1))

@@ -118,7 +118,7 @@ class Watch(Config):
             await self.dl_new_gallery(fav_cat=self.watch_fav_ids, archive_status=self.watch_archive_status)
             self.watch_move_data_path()
             if self.watch_lan_status:
-                await Support().lan_update_tags()
+                await Support(watch_status=True).lan_update_tags()
 
             sleep_time = 60 * 60
             logger.info(f"Done! Wait {sleep_time} s")
