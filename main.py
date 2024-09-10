@@ -32,9 +32,10 @@ async def main():
         print("8. Create ComicInfo.xml(only-folder)")
         print("9. Update ComicInfo.xml(folder&.cbz)")
         print("10. Directory To CBZ File")
-        print("11. Rename CBZ File")
-        print("12. Update LANraragi Tags")
-        print("13. Options (Checker)...")
+        print("11. Rename CBZ File (Compatible with LANraragi)")
+        print("12. Rename Gid-Name")
+        print("13. Update LANraragi Tags")
+        print("14. Options (Checker)...")
 
         num = input("Select Number:")
         num = int(num) if num else None
@@ -122,8 +123,14 @@ async def main():
                 sys.exit(1)
             Support().rename_cbz_file(target_path=folder)
         elif num == 12:
-            await Support().lan_update_tags()
+            folder = input(f"Please enter the file directory.\n")
+            if folder == "":
+                print("Cancel")
+                sys.exit(1)
+            Support().rename_gid_name(target_path=folder)
         elif num == 13:
+            await Support().lan_update_tags()
+        elif num == 14:
             while True:
                 print("0. Return")
                 print("1. Checker().check_gid_in_local_cbz()")

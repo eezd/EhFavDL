@@ -121,11 +121,12 @@ $ python main.py
 8. Create ComicInfo.xml(only-folder)
 9. Update ComicInfo.xml(folder&.cbz)
 10. Directory To CBZ File
-11. Rename CBZ File
-12. Update LANraragi Tags
-13. Options (Checker)...
+11. Rename CBZ File (Compatible with LANraragi)
+12. Rename Gid-Name
+13. Update LANraragi Tags
+14. Options (Checker)...
 
-Select Number: 11
+Select Number: 14
 
 0. Return
 1. Checker().check_gid_in_local_cbz()
@@ -175,15 +176,19 @@ Regarding `9. Update ComicInfo.xml (folder & .cbz)`, please be very cautious. Th
 
 Create `.cbz` files based on folders in the directory that meet the specified criteria.
 
-11. Rename CBZ File
+11. Rename CBZ File (Compatible with LANraragi)
 
 In `LANraragi`, if a file name is too long, it may cause the system to freeze and throw an error. Use this feature to format file names to a manageable length.
 
-12. Update LANraragi Tags
+12.  Rename Gid-Name
+
+Rename files and folders based on `gid`, with the value set to `title_jpn`.
+
+13. Update LANraragi Tags
 
 Update LANraragi Tags.
 
-13. Options (Checker)...
+14. Options (Checker)...
 
 - `Checker().check_gid_in_local_cbz(target_path="")`: Move CBZ files with duplicate GIDs in the directory to the `duplicate_del` folder.
 - `Checker().sync_local_to_sqlite_cbz(cover=False, target_path="")`: Set the `original_flag` and `web_1280x_flag` fields based on local files.

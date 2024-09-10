@@ -121,10 +121,12 @@ $ python main.py
 8. Create ComicInfo.xml(only-folder)
 9. Update ComicInfo.xml(folder&.cbz)
 10. Directory To CBZ File
-11. Rename CBZ File
-12. Update LANraragi Tags
-13. Options (Checker)...
-Select Number: 11
+11. Rename CBZ File (Compatible with LANraragi)
+12. Rename Gid-Name
+13. Update LANraragi Tags
+14. Options (Checker)...
+
+Select Number: 14
 
 0. Return
 1. Checker().check_gid_in_local_cbz()
@@ -174,15 +176,19 @@ Select Number: 11
 
 根据目录下的符合规则的文件夹, 创建 `cbz` 文件
 
-11. Rename CBZ File
+11. Rename CBZ File (Compatible with LANraragi)
 
 在 `LANraragi` 中如果你文件名称过长，它会卡住报错. 因此你需要就可以使用这个功能格式化文件名长度
 
-12. Update LANraragi Tags
+12. Rename Gid-Name
+
+根据 `gid` 重命名文件和文件夹的名称，值为 `title_jpn`。
+
+13. Update LANraragi Tags
 
 更新 LANraragi Tags
 
-13. Options (Checker)...
+14. Options (Checker)...
 
 `Checker().check_gid_in_local_cbz(target_path="")`: 移动目录下的重复 gid 的 CBZ 文件到 duplicate_del 文件夹
 

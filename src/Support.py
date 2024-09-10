@@ -80,12 +80,12 @@ class Support(Config):
                 new_i = new_i.replace("-1280x", "")
                 new_i = new_i.replace("-1280X", "")
                 web_1280x_flag = True
-            base64_max_len = 280
-            if len(str(base64.b64encode(new_i.encode('utf-8')))) > base64_max_len or len(new_i) > 114:
+            base64_max_len = 196
+            if len(str(base64.b64encode(new_i.encode('utf-8')))) > base64_max_len or len(new_i) > 80:
                 while len(str(base64.b64encode(new_i.encode('utf-8')))) > base64_max_len:
                     new_i = new_i[:-1]
-                if len(new_i) > 114:
-                    new_i = new_i[:114]
+                if len(new_i) > 80:
+                    new_i = new_i[:80]
                 new_name = new_i + (".cbz" if not web_1280x_flag else "-1280x.cbz")
                 shutil.move(os.path.join(target_path, i), os.path.join(target_path, new_name))
                 logger.info(F"\nold_name: {i} \n new_name: {new_name} \n")
@@ -93,6 +93,38 @@ class Support(Config):
                 new_name = i.replace("-1280X", "-1280x")
                 shutil.move(os.path.join(target_path, i), os.path.join(target_path, new_name))
                 logger.info(F"\nold_name: {i} \n new_name: {new_name} \n")
+
+    @logger.catch()
+    def rename_gid_name(self, target_path=""):
+        """
+        根据 gid 重命名名称, 默认使用 title_jpn
+        """
+        if target_path == "":
+            target_path = self.data_path
+
+        with sqlite3.connect(self.dbs_name) as co:
+            for item in os.listdir(target_path):
+                if not re.match(r'^\d+-', item):
+                    continue
+                web_str = ""
+                if item.find("-1280x") != -1:
+                    web_str = "-1280x"
+                gid = re.match(r'^(\d+)-', item).group(1)
+                title_jpn = co.execute(f'''SELECT title_jpn FROM eh_data WHERE gid="{gid}"''').fetchone()
+                if title_jpn is not None:
+                    title_jpn = windows_escape(title_jpn[0])
+                    old_path = os.path.join(target_path, item)
+                    if os.path.isfile(old_path):
+                        ext = os.path.splitext(item)[1]
+                        new_name = f"{gid}-{title_jpn}{web_str}{ext}"
+                    else:
+                        new_name = f"{gid}-{title_jpn}{web_str}"
+                    new_path = os.path.join(target_path, new_name)
+                    if not os.path.exists(new_path):
+                        logger.warning(f'rename: {old_path} -> {new_path}')
+                        shutil.move(old_path, new_path)
+                    else:
+                        logger.warning(f'Skipping rename, target already exists: {new_path}')
 
     @logger.catch()
     def create_xml(self, gid, path):
