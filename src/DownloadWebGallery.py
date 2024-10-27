@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import os
 import shutil
+import sys
 
 from bs4 import BeautifulSoup
 from tqdm.asyncio import tqdm_asyncio
@@ -157,12 +158,13 @@ class DownloadWebGallery(Config):
                 page_data = await self.fetch_data(url=f"{self.long_url}?p={sub_ptb}")
                 page_data = BeautifulSoup(page_data, 'html.parser')
 
-            page_data = page_data.select('#gdt > .gdtl > a')
+            page_data = page_data.select('#gdt a')
 
             for i in page_data:
                 img_url = str(i.get('href'))
                 # filename = str(i.select_one('img').get("title").split(" ")[-1:][0])
-                filename = str(i.select_one('img').get("alt")).zfill(8) + ".jpg"
+                # filename = str(i.select_one('img').get("alt")).zfill(8) + ".jpg"
+                filename = str(img_url.split("-")[-1]).zfill(8) + ".jpg"
                 page_img_url.append([img_url, filename])
 
             sub_ptb = sub_ptb + 1
