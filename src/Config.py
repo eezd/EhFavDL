@@ -112,12 +112,15 @@ class Config:
                         await self.check_fetch_err(response, url)
                         if tqdm_file_path is not None:
                             total_size = int(response.headers.get('Content-Length', 0))
-                            file_name = url.split('/')[-1] + "/" + os.path.basename(tqdm_file_path)
-                            with open(tqdm_file_path, 'wb') as f:
-                                with tqdm_asyncio(total=total_size, unit='B', unit_scale=True, desc=file_name) as pbar:
+                            desc_name = url.split('/')[-1] + "/" + os.path.basename(tqdm_file_path)
+                            temp_file_path = os.path.dirname(tqdm_file_path) + "/temp_" + os.path.basename(
+                                tqdm_file_path)
+                            with open(temp_file_path, 'wb') as f:
+                                with tqdm_asyncio(total=total_size, unit='B', unit_scale=True, desc=desc_name) as pbar:
                                     async for chunk in response.content.iter_chunked(1024):
                                         f.write(chunk)
                                         pbar.update(len(chunk))
+                            os.rename(temp_file_path, tqdm_file_path)
                             return True
                         return await response.read()
         except Exception as e:

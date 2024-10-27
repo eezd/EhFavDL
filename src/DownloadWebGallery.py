@@ -2,7 +2,6 @@ import asyncio
 import hashlib
 import os
 import shutil
-import sys
 
 from bs4 import BeautifulSoup
 from tqdm.asyncio import tqdm_asyncio
@@ -200,6 +199,17 @@ class DownloadWebGallery(Config):
         semaphore = asyncio.Semaphore(int(self.connect_limit))
         task_list = []
         os.makedirs(self.filepath_tmp, exist_ok=True)
+        if res_image_list is None:
+            logger.warning(f"Failed to get image urls: {self.long_url}")
+            return False
+
+        # claer temp file
+        if os.path.exists(self.filepath_tmp):
+            for filename in os.listdir(self.filepath_tmp):
+                if str(filename).startswith("temp_"):
+                    file_path = os.path.join(self.filepath_tmp, filename)
+                    os.remove(file_path)
+
         for _p in res_image_list:
             url = _p[0]
             file_path = os.path.join(self.filepath_tmp, _p[1])
