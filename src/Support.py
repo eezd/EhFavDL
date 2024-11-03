@@ -98,6 +98,7 @@ class Support(Config):
     def rename_gid_name(self, target_path=""):
         """
         根据 gid 重命名名称, 默认使用 title_jpn
+        Rename the name based on gid, defaulting to title_jpn.
         """
         if target_path == "":
             target_path = self.data_path
@@ -110,15 +111,19 @@ class Support(Config):
                 if item.find("-1280x") != -1:
                     web_str = "-1280x"
                 gid = re.match(r'^(\d+)-', item).group(1)
-                title_jpn = co.execute(f'''SELECT title_jpn FROM eh_data WHERE gid="{gid}"''').fetchone()
-                if title_jpn is not None:
-                    title_jpn = windows_escape(title_jpn[0])
+                co_title = co.execute(f'''SELECT title,title_jpn FROM eh_data WHERE gid="{gid}"''').fetchone()
+                if co_title is not None:
+                    if co_title[1] is not None and co_title[1] != "":
+                        title = str(co_title[1])
+                    else:
+                        title = str(co_title[0])
+                    title = windows_escape(title)
                     old_path = os.path.join(target_path, item)
                     if os.path.isfile(old_path):
                         ext = os.path.splitext(item)[1]
-                        new_name = f"{gid}-{title_jpn}{web_str}{ext}"
+                        new_name = f"{gid}-{title}{web_str}{ext}"
                     else:
-                        new_name = f"{gid}-{title_jpn}{web_str}"
+                        new_name = f"{gid}-{title}{web_str}"
                     new_path = os.path.join(target_path, new_name)
                     if not os.path.exists(new_path):
                         logger.warning(f'rename: {old_path} -> {new_path}')
