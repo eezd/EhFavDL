@@ -1,7 +1,5 @@
 import asyncio
 import hashlib
-import os
-import shutil
 
 from bs4 import BeautifulSoup
 from tqdm.asyncio import tqdm_asyncio

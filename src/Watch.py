@@ -1,9 +1,7 @@
 import asyncio
-import os
-import shutil
 import zipfile
 
-from src import Support, Checker, DownloadWebGallery, AddFavData, DownloadArchiveGallery
+from src import Checker, DownloadWebGallery, AddFavData, DownloadArchiveGallery
 from .common import *
 
 
@@ -28,30 +26,6 @@ class Watch(Config):
                         dest_path = os.path.join(self.data_path, sub_name)
                         shutil.move(full_path, dest_path)
                         logger.info(f"Moved: {full_path} -> {dest_path}")
-
-    @logger.catch
-    def clear_old_file(self, move_list):
-        """
-        将目标文件/文件夹 移动到 del 文件夹下
-        Move the target file/folder to the `del` folder.
-
-        :param move_list: [gid1, gid2, gid3]
-        """
-        del_dir = os.path.join(self.data_path, 'del')
-        os.makedirs(del_dir, exist_ok=True)
-        with sqlite3.connect(self.dbs_name) as co:
-            for gid in move_list:
-                for folder_name in os.listdir(self.data_path):
-                    folder_path = os.path.join(self.data_path, folder_name)
-                    if folder_name.startswith(f"{gid}-"):
-                        dest_path = os.path.join(del_dir, folder_name)
-                        if os.path.exists(dest_path):
-                            timestamp = time.strftime("%Y%m%d%H%M%S")
-                            dest_path = os.path.join(del_dir, f"{folder_name}_{timestamp}")
-                        shutil.move(folder_path, dest_path)
-                        co.execute(f'''DELETE FROM fav_category WHERE gid = {gid} ''')
-                        co.commit()
-                        logger.info(f"Moved: {folder_path} -> {dest_path}")
 
     @logger.catch()
     async def dl_new_gallery(self, fav_cat="", gids="", archive_status=False):
@@ -108,7 +82,7 @@ class Watch(Config):
             update_list = await add_fav_data.apply()
             # update_list = await add_fav_data.clear_del_flag()
             gids = [item[0] for item in update_list]
-            self.clear_old_file(move_list=gids)
+            clear_old_file(move_list=gids)
             current_gids = [item[2] for item in update_list]
             await self.dl_new_gallery(gids=str(current_gids).replace("[", "").replace("]", ""),
                                       archive_status=self.watch_archive_status)

@@ -1,5 +1,7 @@
 import json
+import os
 import re
+import shutil
 import sqlite3
 import sys
 import time
@@ -49,6 +51,31 @@ def get_web_gallery_download_list(fav_cat="", gids=""):
     logger.info(
         f"(fav_cat = {fav_cat}) total download list:{json.dumps(dl_list, indent=4, ensure_ascii=False)}\n(len: {len(dl_list)})\n")
     return dl_list
+
+
+def clear_old_file(move_list):
+    """
+    将目标文件/文件夹 移动到 del 文件夹下
+    Move the target file/folder to the `del` folder.
+
+    :param move_list: [gid1, gid2, gid3]
+    """
+    self = Config()
+    del_dir = os.path.join(self.data_path, 'del')
+    os.makedirs(del_dir, exist_ok=True)
+    with sqlite3.connect(self.dbs_name) as co:
+        for gid in move_list:
+            for folder_name in os.listdir(self.data_path):
+                folder_path = os.path.join(self.data_path, folder_name)
+                if folder_name.startswith(f"{gid}-"):
+                    dest_path = os.path.join(del_dir, folder_name)
+                    if os.path.exists(dest_path):
+                        timestamp = time.strftime("%Y%m%d%H%M%S")
+                        dest_path = os.path.join(del_dir, f"{folder_name}_{timestamp}")
+                    shutil.move(folder_path, dest_path)
+                    co.execute(f'''DELETE FROM fav_category WHERE gid = {gid} ''')
+                    co.commit()
+                    logger.info(f"Moved: {folder_path} -> {dest_path}")
 
 
 def get_time():

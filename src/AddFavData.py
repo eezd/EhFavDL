@@ -1,6 +1,5 @@
 import ast
 import asyncio
-import os
 
 from bs4 import BeautifulSoup
 from tqdm import tqdm
@@ -333,9 +332,11 @@ class AddFavData(Config):
     async def clear_del_flag(self):
         """
         1. 清理 del_falg=1 并且没有下载的画廊
-        2. 返回存在更新的画廊
+        2. 移动旧画廊到 `del` 目录
+        3. 返回存在更新的画廊
         1. Clean up galleries with `del_flag=1` that have not been downloaded.
-        2. Return galleries with updates.
+        2. Move old galleries to the `del` directory.
+        3. Return galleries with updates.
 
         :return: [] | [
         [gid, token, current_gid, current_token]
@@ -371,6 +372,27 @@ class AddFavData(Config):
                 AND web_1280x_flag = 0
             ''')
             co.commit()
+
+            # 移动已下载的旧画廊到 del 目录 (其新画廊已下载)
+            # Move the downloaded old galleries to the "del" directory (their new galleries have already been downloaded).
+            del_list = co.execute('''
+            SELECT
+                fc.gid,
+                fc.token,
+                eh.current_gid,
+                eh.current_token 
+            FROM
+                fav_category AS fc,
+                eh_data AS eh 
+            WHERE
+                fc.del_flag = 1 
+                AND fc.gid = eh.gid
+                AND ( fc.original_flag = 1 OR fc.web_1280x_flag = 1 )
+                AND eh.gid != eh.current_gid
+                AND eh.current_gid IN ( SELECT gid FROM eh_data )
+                AND eh.current_gid IN ( SELECT gid FROM fav_category WHERE del_flag = 0 AND original_flag = 1 OR web_1280x_flag = 1 )
+            ''')
+            clear_old_file([i[0] for i in del_list])
 
             # 搜索 del_flag=1 并且 已下载 并且 当前字段的current_gid=其他字段的gid (并且current_gid的画廊未下载为del_flag=0)
             # 就可以得出结论, 当前画廊存在更新
