@@ -11,7 +11,6 @@ parser.add_argument('-w', action='store_true', help="Listen to EH Fav and fetch 
 args = parser.parse_args()
 
 
-@logger.catch()
 async def main():
     Config().create_database()
 
@@ -97,33 +96,33 @@ async def main():
             if folder == "":
                 print("Cancel")
                 sys.exit(1)
-            Support().update_meta_info(target_path=folder, only_folder=True)
+            ComicInfo().update_meta_info(target_path=folder, only_folder=True)
         elif num == 9:
             folder = input(f"Please enter the file directory.\n")
             if folder == "":
                 print("Cancel")
                 sys.exit(1)
-            Support().update_meta_info(target_path=folder)
+            ComicInfo().update_meta_info(target_path=folder)
         elif num == 10:
             folder = input(f"Please enter the file directory.\n")
             if folder == "":
                 print("Cancel")
                 sys.exit(1)
-            Support().directory_to_cbz(target_path=folder)
+            directory_to_cbz(target_path=folder)
         elif num == 11:
             folder = input(f"Please enter the file directory.\n")
             if folder == "":
                 print("Cancel")
                 sys.exit(1)
-            Support().rename_cbz_file(target_path=folder)
+            rename_cbz_file(target_path=folder)
         elif num == 12:
             folder = input(f"Please enter the file directory.\n")
             if folder == "":
                 print("Cancel")
                 sys.exit(1)
-            Support().rename_gid_name(target_path=folder)
+            rename_gid_name(target_path=folder)
         elif num == 13:
-            await Support().lan_update_tags()
+            await LANraragi().lan_update_tags()
         elif num == 14:
             while True:
                 print("0. Return")
@@ -157,7 +156,7 @@ async def main():
                     break
 
 
-# if __name__ == "__main__":
-#     # asyncio.run(main())
+if __name__ == "__main__":
+    asyncio.run(main())
 
-asyncio.run(DownloadWebGallery(gid=3117553, token="e22b2d8c07", title="123").apply())
+# asyncio.run(DownloadWebGallery(gid=3117553, token="e22b2d8c07", title="123").apply())

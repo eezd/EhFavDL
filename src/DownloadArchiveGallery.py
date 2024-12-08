@@ -1,11 +1,10 @@
 import asyncio
-import zipfile
 from urllib.parse import urlsplit
 
 from bs4 import BeautifulSoup
 
-from src.Support import Support
-from .common import *
+from src.ComicInfo import ComicInfo
+from src.Utils import *
 
 # 下载路径为: data_path + "archive"
 folder = "archive"
@@ -183,10 +182,9 @@ class DownloadArchiveGallery(Config):
             extract_to = os.path.splitext(file_path)[0]
             with zipfile.ZipFile(file_path, 'r') as zip_ref:
                 zip_ref.extractall(extract_to)
-            support = Support()
-            support.create_xml(gid=gid, path=extract_to)
-            support.create_cbz(src_path=extract_to)
-            support.rename_cbz_file(target_path=extract_to)
+            ComicInfo().create_xml(gid=gid, path=extract_to)
+            create_cbz(src_path=extract_to)
+            rename_cbz_file(target_path=extract_to)
             shutil.rmtree(extract_to, ignore_errors=True)
             os.remove(file_path)
             with sqlite3.connect(self.dbs_name) as co:

@@ -90,7 +90,7 @@ class Config:
 
     async def fetch_data(self, url, json=None, data=None, tqdm_file_path=None, retry_delay=5, retry_attempts=5):
         """
-        :return: True | False | "reload_image"
+        Return: True | False | "reload_image"
         """
         try:
             async with aiohttp.ClientSession(headers=self.request_headers, cookies=self.eh_cookies,

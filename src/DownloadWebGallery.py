@@ -4,8 +4,8 @@ from PIL import Image
 from bs4 import BeautifulSoup
 from tqdm.asyncio import tqdm_asyncio
 
-from src.Support import Support
-from .common import *
+from src.ComicInfo import ComicInfo
+from src.Utils import *
 
 # 下载路径为: data_path + "web"
 folder = "web"
@@ -33,6 +33,8 @@ class DownloadWebGallery(Config):
         """
         注意: 一旦执行到这步, 那么不管你下没下载图片, 都会消耗你的 IP 配额
         Once you reach this step, your IP quota will be consumed regardless of whether you download the image or not.
+
+        Returns: True | False
         """
         async with semaphore:
             reload_count = 0
@@ -206,8 +208,8 @@ class DownloadWebGallery(Config):
         else:
             shutil.move(self.filepath_tmp, self.filepath_end)
 
-        Support().create_xml(gid=self.gid, path=self.filepath_end)
-        Support().create_cbz(src_path=self.filepath_end, target_path=self.filepath_end)
+        ComicInfo().create_xml(gid=self.gid, path=self.filepath_end)
+        create_cbz(src_path=self.filepath_end, target_path=self.filepath_end)
         shutil.rmtree(self.filepath_end)
 
         with sqlite3.connect(self.dbs_name) as co:

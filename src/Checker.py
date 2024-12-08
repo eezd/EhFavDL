@@ -1,13 +1,6 @@
 import os.path
-import re
-import shutil
-import sqlite3
-import sys
-import zipfile
 
-from loguru import logger
-
-from src.Config import Config
+from src.Utils import *
 
 
 class Checker(Config):

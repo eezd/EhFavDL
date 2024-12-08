@@ -2,9 +2,8 @@ import ast
 import asyncio
 
 from bs4 import BeautifulSoup
-from tqdm import tqdm
 
-from .common import *
+from src.Utils import *
 
 
 class AddFavData(Config):
@@ -54,20 +53,16 @@ class AddFavData(Config):
 
     async def update_category(self):
         logger.info(f'Get Favorite Category Name...')
-
         hx_res = await self.fetch_data(url=f'https://{self.base_url}/uconfig.php')
         hx_res_bs = BeautifulSoup(hx_res, 'html.parser')
         hx_res_bs = hx_res_bs.select('#favsel > div input')
-
         fav_category = []
         for index, i in enumerate(hx_res_bs):
             fav_category.append((index, i.get('value')))
-
         with sqlite3.connect(self.dbs_name) as co:
             co.executemany(
                 'INSERT OR REPLACE INTO fav_name(fav_id, fav_name) VALUES (?,?)''',
                 fav_category)
-
             co.commit()
 
     def format_fav_page_info(self, res):
@@ -75,7 +70,7 @@ class AddFavData(Config):
         格式化页面数据获取 gid 和 token 以及 Next_Gid
         Format page data to get gid and token and Next_Gid
 
-        Returns:[
+        Returns: [
             [
                 {'gid': gid, 'token': token},
                 ...
@@ -83,19 +78,14 @@ class AddFavData(Config):
             Next_gid
         ]
         """
-
         search_list = res.select('.itg a[href]')
         if len(search_list) == 0:
             return [[], None]
-
         mylist = []
-
         for i in search_list:
             url = i.get('href')
-
             if str(url).find("/g/") == -1:
                 continue
-
             if url is not None:
                 gid = int(re.match('.*g/(.*)/(.*)/', url)[1])
                 token = re.match('.*g/(.*)/(.*)/', url)[2]
@@ -103,24 +93,18 @@ class AddFavData(Config):
                     'gid': gid,
                     'token': token
                 })
-
         next_gid = res.select_one('a#dnext[href]')
-
         if next_gid is not None:
             next_gid = re.match('.*=([0-9].*)', next_gid.get('href'))[1].replace("/", "").replace(" ", "")
             # next_gid = int(next_gid)
-
         mylist = remove_duplicates_2d_array(mylist)
-
         return [mylist, next_gid]
 
     async def add_fav_data(self):
         logger.info(f'Get User Favorite gid and token...')
-
         fav_id = 0
         all_gid = []
         next_gid = None
-
         # 先将删除标志设置为 1, 如果后续收藏夹存在则设置为 0
         # First, set the delete flag to 1; if there are subsequent favorite categories, set it to 0.
         with sqlite3.connect(self.dbs_name) as co:
@@ -153,12 +137,10 @@ class AddFavData(Config):
                     '''INSERT OR IGNORE INTO eh_data(gid, token) VALUES (?,?)''',
                     eh_data)
                 co.commit()
-
                 co.executemany(
                     '''INSERT OR IGNORE INTO fav_category(gid, token, fav_id, del_flag) VALUES (?,?,?,0)''',
                     fav_category_data)
                 co.commit()
-
                 for gid, token, fav_id in fav_category_data:
                     co.execute('''UPDATE fav_category SET fav_id = ?, del_flag = 0 WHERE gid = ?''', (fav_id, gid))
                 co.commit()
@@ -174,7 +156,6 @@ class AddFavData(Config):
         with sqlite3.connect(self.dbs_name) as co:
             count = co.execute('SELECT COUNT(*) FROM fav_category').fetchone()[0]
         logger.info(f' User Favorite, A Total Of: {count}...')
-
         return all_gid
 
     async def post_eh_api(self, json):
@@ -192,7 +173,6 @@ class AddFavData(Config):
         Based on the `eh_data` table, update the field data and its tags (`gid_tid` and `tag_list`).
         """
         logger.info(f'Get EH tags...')
-
         if not get_all:
             with sqlite3.connect(self.dbs_name) as co:
                 gid_token = co.execute(
@@ -213,29 +193,23 @@ class AddFavData(Config):
 
         if total != 0:
             gid_token = [list(t) for t in gid_token]
-
             # 分片
             # Fragmentation
             gid_token = [gid_token[i:i + piece] for i in range(0, len(gid_token), piece)]
-
             post_json_arr = []
-
             for i in gid_token:
                 post_json_arr.append({
                     "method": "gdata",
                     "gidlist": i,
                     "namespace": 1
                 })
-
             with tqdm(total=total) as progress_bar:
                 for post_json in post_json_arr:
                     post_data = await self.post_eh_api(post_json)
                     format_data = []
-
                     for sub_post_data in post_data:
                         gid = sub_post_data.get('gid')
                         token = sub_post_data.get('token')
-
                         try:
                             expunged = sub_post_data.get('expunged')
                             if expunged == False or expunged == 0:
@@ -246,7 +220,6 @@ class AddFavData(Config):
                             logger.error(f"expunged error: {expunged}")
                             logger.error(f"https://exhentai.org/g/{gid}/{token}")
                             sys.exit(1)
-
                         format_data.append((
                             sub_post_data.get('title', ''),
                             sub_post_data.get('title_jpn', ''),
