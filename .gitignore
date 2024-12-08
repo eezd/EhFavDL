@@ -3,6 +3,7 @@ config.yaml
 data.db
 data*.db
 db.text.json
+*.py~
 *.log
 .idea
 

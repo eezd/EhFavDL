@@ -25,9 +25,9 @@ async def main():
         print("\n1. Update User Fav Info")
         print("2. Update Gallery Metadata (Update Tags)")
         print("3. Download Web Gallery")
-        print("4. Download Web Gallery (Download clear_del_flag())")
+        print("4. Download Web Gallery (News Gallery)")
         print("5. Download Archive Gallery")
-        print("6. Download Archive Gallery (Download clear_del_flag())")
+        print("6. Download Archive Gallery (News Gallery)")
         print("7. Update Tags Translation")
         print("8. Create ComicInfo.xml(only-folder)")
         print("9. Update ComicInfo.xml(folder&.cbz)")
@@ -56,8 +56,6 @@ async def main():
             if fav_cat_check != "":
                 print("Cancel")
                 sys.exit(1)
-            # 开始下载
-            # start download
             for j in dl_list:
                 download_gallery = DownloadWebGallery(gid=j[0], token=j[1], title=j[2])
                 status = await download_gallery.apply()
@@ -67,12 +65,10 @@ async def main():
             update_list = await add_fav_data.clear_del_flag()
             gids = [item[0] for item in update_list]
             current_gids = [item[2] for item in update_list]
-            Watch().clear_old_file(move_list=gids)
-            # 下载新画廊 / Download new gallery
+            clear_old_file(move_list=gids)
             while True:
                 dl_list_status = await Watch().dl_new_gallery(gids=str(current_gids).replace("[", "").replace("]", ""),
                                                               archive_status=False)
-                # 下载失败重新下载 / Download failed, retrying download
                 if dl_list_status:
                     break
                 else:
@@ -84,12 +80,10 @@ async def main():
             update_list = await add_fav_data.clear_del_flag()
             gids = [item[0] for item in update_list]
             current_gids = [item[2] for item in update_list]
-            Watch().clear_old_file(move_list=gids)
-            # 下载新画廊 / Download new gallery
+            clear_old_file(move_list=gids)
             while True:
                 dl_list_status = await Watch().dl_new_gallery(gids=str(current_gids).replace("[", "").replace("]", ""),
                                                               archive_status=True)
-                # 下载失败重新下载 / Download failed, retrying download
                 if dl_list_status:
                     break
                 else:
@@ -163,5 +157,7 @@ async def main():
                     break
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+# if __name__ == "__main__":
+#     # asyncio.run(main())
+
+asyncio.run(DownloadWebGallery(gid=3117553, token="e22b2d8c07", title="123").apply())

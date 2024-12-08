@@ -88,15 +88,16 @@ class Config:
             logger.error(e)
             sys.exit(1)
 
-    @logger.catch()
     async def fetch_data(self, url, json=None, data=None, tqdm_file_path=None, retry_delay=5, retry_attempts=5):
         """
-        tqdm_file_path: None | file_path
+        :return: True | False | "reload_image"
         """
         try:
             async with aiohttp.ClientSession(headers=self.request_headers, cookies=self.eh_cookies,
                                              connector=aiohttp.TCPConnector(ssl_context=ssl_context),
                                              timeout=aiohttp.ClientTimeout(connect=30)) as session:
+                # Convert speed limit from 10KB/s to bytes per second
+                # speed_limit_bps = 10 * 1024
                 if data is not None:
                     async with session.post(url, data=data,
                                             proxy=self.proxy_url if self.proxy_status else None) as response:
@@ -117,37 +118,33 @@ class Config:
                                 tqdm_file_path)
                             with open(temp_file_path, 'wb') as f:
                                 with tqdm_asyncio(total=total_size, unit='B', unit_scale=True, desc=desc_name) as pbar:
+                                    # bytes_written = 0
                                     async for chunk in response.content.iter_chunked(1024):
                                         f.write(chunk)
+                                        # bytes_written += len(chunk)
+                                        # # Calculate the time to sleep to maintain the desired speed limit
+                                        # if bytes_written >= speed_limit_bps:
+                                        #     sleep_time = len(chunk) / speed_limit_bps
+                                        #     await asyncio.sleep(sleep_time)
                                         pbar.update(len(chunk))
                             os.rename(temp_file_path, tqdm_file_path)
                             return True
                         return await response.read()
         except Exception as e:
             logger.error(e)
-
-            # 目前找不到解决办法
-            # TLS/SSL connection has been closed (EOF) (_ssl.c:1006)
-            if "TLS/SSL connection has been closed (EOF)" in str(e):
-                logger.warning("SSL问题, 无法下载当前文件, 需跳过/更换节点/等待一段时间重试")
-                logger.warning(
-                    f"SSL issue, unable to download the current file. Please skip/change the node or wait for a while and try again.. {url}")
-                return False
-
             if retry_attempts > 0:
                 if "hath.network" in str(url):
                     return "reload_image"
                 logger.warning(
                     f"Failed to retrieve data. Retrying in {retry_delay} seconds, {retry_attempts - 1} attempts remaining. {url}")
                 await asyncio.sleep(retry_delay)
-                return await self.fetch_data(url=url, json=json, data=None, tqdm_file_path=None,
+                return await self.fetch_data(url=url, json=json, data=data, tqdm_file_path=tqdm_file_path,
                                              retry_delay=retry_delay,
                                              retry_attempts=retry_attempts - 1)
             else:
                 logger.warning(f"The request limit has been exceeded. Program terminated.. {url}")
                 return False
 
-    @logger.catch()
     async def fetch_data_stream(self, url, file_path, stream_range=0, retry_delay=10, retry_attempts=10):
         try:
             headers = copy.deepcopy(self.request_headers)
@@ -172,6 +169,7 @@ class Config:
         except BaseException as e:
             logger.error(e)
             if retry_attempts > 0:
+                file_size = 0
                 logger.warning(
                     f"Failed to fetch data. Retrying in {retry_delay} seconds, {retry_attempts - 1} attempts left")
                 if os.path.exists(file_path) and str(file_path).find(".zip"):
@@ -187,7 +185,7 @@ class Config:
                 return await self.fetch_data_stream(url=url, file_path=file_path, stream_range=file_size,
                                                     retry_delay=retry_delay, retry_attempts=retry_attempts - 1)
             else:
-                logger.warning(f"The request limit has been exceeded. Program terminated.")
+                logger.error(f"The request limit has been exceeded. Program terminated.")
                 sys.exit(1)
 
     async def check_fetch_err(self, response, msg):
@@ -260,7 +258,6 @@ class Config:
               "web_1280x_flag" INTEGER NOT NULL DEFAULT 0 /* 1表示 通过网页画廊下载/通过archiver中Resample选项下载*/
             )''')
 
-            # 使用单独的标签列表和映射表相比字符串存储或许能实现更好的数据统计和管理
             co.execute('''
                 CREATE TABLE IF NOT EXISTS tag_list (
                     tid INTEGER PRIMARY KEY AUTOINCREMENT,

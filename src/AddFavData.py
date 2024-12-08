@@ -11,7 +11,6 @@ class AddFavData(Config):
     def __init__(self):
         super().__init__()
 
-    @logger.catch()
     async def translate_tags(self):
         """
         对 tag_list 表中的标签进行中文翻译
@@ -53,7 +52,6 @@ class AddFavData(Config):
                     co.commit()
         os.remove(translate_tag_name)
 
-    @logger.catch()
     async def update_category(self):
         logger.info(f'Get Favorite Category Name...')
 
@@ -72,7 +70,6 @@ class AddFavData(Config):
 
             co.commit()
 
-    @logger.catch()
     def format_fav_page_info(self, res):
         """
         格式化页面数据获取 gid 和 token 以及 Next_Gid
@@ -117,7 +114,6 @@ class AddFavData(Config):
 
         return [mylist, next_gid]
 
-    @logger.catch()
     async def add_fav_data(self):
         logger.info(f'Get User Favorite gid and token...')
 
@@ -181,14 +177,12 @@ class AddFavData(Config):
 
         return all_gid
 
-    @logger.catch()
     async def post_eh_api(self, json):
         eh_api_data = await self.fetch_data(url="https://api.e-hentai.org/api.php", json=json)
         json_data = eh_api_data['gmetadata']
         await asyncio.sleep(0.5)
         return json_data
 
-    @logger.catch()
     async def add_tags_data(self, get_all=False):
         """
         默认get_all=False只更新标题为空或NULL的TAG
@@ -328,7 +322,6 @@ class AddFavData(Config):
                 await asyncio.sleep(3)
                 await self.add_tags_data()
 
-    @logger.catch()
     async def clear_del_flag(self):
         """
         1. 清理 del_falg=1 并且没有下载的画廊
@@ -424,7 +417,6 @@ class AddFavData(Config):
                 return update_list
             return []
 
-    @logger.catch()
     async def apply(self):
         await self.update_category()
 

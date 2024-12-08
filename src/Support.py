@@ -15,7 +15,6 @@ class Support(Config):
         super().__init__()
         self.watch_status = watch_status
 
-    @logger.catch()
     def create_cbz(self, src_path, target_path=""):
         """
         创建一个 CBZ 文件, 默认在当前位置创建
@@ -34,7 +33,6 @@ class Support(Config):
                     cbz.write(file_path, os.path.relpath(file_path, src_path))
         logger.info(f'Create CBZ: {target_path}')
 
-    @logger.catch()
     def directory_to_cbz(self, target_path=""):
         """
         转换 self.data_path 下的 gid- 文件夹为CBZ文件
@@ -56,7 +54,6 @@ class Support(Config):
                 progress_bar.update(1)
         logger.info(f'[OK] Create CBZ')
 
-    @logger.catch()
     def rename_cbz_file(self, target_path=""):
         """
         重命名  (gid-name.cbz) OR (gid-name-1280x.cbz)  CBZ文件
@@ -93,7 +90,6 @@ class Support(Config):
                 shutil.move(os.path.join(target_path, i), os.path.join(target_path, new_name))
                 logger.info(F"\nold_name: {i} \n new_name: {new_name} \n")
 
-    @logger.catch()
     def rename_gid_name(self, target_path=""):
         """
         根据 gid 重命名名称, 默认使用 title_jpn
@@ -130,7 +126,6 @@ class Support(Config):
                     else:
                         logger.warning(f'Skipping rename, target already exists: {new_path}')
 
-    @logger.catch()
     def create_xml(self, gid, path):
         with sqlite3.connect(self.dbs_name) as co:
             co = co.execute(f'''SELECT title,category,posted,token FROM eh_data WHERE gid="{gid}"''')
@@ -192,7 +187,6 @@ class Support(Config):
                 file.write(data + '\n')
         logger.info(f"Create {path}/ComicInfo.xml")
 
-    @logger.catch()
     def update_meta_info(self, target_path="", only_folder=False):
         """
         更新符合条件的文件夹以及 cbz 文件的 ComicInfo 数据
@@ -229,7 +223,6 @@ class Support(Config):
                 progress_bar.update(1)
         logger.info(f'[OK] update_meta_info')
 
-    @logger.catch()
     def lan_request(self):
         if not self.watch_status:
             logger.info("请按回车确认你的 LANraragi 地址及密码:")
@@ -242,7 +235,6 @@ class Support(Config):
         authorization_token_base64 = base64.b64encode(self.lan_api_psw.encode('utf-8')).decode('utf-8')
         return authorization_token_base64
 
-    @logger.catch()
     async def lan_update_tags(self):
         authorization_token_base64 = self.lan_request()
         headers = {"Authorization": f"Bearer {authorization_token_base64}"}

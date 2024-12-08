@@ -9,7 +9,6 @@ class Watch(Config):
     def __init__(self):
         super().__init__()
 
-    @logger.catch
     def watch_move_data_path(self):
         """
         web 和 archive 目录下的以 gid- 开头的 CBZ 文件到 data_path 根目录
@@ -27,7 +26,6 @@ class Watch(Config):
                         shutil.move(full_path, dest_path)
                         logger.info(f"Moved: {full_path} -> {dest_path}")
 
-    @logger.catch()
     async def dl_new_gallery(self, fav_cat="", gids="", archive_status=False):
         dl_list = []
         failed_gid_list = ""
@@ -62,7 +60,6 @@ class Watch(Config):
             return await self.dl_new_gallery(gids=failed_gid_list)
         return True
 
-    @logger.catch
     async def apply(self):
         while True:
             image_limits, total_limits = await self.get_image_limits()
@@ -100,7 +97,6 @@ class Watch(Config):
             await asyncio.sleep(sleep_time)
 
 
-@logger.catch
 def unzip_data_path(data_path):
     """
     解压 data_path 目录下的以 gid- 开头的 CBZ 文件(不会删除CBZ)

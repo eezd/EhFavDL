@@ -121,9 +121,6 @@ class Checker(Config):
             logger.info(f'Finish sync local to sqlite.')
 
     def check_loc_file(self):
-        """
-        检测到压缩包损坏
-        """
         folder = input(f"Please enter the file directory.\n")
         if folder == "":
             print("Cancel")

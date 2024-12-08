@@ -16,7 +16,6 @@ class DownloadArchiveGallery(Config):
     def __init__(self):
         super().__init__()
 
-    @logger.catch()
     async def search_download_url(self, gid, token, original_flag=True):
         """
         original=True: Original Image Download Url
@@ -98,7 +97,6 @@ class DownloadArchiveGallery(Config):
             logger.info(f"return [{dl_url}, 'original']")
             return [dl_url, "original"]
 
-    @logger.catch()
     async def download_file(self, dl_url, file_path):
         filename = os.path.basename(file_path)
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
@@ -128,7 +126,6 @@ class DownloadArchiveGallery(Config):
             return False
         return True
 
-    @logger.catch()
     async def dl_gallery(self, gid, token, title, original_flag):
         file_name = (str(gid) + "-" + windows_escape(str(title)) + ".zip") if original_flag else (
                 str(gid) + "-" + windows_escape(str(title)) + "-1280x.zip")
@@ -198,7 +195,6 @@ class DownloadArchiveGallery(Config):
             logger.info(f"https://{self.base_url}/g/{gid}/{token}/, download OK")
             return True
 
-    @logger.catch()
     async def go_dl(self, fav_cat, original_flag=False):
         dl_list = []
         # 检查数量和下载列表 / Check Quantity and Download List
@@ -246,7 +242,6 @@ class DownloadArchiveGallery(Config):
             title = j[2]
             await self.dl_gallery(gid=gid, token=token, title=title, original_flag=original_flag)
 
-    @logger.catch()
     async def apply(self):
         fav_cat = -1
         while not 0 <= fav_cat <= 9:

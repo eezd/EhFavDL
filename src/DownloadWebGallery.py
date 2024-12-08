@@ -19,18 +19,16 @@ class DownloadWebGallery(Config):
         self.gid = gid
         self.token = token
 
-        # 格式化不合法的命名
         # invalid format name
         self.title = windows_escape(title)
 
-        # 临时路径 (当前是文件夹形式)
         self.filepath_tmp = os.path.join(self.data_path, folder, 'temp', str(self.gid) + '-' + self.title + "-1280x")
-        # 最终路径
+
         self.filepath_end = os.path.join(self.data_path, folder, str(self.gid) + '-' + self.title + "-1280x")
 
         self.long_url = f"https://{self.base_url}/g/{self.gid}/{self.token}/"
 
-    @logger.catch()
+    @logger.catch
     async def download_image(self, semaphore, url, file_index):
         """
         注意: 一旦执行到这步, 那么不管你下没下载图片, 都会消耗你的 IP 配额
@@ -64,36 +62,34 @@ class DownloadWebGallery(Config):
                     logger.warning("509: YOU HAVE TEMPORARILY REACHED THE LIMIT")
                     await self.wait_image_limits()
                     return await self.download_image(semaphore=semaphore, url=url, file_index=file_index)
+
+                # download file
                 dl_status = await self.fetch_data(url=real_url, tqdm_file_path=file_path)
+
                 if isinstance(dl_status, str):
                     if dl_status == "reload_image":
                         logger.info(F"Reload Image. Retrying... {reload_count} / 6 ")
-                else:
+                elif dl_status is True:
                     if file_extension.lower() == ".webp":
                         webp_image = Image.open(file_path)
                         rgb_image = webp_image.convert('RGB')
                         jpg_file_path = os.path.splitext(file_path)[0] + '.jpg'
                         rgb_image.save(jpg_file_path, 'JPEG')
                         os.remove(file_path)
-                    return dl_status
+                    return True
             return False
 
-    @logger.catch()
     async def get_image_url(self):
         """
         获取图片地址
         Get the image address
 
-        返回值:
-        Returns:[
+        Returns: "copyright" | [] | [
             [url, fileIndex],
             ...
             ["https://exhentai.org/s/57a822bab0/2614866-3", "00000003"]
         ]
-        OR
-        Returns: "copyright"
         """
-
         hx_res = await self.fetch_data(url=self.long_url)
         page_data = BeautifulSoup(hx_res, 'html.parser')
 
@@ -118,7 +114,6 @@ class DownloadWebGallery(Config):
 
         # 第一层图片地址 / The address of the first layer image
         page_img_url = []
-
         sub_ptb = 0
         # 遍历页码, 获取所有第一层图片地址
         # Traversing the page number to get all the first-level image addresses
@@ -126,36 +121,25 @@ class DownloadWebGallery(Config):
             if sub_ptb != 0:
                 page_data = await self.fetch_data(url=f"{self.long_url}?p={sub_ptb}")
                 page_data = BeautifulSoup(page_data, 'html.parser')
-
             page_data = page_data.select('#gdt a')
-
             for i in page_data:
                 img_url = str(i.get('href'))
                 # filename = str(i.select_one('img').get("title").split(" ")[-1:][0])
                 # filename = str(i.select_one('img').get("alt")).zfill(8) + ".jpg"
                 filename = str(img_url.split("-")[-1]).zfill(8)
                 page_img_url.append([img_url, filename])
-
             sub_ptb = sub_ptb + 1
 
-        if len(page_img_url) == 0:
-            # 加载到 https://exhentai.org/img/blank.gif，导致获取链接为空
-            # 往往几个小时也不见恢复，这到底是为什么呢
-            logger.warning("Failed to get image urls, retrying after 30mins……")
-            await asyncio.sleep(30 * 60)
-            return await self.get_image_url()
-        elif pages and len(page_img_url) < pages:
-            # 检查是否获取到全部链接
-            logger.warning("Failed for missing pages, retrying after 30mins……")
-            await asyncio.sleep(30 * 60)
-            return await self.get_image_url()
-        return page_img_url
+        if len(page_img_url) == pages:
+            return page_img_url
+        else:
+            return []
 
-    @logger.catch()
     async def apply(self):
         before_image_limits, _ = await self.wait_image_limits()
         logger.info(f"Download Web Gallery...: {self.long_url}")
         res_image_list = await self.get_image_url()
+
         if isinstance(res_image_list, str):
             if res_image_list == "copyright":
                 logger.warning(
@@ -164,14 +148,14 @@ class DownloadWebGallery(Config):
                     co.execute(f'UPDATE eh_data SET copyright_flag=1 WHERE gid={self.gid}')
                     co.commit()
                 return False
+        if len(res_image_list) == 0:
+            logger.warning(f"Failed to get image urls: {self.long_url}")
+            return False
 
-        # init task
+        # init
         semaphore = asyncio.Semaphore(int(self.connect_limit))
         task_list = []
         os.makedirs(self.filepath_tmp, exist_ok=True)
-        if res_image_list is None:
-            logger.warning(f"Failed to get image urls: {self.long_url}")
-            return False
 
         # claer temp file
         if os.path.exists(self.filepath_tmp):
@@ -199,6 +183,13 @@ class DownloadWebGallery(Config):
                 logger.warning(f"Failed to download image: {self.long_url}")
                 return False
 
+        # claer temp file
+        if os.path.exists(self.filepath_tmp):
+            for filename in os.listdir(self.filepath_tmp):
+                if str(filename).startswith("temp_"):
+                    file_path = os.path.join(self.filepath_tmp, filename)
+                    os.remove(file_path)
+
         # 再次检查是否缺页 / Recheck for missing pages
         file_count = 0
         for _, _, files in os.walk(self.filepath_tmp):
@@ -207,8 +198,7 @@ class DownloadWebGallery(Config):
             logger.warning(f"Failed for missing pages: {self.long_url}")
             return False
 
-        # 判断 new_path 是否存在文件夹
-        # Determine whether there is a folder in new_path
+        # move file
         if os.path.isdir(self.filepath_end):
             logger.warning(f"Directory already exists, coverage {self.filepath_end}")
             shutil.rmtree(self.filepath_end)
