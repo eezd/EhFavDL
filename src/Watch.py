@@ -71,8 +71,6 @@ class Watch(Config):
             # Update tags information to determine if a new gallery exists.
             add_fav_data = AddFavData()
             await add_fav_data.add_tags_data(True)
-            if self.tags_translation:
-                await add_fav_data.translate_tags()
 
             # 清理旧画廊并下载新画廊 / Clean up old galleries and download new galleries.
             update_list = await add_fav_data.apply()
@@ -90,6 +88,9 @@ class Watch(Config):
             if self.watch_lan_status:
                 await LANraragi(watch_status=True).lan_update_tags()
 
+            if self.tags_translation:
+                await add_fav_data.translate_tags()
+                
             sleep_time = 60 * 60
             logger.info(f"Done! Wait {sleep_time} s")
             # 1小时后重新检查 / Recheck in 1 hour
