@@ -158,5 +158,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-# asyncio.run(DownloadWebGallery(gid=3117553, token="e22b2d8c07", title="123").apply())

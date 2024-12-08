@@ -46,7 +46,7 @@ class DownloadWebGallery(Config):
                 try:
                     soup = BeautifulSoup(real_url, 'html.parser')
                     real_url = soup.select_one('img#img').get('src')
-                    file_extension = os.path.splitext(real_url)[-1]
+                    file_extension = "." + real_url.split('.')[-1]
                     file_path = os.path.join(self.filepath_tmp, file_index + file_extension)
                     # <title>503 Backend fetch failed</title>
                     # <h1>Error 503 Backend fetch failed</h1>...
