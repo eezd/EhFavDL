@@ -1,7 +1,7 @@
 import asyncio
 import zipfile
 
-from src import Checker, DownloadWebGallery, AddFavData, DownloadArchiveGallery
+from src import Checker, DownloadWebGallery, AddFavData, DownloadArchiveGallery, Support
 from .common import *
 
 
