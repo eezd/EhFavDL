@@ -7,7 +7,7 @@
 [![Last commit](https://img.shields.io/github/last-commit/eezd/EhFavDL/main)](https://github.com/eezd/EhFavDL/commits/main)
 [![License](https://img.shields.io/badge/license-MIT-yellowgreen.svg)](LICENSE)
 
-Download favorites from E-Hentai / Exhentai, written in Python 3.11, with support for Komga and LANraragi.
+Download favorites from E-Hentai / Exhentai, written in Python 3.11, with support for LANraragi and Komga.
 
 [中文](README.md)/[English](README-EN.md)
 
@@ -15,17 +15,17 @@ Download favorites from E-Hentai / Exhentai, written in Python 3.11, with suppor
 
 ## 📌 TODO
 
-- [x] Supports `Sqlite` storage
-- [x] Supports `.cbz` storage
-- [x] Supports monitoring favorites for automatic downloads and gallery updates
-- [x] Supports downloading via Web (including re-downloads)
-- [x] Supports downloading original images or 1280x versions via Archive (supports resumable downloads)
-- [x] Supports Chinese tags (requires configuration in `config.yaml---tags_translation`)
-- [x] Generates `ComicInfo.xml` (supports Komga/LANraragi)
-- [x] Supports automatic source data updates via `LANraragi Api`
-- [x] Recalculates wait time based on `IP quota`, displays remaining `IP quota`
+- [x]  Support for `Sqlite` storage
+- [x]  Support for `.cbz` storage
+- [x]  Monitor for automatic downloads and gallery updates
+- [x]  Download via Web (supports re-download)
+- [x]  Download original or 1280x images via Archive (supports resuming downloads)
+- [x]  Support for Chinese Tags (requires configuration in `config.yaml` --- `tags_translation`)
+- [x]  Generate `ComicInfo.xml` (compatible with Komga/LANraragi)
+- [x]  Support for `LANraragi API` to automatically update META data
+- [x]  Recalculate wait time based on `IP quota` and display remaining `IP quota`
 
-## 🔨 ## Installation
+## 🔨 Installation
 
 1. Install dependencies
 
@@ -93,24 +93,6 @@ python main.py -w
 - Best Practice: You can now use EH favorites to categorize galleries `>=1.1.2`
 
 ![lan-fav](/img/lan-fav.png)
-
-## 💡 Komga or LANraragi ？
-
-- `Komga`
-    - Can lag with large file sets (e.g., 1000 files locally)
-    - TAGs limited to single line, unlike EH with multiple TAGs
-
-![Komga](/img/Komga.png)
-
-> WARNING!!
->
-> LANraragi: May fail to read files with excessively long names
-
-- `LANraragi`
-    - Handles large file sets better than `Komga`
-    - Supports multiple TAGs like EH
-
-![LANraragi](/img/LANraragi.png)
 
 # Special Thanks
 

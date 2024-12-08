@@ -1,5 +1,6 @@
-aiohttp~=3.9.5
-PyYAML~=6.0.1
-loguru~=0.7.2
-tqdm~=4.66.4
-beautifulsoup4~=4.12.3
+aiohttp==3.9.5
+beautifulsoup4==4.12.3
+loguru==0.7.2
+Pillow==11.0.0
+PyYAML==6.0.2
+tqdm==4.66.6

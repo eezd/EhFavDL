@@ -1,3 +1,15 @@
+## EH Gallery Update Strategy
+
+If you have added a gallery with `gid=123` to your collection, and that gallery gets updated on a certain day, the new gallery will have a different `gid`.
+
+This creates a new issue: in this project, your old gallery and the updated gallery will coexist, as there is no way to determine their relationship.
+
+**Q: How can this be resolved?**  
+**A:** You can run `2. Update Gallery Metadata (Update Tags)`. This will update the `current_gid` and `current_token` of the old gallery to match the new gallery.
+
+**Q: What should I do if a downloaded gallery has been updated?**  
+**A:** First, run `2. Update Gallery Metadata (Update Tags)`, and then download the updated gallery using `4. Download Web Gallery (News Gallery)` or `6. Download Archive Gallery (News Gallery)`.
+
 ## Docs
 
 This project can be run in two modes: Default Mode and Watch Mode.
@@ -114,9 +126,9 @@ $ python main.py
 1. Update User Fav Info
 2. Update Gallery Metadata (Update Tags)
 3. Download Web Gallery
-4. Download Web Gallery (Download clear_del_flag())
+4. Download Web Gallery (News Gallery)
 5. Download Archive Gallery
-6. Download Archive Gallery (Download clear_del_flag())
+6. Download Archive Gallery (News Gallery)
 7. Update Tags Translation
 8. Create ComicInfo.xml(only-folder)
 9. Update ComicInfo.xml(folder&.cbz)
@@ -142,29 +154,33 @@ Update Fav information.
 
 2. Update Gallery Metadata (Update Tags)
 
-Use the EH API to update data in the `eh_data`, `tag_list`, and `gid_tid` tables.
+Update Data Using the EH API
 
 3. Download Web Gallery
 
-Download the Web gallery. Files will be saved in the `data_path\web` folder.
+Download the Web gallery. Files will be saved in the `$data_path$\web` folder.
 
-4. Download Web Gallery (Download clear_del_flag())
+4. Download Web Gallery (News Gallery)
 
-The `AddFavData().clear_del_flag()` method will return the galleries with updates, and then the `Watch().dl_new_gallery()` method will be called to download the galleries.
+Move the old galleries to the `$data_path$\web\del` folder, then download the new galleries based on the `current_gid` field in the `eh_data` table.
+
+**Tips:** Please run `2. Update Gallery Metadata (Update Tags)` first to ensure that the metadata is up to date.
 
 5. Download Archive Gallery
 
-Use `GP` points to download. Files will be saved in the `data_path\archive` folder.
+Use `GP` points to download. Files will be saved in the `$data_path$\archive` folder.
 
-6. Download Archive Gallery (Download clear_del_flag())
+6. Download Archive Gallery (News Gallery)
 
-The `AddFavData().clear_del_flag()` method will return the galleries with updates, and then the `Watch().dl_new_gallery()` method will be called to download the galleries.
+Move the old gallery to the `$data_path$\archive\del` folder, then use `GP` points to download new galleries based on the `current_gid` field in the `eh_data` table.
+
+**Tips:** Please run `2. Update Gallery Metadata (Update Tags)` first to ensure the metadata is up to date.
 
 7. Update Tags Translation
 
 8. Create ComicInfo.xml(only-folder)
 
-Create `ComicInfo.xml` for folders that meet the specified criteria.
+Create a `ComicInfo.xml` file for folders starting with "gid-" (retrieve data based on the gid).
 
 9. Update ComicInfo.xml(folder&.cbz)
 
@@ -174,7 +190,7 @@ Regarding `9. Update ComicInfo.xml (folder & .cbz)`, please be very cautious. Th
 
 10. Directory To CBZ File
 
-Create `.cbz` files based on folders in the directory that meet the specified criteria.
+Convert folders starting with `gid-` into `cbz` files.
 
 11. Rename CBZ File (Compatible with LANraragi)
 

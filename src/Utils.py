@@ -103,7 +103,7 @@ def create_cbz(src_path, target_path=""):
 
 def directory_to_cbz(target_path=""):
     """
-    转换 self.data_path 下的 gid- 文件夹为CBZ文件
+    转换 gid- 文件夹为CBZ文件
     Convert the "gid-" folders under self.data_path to CBZ files
     """
     logger.info(f'Create CBZ ...')

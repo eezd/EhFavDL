@@ -1,3 +1,15 @@
+## EH画廊更新策略
+
+假如你收藏了 `gid=123` 的画廊，在某一天该画廊更新了，那么新画廊的 `gid` 就不是 123了。
+
+这样出现一个新的问题，在本项目中你的旧画廊会和新画廊共存，因为无法判断两者的关联系。
+
+**Q: 怎么解决呢？**
+A: 可以运行 `2. Update Gallery Metadata (Update Tags)`，那么旧画廊的 `current_gid` 和 `current_token` 就是新画廊的值。
+
+**Q: 如果我下载的画廊存在更新该怎么办？**
+A: 先运行 `2. Update Gallery Metadata (Update Tags)`，然后下载 `4. Download Web Gallery (News Gallery)` 或者 `6. Download Archive Gallery (News Gallery)`
+
 ## Docs
 
 本项目运行分为两种模式, 默认模式 和 Watch 模式
@@ -114,9 +126,9 @@ $ python main.py
 1. Update User Fav Info
 2. Update Gallery Metadata (Update Tags)
 3. Download Web Gallery
-4. Download Web Gallery (Download clear_del_flag())
+4. Download Web Gallery (News Gallery)
 5. Download Archive Gallery
-6. Download Archive Gallery (Download clear_del_flag())
+6. Download Archive Gallery (News Gallery)
 7. Update Tags Translation
 8. Create ComicInfo.xml(only-folder)
 9. Update ComicInfo.xml(folder&.cbz)
@@ -142,29 +154,33 @@ Select Number: 14
 
 2. Update Gallery Metadata (Update Tags)
 
-使用 EH API 去更新 `eh_data` `tag_list` `gid_tid` 这三个表的数据
+使用 EH API 更新数据
 
 3. Download Web Gallery
 
-下载Web画廊, 文件会下载到: `data_path\web` 文件夹下
+下载Web画廊, 文件会下载到: `$data_path$\web` 文件夹下
 
-4. Download Web Gallery (Download clear_del_flag())
+4. Download Web Gallery (News Gallery)
 
-`AddFavData().clear_del_flag()` 方法会返回存在更新的画廊, 然后调用 `Watch().dl_new_gallery()` 去下载画廊
+移动旧画廊到 `$data_path$\web\del` 文件夹下，然后根据 `eh_data` 表中的 `current_gid` 字段下载新画廊。
+
+Tips: 请先运行 `2. Update Gallery Metadata (Update Tags)` 确保 Meta 数据是最新的。
 
 5. Download Archive Gallery
 
-使用 `GP` 点数下载, 文件会下载到: `data_path\archive` 文件夹下
+使用 `GP` 点数下载, 文件会下载到: `$data_path$\archive` 文件夹下
 
-6. Download Archive Gallery (Download clear_del_flag())
+6. Download Archive Gallery (News Gallery)
 
-`AddFavData().clear_del_flag()` 方法会返回存在更新的画廊, 然后调用 `Watch().dl_new_gallery()` 去下载画廊
+移动旧画廊到 `$data_path$\archive\del` 文件夹下，然后根据 `eh_data` 表中的 `current_gid` 字段使用 `GP` 点数下载新画廊。
+
+Tips: 请先运行 `2. Update Gallery Metadata (Update Tags)` 确保 Meta 数据是最新的。
 
 7. Update Tags Translation
 
 8. Create ComicInfo.xml(only-folder)
 
-为符合规则的文件夹创建 `ComicInfo.xml`
+为gid-开头的文件夹创建 `ComicInfo.xml`。(根据gid获取数据)
 
 9. Update ComicInfo.xml(folder&.cbz)
 
@@ -174,7 +190,7 @@ Select Number: 14
 
 10. Directory To CBZ File
 
-根据目录下的符合规则的文件夹, 创建 `cbz` 文件
+转换gid-开头的文件夹为 `cbz` 文件
 
 11. Rename CBZ File (Compatible with LANraragi)
 

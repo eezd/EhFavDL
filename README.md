@@ -7,7 +7,7 @@
 [![Last commit](https://img.shields.io/github/last-commit/eezd/EhFavDL/main)](https://github.com/eezd/EhFavDL/commits/main)
 [![License](https://img.shields.io/badge/license-MIT-yellowgreen.svg)](LICENSE)
 
-E-Hentai / Exhentai 下载收藏夹，基于 Python3.11 编写，支持 Komga 和 LANraragi。
+E-Hentai / Exhentai 下载收藏夹，基于 Python3.11 编写，支持 LANraragi 和 Komga。
 
 [中文](README.md)/[English](README-EN.md)
 
@@ -17,12 +17,12 @@ E-Hentai / Exhentai 下载收藏夹，基于 Python3.11 编写，支持 Komga �
 
 - [x] 支持 `Sqlite` 存储
 - [x] 支持 `.cbz` 存储
-- [x] 支持监听收藏夹自动下载并更新画廊
-- [x] 支持通过Web下载(支持重新下载)
-- [x] 支持通过Archive下载原图或1280x(支持断点续传)
+- [x] 监听自动下载并更新画廊
+- [x] 通过Web下载(支持重新下载)
+- [x] 通过Archive下载原图或1280x(支持断点续传)
 - [x] 支持中文Tag(需设置config.yaml---tags_translation)
 - [x] 生成 `ComicInfo.xml` (支持 Komga/LANraragi)
-- [x] 支持 `LANraragi Api` 自动更新源数据
+- [x] 支持 `LANraragi Api` 自动更新META数据
 - [x] 根据 `IP quota` 重新计算等待时间, 显示剩余 `IP quota`
 
 ## 🔨 安装
@@ -93,24 +93,6 @@ python main.py -w
 - 最佳用法: 现在可以使用 eh 的收藏夹来分类画廊了 `>=1.1.2`
 
 ![lan-fav](/img/lan-fav.png)
-
-## 💡 Komga or LANraragi ？
-
-- `Komga`
-    - 在遇到大量文件时会卡顿（例如有 1000 个文件在本地）
-    - TAG 只能一行，无法像 EH 一样多个 TAG
-
-![Komga](/img/Komga.png)
-
-> WARNING!!
->
-> LANraragi：当文件名过长可能会无法读取
-
-- `LANraragi`
-    - 遇到大量文件不会像 `Komga` 一样卡
-    - TAG 和 EH 一样
-
-![LANraragi](/img/LANraragi.png)
 
 # Special Thanks
 
