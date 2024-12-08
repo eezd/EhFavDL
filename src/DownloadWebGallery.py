@@ -1,6 +1,6 @@
 import asyncio
-import hashlib
 
+from PIL import Image
 from bs4 import BeautifulSoup
 from tqdm.asyncio import tqdm_asyncio
 
@@ -30,44 +30,8 @@ class DownloadWebGallery(Config):
 
         self.long_url = f"https://{self.base_url}/g/{self.gid}/{self.token}/"
 
-    async def calc_sha256(self, file_path):
-        sha256 = hashlib.sha256()
-        with open(file_path, 'rb') as f:
-            for chunk in iter(lambda: f.read(4096), b''):
-                sha256.update(chunk)
-        return sha256.hexdigest()
-
-    async def check_save(self, file_path, file):
-        """
-        假如存在相同文件, 使用哈希判断
-        If identical files exist, use hash comparison to determine.
-        """
-        if os.path.exists(file_path):
-            exist_hash = await self.calc_sha256(file_path)
-            new_hash = hashlib.sha256(file).hexdigest()
-
-            if new_hash == exist_hash:
-                return file_path
-
-            base_name, ext = os.path.splitext(file_path)
-            counter = 2
-
-            while os.path.exists(file_path):
-                exist_hash = await self.calc_sha256(file_path)
-
-                if new_hash == exist_hash:
-                    return file_path
-
-                counter += 1
-                file_path = f"{base_name} ({counter}){ext}"
-
-        with open(file_path, 'wb') as f:
-            f.write(file)
-
-        return file_path
-
     @logger.catch()
-    async def download_image(self, semaphore, url, file_path):
+    async def download_image(self, semaphore, url, file_index):
         """
         注意: 一旦执行到这步, 那么不管你下没下载图片, 都会消耗你的 IP 配额
         Once you reach this step, your IP quota will be consumed regardless of whether you download the image or not.
@@ -82,6 +46,8 @@ class DownloadWebGallery(Config):
                 try:
                     soup = BeautifulSoup(real_url, 'html.parser')
                     real_url = soup.select_one('img#img').get('src')
+                    file_extension = os.path.splitext(real_url)[-1]
+                    file_path = os.path.join(self.filepath_tmp, file_index + file_extension)
                     # <title>503 Backend fetch failed</title>
                     # <h1>Error 503 Backend fetch failed</h1>...
                 except Exception as e:
@@ -97,12 +63,18 @@ class DownloadWebGallery(Config):
                 if re.match(r'^https://(exhentai|e-hentai)\.org/img/509\.gif$', real_url):
                     logger.warning("509: YOU HAVE TEMPORARILY REACHED THE LIMIT")
                     await self.wait_image_limits()
-                    return await self.download_image(semaphore=semaphore, url=url, file_path=file_path)
+                    return await self.download_image(semaphore=semaphore, url=url, file_index=file_index)
                 dl_status = await self.fetch_data(url=real_url, tqdm_file_path=file_path)
                 if isinstance(dl_status, str):
                     if dl_status == "reload_image":
                         logger.info(F"Reload Image. Retrying... {reload_count} / 6 ")
                 else:
+                    if file_extension.lower() == ".webp":
+                        webp_image = Image.open(file_path)
+                        rgb_image = webp_image.convert('RGB')
+                        jpg_file_path = os.path.splitext(file_path)[0] + '.jpg'
+                        rgb_image.save(jpg_file_path, 'JPEG')
+                        os.remove(file_path)
                     return dl_status
             return False
 
@@ -114,9 +86,9 @@ class DownloadWebGallery(Config):
 
         返回值:
         Returns:[
-            [url, filename],
+            [url, fileIndex],
             ...
-            ["https://exhentai.org/s/57a822bab0/2614866-3", "00000003.jpg"]
+            ["https://exhentai.org/s/57a822bab0/2614866-3", "00000003"]
         ]
         OR
         Returns: "copyright"
@@ -161,7 +133,7 @@ class DownloadWebGallery(Config):
                 img_url = str(i.get('href'))
                 # filename = str(i.select_one('img').get("title").split(" ")[-1:][0])
                 # filename = str(i.select_one('img').get("alt")).zfill(8) + ".jpg"
-                filename = str(img_url.split("-")[-1]).zfill(8) + ".jpg"
+                filename = str(img_url.split("-")[-1]).zfill(8)
                 page_img_url.append([img_url, filename])
 
             sub_ptb = sub_ptb + 1
@@ -193,7 +165,7 @@ class DownloadWebGallery(Config):
                     co.commit()
                 return False
 
-        # Download images
+        # init task
         semaphore = asyncio.Semaphore(int(self.connect_limit))
         task_list = []
         os.makedirs(self.filepath_tmp, exist_ok=True)
@@ -208,13 +180,18 @@ class DownloadWebGallery(Config):
                     file_path = os.path.join(self.filepath_tmp, filename)
                     os.remove(file_path)
 
+        #  Download images
         for _p in res_image_list:
             url = _p[0]
-            file_path = os.path.join(self.filepath_tmp, _p[1])
-            if os.path.exists(file_path):
+            file_index = _p[1]
+            found = any(
+                os.path.splitext(file)[0] == file_index
+                for file in os.listdir(self.filepath_tmp)
+            )
+            if found:
                 logger.info(f"File {_p[1]} already exists. Skipping download.")
             else:
-                req = self.download_image(semaphore, url, file_path)
+                req = self.download_image(semaphore=semaphore, url=url, file_index=file_index)
                 task_list.append(req)
         results = await tqdm_asyncio.gather(*task_list, desc=F"DownloadWebGallery>>{self.long_url}")
         for result in results:
