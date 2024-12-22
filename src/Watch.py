@@ -90,7 +90,7 @@ class Watch(Config):
 
             if self.tags_translation:
                 await add_fav_data.translate_tags()
-                
+
             sleep_time = 60 * 60
             logger.info(f"Done! Wait {sleep_time} s")
             # 1小时后重新检查 / Recheck in 1 hour

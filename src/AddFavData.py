@@ -312,32 +312,52 @@ class AddFavData(Config):
         with sqlite3.connect(self.dbs_name) as co:
             # 清除所有 del_flag=1 并且没有下载的画廊 original_flag = 0 AND web_1280x_flag = 0
             # Clear all items where del_flag=1 and have not been downloaded, with original_flag=0 and web_1280x_flag=0.
+            # co.execute('''
+            # DELETE
+            # FROM
+            #     eh_data
+            # WHERE
+            #     gid IN ( SELECT gid FROM fav_category WHERE del_flag = 1 AND original_flag = 0 AND web_1280x_flag = 0 )
+            # ''')
+            # co.commit()
+            # co.execute('''
+            # DELETE
+            # FROM
+            #     gid_tid
+            # WHERE
+            #     gid IN ( SELECT gid FROM fav_category WHERE del_flag = 1 AND original_flag = 0 AND web_1280x_flag = 0 )
+            # ''')
+            # co.commit()
             co.execute('''
-            DELETE 
+            DELETE
             FROM
-                eh_data 
+                fav_category
             WHERE
-                gid IN ( SELECT gid FROM fav_category WHERE del_flag = 1 AND original_flag = 0 AND web_1280x_flag = 0 )
-            ''')
-            co.commit()
-            co.execute('''
-            DELETE 
-            FROM
-                gid_tid 
-            WHERE
-                gid IN ( SELECT gid FROM fav_category WHERE del_flag = 1 AND original_flag = 0 AND web_1280x_flag = 0 )
-            ''')
-            co.commit()
-            co.execute('''
-            DELETE 
-            FROM
-                fav_category 
-            WHERE
-                del_flag = 1 
-                AND original_flag = 0 
+                del_flag = 1
+                AND original_flag = 0
                 AND web_1280x_flag = 0
             ''')
             co.commit()
+
+            # 移动所有旧画廊到 del 目录 (gid==current_gid)
+            # Move all old galleries to the "del" directory (gid==current_gid).
+            del_list = co.execute('''
+            SELECT
+                fc.gid,
+                fc.token,
+                eh.current_gid,
+                eh.current_token 
+            FROM
+                fav_category AS fc,
+                eh_data AS eh 
+            WHERE
+                fc.del_flag = 1 
+                AND fc.gid = eh.gid 
+                AND ( fc.original_flag = 1 OR fc.web_1280x_flag = 1 ) 
+                AND eh.gid == eh.current_gid 
+                AND eh.current_gid IN ( SELECT gid FROM eh_data ) 
+            ''')
+            clear_old_file([i[0] for i in del_list])
 
             # 移动已下载的旧画廊到 del 目录 (其新画廊已下载)
             # Move the downloaded old galleries to the "del" directory (their new galleries have already been downloaded).
