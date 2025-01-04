@@ -73,12 +73,17 @@ class DownloadWebGallery(Config):
                         logger.info(F"Reload Image. Retrying... {reload_count} / 6 ")
                 elif dl_status is True:
                     if file_extension.lower() == ".webp":
-                        webp_image = Image.open(file_path)
-                        rgb_image = webp_image.convert('RGB')
-                        jpg_file_path = os.path.splitext(file_path)[0] + '.jpg'
-                        rgb_image.save(jpg_file_path, 'JPEG')
-                        os.remove(file_path)
-                    return True
+                        try:
+                            webp_image = Image.open(file_path)
+                            webp_image.verify()
+                            rgb_image = webp_image.convert('RGB')
+                            jpg_file_path = os.path.splitext(file_path)[0] + '.jpg'
+                            rgb_image.save(jpg_file_path, 'JPEG')
+                            os.remove(file_path)
+                            return True
+                        except Exception as e:
+                            logger.error(f"Failed to process image: {file_path}. Error: {e}")
+                            return await self.download_image(semaphore=semaphore, url=url, file_index=file_index)
             return False
 
     async def get_image_url(self):

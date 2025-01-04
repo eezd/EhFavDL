@@ -127,6 +127,8 @@ class Config:
                                         #     sleep_time = len(chunk) / speed_limit_bps
                                         #     await asyncio.sleep(sleep_time)
                                         pbar.update(len(chunk))
+                            if os.path.exists(tqdm_file_path):
+                                os.remove(tqdm_file_path)
                             os.rename(temp_file_path, tqdm_file_path)
                             return True
                         return await response.read()
