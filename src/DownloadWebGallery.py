@@ -83,7 +83,6 @@ class DownloadWebGallery(Config):
                             return True
                         except Exception as e:
                             logger.error(f"Failed to process image: {file_path}. Error: {e}")
-                            return await self.download_image(semaphore=semaphore, url=url, file_index=file_index)
             return False
 
     async def get_image_url(self):

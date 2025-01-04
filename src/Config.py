@@ -9,6 +9,7 @@ import zipfile
 
 import aiohttp
 import yaml
+from PIL import Image
 from bs4 import BeautifulSoup
 from loguru import logger
 from tqdm.asyncio import tqdm_asyncio
@@ -129,6 +130,17 @@ class Config:
                                         pbar.update(len(chunk))
                             if os.path.exists(tqdm_file_path):
                                 os.remove(tqdm_file_path)
+                            # Verify WebP Img
+                            if os.path.exists(temp_file_path):
+                                if tqdm_file_path.endswith(".webp"):
+                                    try:
+                                        webp_image = Image.open(temp_file_path)
+                                        webp_image.verify()
+                                        webp_image.close()
+                                    except Exception as e:
+                                        os.remove(temp_file_path)
+                                        logger.error(f"Failed to process image: {temp_file_path}. Error: {e}")
+                                        return "reload_image"
                             os.rename(temp_file_path, tqdm_file_path)
                             return True
                         return await response.read()
