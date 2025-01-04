@@ -154,8 +154,11 @@ class AddFavData(Config):
                     logger.info(f'Switch to [{fav_id}th] ...')
 
         with sqlite3.connect(self.dbs_name) as co:
-            count = co.execute('SELECT COUNT(*) FROM fav_category').fetchone()[0]
+            count = co.execute('SELECT COUNT(*) FROM fav_category WHERE del_flag = 0').fetchone()[0]
         logger.info(f' User Favorite, A Total Of: {count}...')
+        if count == 0:
+            logger.error(f'User Favorite is empty, Please add favorite first! (Update Cookies?)')
+            sys.exit(1)
         return all_gid
 
     async def post_eh_api(self, json):
