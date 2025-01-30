@@ -30,6 +30,12 @@ class Config:
                 data_path = str(config['data_path'])
                 self.data_path = data_path
 
+                self.gallery_path = os.path.join(data_path, 'gallery')
+                self.web_path = os.path.join(data_path, 'web')
+                self.archive_path = os.path.join(data_path, 'archive')
+                self.del_path = os.path.join(data_path, 'del')
+                self.duplicate_del_path = os.path.join(data_path, 'duplicate_del')
+
                 dbs_name = str(config['dbs_name'])
                 self.dbs_name = dbs_name
 

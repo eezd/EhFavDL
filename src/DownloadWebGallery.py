@@ -7,9 +7,6 @@ from tqdm.asyncio import tqdm_asyncio
 from src.ComicInfo import ComicInfo
 from src.Utils import *
 
-# 下载路径为: data_path + "web"
-folder = "web"
-
 
 class DownloadWebGallery(Config):
 
@@ -22,9 +19,9 @@ class DownloadWebGallery(Config):
         # invalid format name
         self.title = windows_escape(title)
 
-        self.filepath_tmp = os.path.join(self.data_path, folder, 'temp', str(self.gid) + '-' + self.title + "-1280x")
+        self.filepath_tmp = os.path.join(self.web_path, 'temp', str(self.gid) + '-' + self.title + "-1280x")
 
-        self.filepath_end = os.path.join(self.data_path, folder, str(self.gid) + '-' + self.title + "-1280x")
+        self.filepath_end = os.path.join(self.web_path, str(self.gid) + '-' + self.title + "-1280x")
 
         self.long_url = f"https://{self.base_url}/g/{self.gid}/{self.token}/"
 

@@ -16,7 +16,7 @@ class Checker(Config):
         gid_list_1280x = []
 
         if target_path == "":
-            target_path = self.data_path
+            target_path = self.gallery_path
 
         for i in os.listdir(target_path):
             if not re.match(r'^\d+-.*\.cbz', i):
@@ -34,15 +34,15 @@ class Checker(Config):
             g1 = re.match(r'^(\d+)-', gid_list_original[count - 1]).group(1)
             g2 = re.match(r'^(\d+)-', gid_list_original[count]).group(1)
             if g1 == g2:
-                os.makedirs(os.path.join(target_path, "duplicate_del"), exist_ok=True)
+                os.makedirs(self.duplicate_del_path, exist_ok=True)
                 front_name = gid_list_original[count - 1]
                 back_name = gid_list_original[count]
                 if len(front_name) > len(back_name):
                     old_path = os.path.join(target_path, front_name)
-                    new_path = os.path.join(os.path.join(target_path, "duplicate_del"), front_name)
+                    new_path = os.path.join(self.duplicate_del_path, front_name)
                 else:
                     old_path = os.path.join(target_path, back_name)
-                    new_path = os.path.join(os.path.join(target_path, "duplicate_del"), back_name)
+                    new_path = os.path.join(self.duplicate_del_path, back_name)
                 logger.warning(f'(gid_list_original) Duplicate gid, Move: {old_path} -> {new_path}')
                 shutil.move(old_path, new_path)
             count += 1
@@ -52,15 +52,15 @@ class Checker(Config):
             g1 = re.match(r'^(\d+)-', gid_list_1280x[count - 1]).group(1)
             g2 = re.match(r'^(\d+)-', gid_list_1280x[count]).group(1)
             if g1 == g2:
-                os.makedirs(os.path.join(target_path, "duplicate_del"), exist_ok=True)
+                os.makedirs(self.duplicate_del_path, exist_ok=True)
                 front_name = gid_list_1280x[count - 1]
                 back_name = gid_list_1280x[count]
                 if len(front_name) > len(back_name):
                     old_path = os.path.join(target_path, front_name)
-                    new_path = os.path.join(os.path.join(target_path, "duplicate_del"), front_name)
+                    new_path = os.path.join(self.duplicate_del_path, front_name)
                 else:
                     old_path = os.path.join(target_path, back_name)
-                    new_path = os.path.join(os.path.join(target_path, "duplicate_del"), back_name)
+                    new_path = os.path.join(self.duplicate_del_path, back_name)
                 logger.warning(f'(gid_list_1280x) Duplicate gid, Move: {old_path} -> {new_path}')
                 shutil.move(old_path, new_path)
             count += 1
@@ -85,7 +85,7 @@ class Checker(Config):
         gid_list_original = []
         gid_list_1280x = []
         if target_path == "":
-            target_path = self.data_path
+            target_path = self.gallery_path
         for i in os.listdir(target_path):
             if not re.match(r'^\d+-.*\.cbz', i):
                 continue

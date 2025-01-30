@@ -6,9 +6,6 @@ from bs4 import BeautifulSoup
 from src.ComicInfo import ComicInfo
 from src.Utils import *
 
-# 下载路径为: data_path + "archive"
-folder = "archive"
-
 
 class DownloadArchiveGallery(Config):
 
@@ -128,7 +125,7 @@ class DownloadArchiveGallery(Config):
     async def dl_gallery(self, gid, token, title, original_flag):
         file_name = (str(gid) + "-" + windows_escape(str(title)) + ".zip") if original_flag else (
                 str(gid) + "-" + windows_escape(str(title)) + "-1280x.zip")
-        sub_path = os.path.join(self.data_path, folder)
+        sub_path = self.web_path
         file_path = os.path.join(sub_path, file_name)
 
         if os.path.exists(file_path):

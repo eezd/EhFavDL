@@ -77,7 +77,7 @@ class ComicInfo(Config):
         """
         logger.info(f'update_meta_info ...')
         if target_path == "":
-            target_path = self.data_path
+            target_path = self.gallery_path
         path_list = []
         for i in os.listdir(target_path):
             if not re.match(r'^\d+-', i):

@@ -65,12 +65,12 @@ def clear_old_file(move_list):
 
     :param move_list: [gid1, gid2, gid3]
     """
-    del_dir = os.path.join(self.data_path, 'del')
+    del_dir = self.del_path
     os.makedirs(del_dir, exist_ok=True)
     with sqlite3.connect(self.dbs_name) as co:
         for gid in move_list:
-            for folder_name in os.listdir(self.data_path):
-                folder_path = os.path.join(self.data_path, folder_name)
+            for folder_name in os.listdir(self.gallery_path):
+                folder_path = os.path.join(self.gallery_path, folder_name)
                 if folder_name.startswith(f"{gid}-"):
                     dest_path = os.path.join(del_dir, folder_name)
                     if os.path.exists(dest_path):
@@ -104,11 +104,11 @@ def create_cbz(src_path, target_path=""):
 def directory_to_cbz(target_path=""):
     """
     转换 gid- 文件夹为CBZ文件
-    Convert the "gid-" folders under self.data_path to CBZ files
+    Convert the "gid-" folders under self.gallery_path to CBZ files
     """
     logger.info(f'Create CBZ ...')
     if target_path == "":
-        target_path = self.data_path
+        target_path = self.gallery_path
     path_list = []
     for i in os.listdir(target_path):
         if not re.match(r'^\d+-', i) or os.path.isfile(os.path.join(target_path, i)):
@@ -131,7 +131,7 @@ def rename_cbz_file(target_path=""):
     Limit the file name to a maximum of 80 characters and ensure that its base64 encoding does not exceed 196 characters.
     """
     if target_path == "":
-        target_path = self.data_path
+        target_path = self.gallery_path
     for i in os.listdir(target_path):
         if not re.match(r'^\d+-', i) or os.path.isdir(os.path.join(target_path, i)):
             continue
@@ -165,7 +165,7 @@ def rename_gid_name(target_path=""):
     Rename the name based on gid, defaulting to title_jpn.
     """
     if target_path == "":
-        target_path = self.data_path
+        target_path = self.gallery_path
 
     with sqlite3.connect(self.dbs_name) as co:
         for item in os.listdir(target_path):

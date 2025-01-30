@@ -15,15 +15,21 @@ class Watch(Config):
         Move the CBZ files starting with gid- from the web and archive directories to the data_path root directory.
         """
         os.makedirs(self.data_path, exist_ok=True)
-        for folder_name in os.listdir(self.data_path):
-            if folder_name == 'web' or folder_name == 'archive':
-                sub_path = os.path.join(self.data_path, folder_name)
-                for sub_name in os.listdir(sub_path):
-                    if re.match(r'^\d+-.*\.cbz$', sub_name) and os.path.isfile(os.path.join(sub_path, sub_name)):
-                        full_path = os.path.join(sub_path, sub_name)
-                        dest_path = os.path.join(self.data_path, sub_name)
-                        shutil.move(full_path, dest_path)
-                        logger.info(f"Moved: {full_path} -> {dest_path}")
+        os.makedirs(self.gallery_path, exist_ok=True)
+        os.makedirs(self.web_path, exist_ok=True)
+        os.makedirs(self.archive_path, exist_ok=True)
+        for sub_name in os.listdir(self.web_path):
+            if re.match(r'^\d+-.*\.cbz$', sub_name) and os.path.isfile(os.path.join(self.web_path, sub_name)):
+                full_path = os.path.join(self.web_path, sub_name)
+                dest_path = os.path.join(self.gallery_path, sub_name)
+                shutil.move(full_path, dest_path)
+                logger.info(f"Moved: {full_path} -> {dest_path}")
+        for sub_name in os.listdir(self.archive_path):
+            if re.match(r'^\d+-.*\.cbz$', sub_name) and os.path.isfile(os.path.join(self.archive_path, sub_name)):
+                full_path = os.path.join(self.archive_path, sub_name)
+                dest_path = os.path.join(self.gallery_path, sub_name)
+                shutil.move(full_path, dest_path)
+                logger.info(f"Moved: {full_path} -> {dest_path}")
 
     async def dl_new_gallery(self, fav_cat="", gids="", archive_status=False):
         dl_list = []
