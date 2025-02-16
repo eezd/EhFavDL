@@ -211,7 +211,12 @@ class Config:
     async def check_fetch_err(self, response, msg):
         content_type = response.headers.get('Content-Type', '').lower()
         if 'text' in content_type or 'json' in content_type or 'html' in content_type:
-            content = await response.text()
+            try:
+                content = await response.text()
+            except Exception as e:
+                content = await response.text(errors='replace')
+                if '�' in content:
+                    logger.warning("Some characters were replaced.")
             if "IP quota exhausted" in content:
                 logger.warning("IP quota exhausted. wait 360 seconds and try again.")
                 await asyncio.sleep(360)
