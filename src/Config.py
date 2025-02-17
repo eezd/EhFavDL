@@ -234,10 +234,16 @@ class Config:
                 await asyncio.sleep(total_seconds)
                 raise Exception("This IP address has been temporarily banned due to an excessive request rate")
             elif "You have clocked too many downloaded bytes on this gallery" in content:
-                logger.warning("You have clocked too many downloaded bytes on this gallery.")
-                logger.warning("Please open Gallery---Archive Download---Cancel")
-                logger.warning(msg)
-                raise Exception("You have clocked too many downloaded bytes on this gallery")
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(content, 'html.parser')
+                target_text = re.compile(r'You have clocked too many downloaded bytes on this gallery')
+                for text_node in soup.find_all(string=target_text):
+                    is_comment = text_node.find_parent(class_='c6')
+                    if not is_comment:
+                        logger.warning("You have clocked too many downloaded bytes on this gallery.")
+                        logger.warning("Please open Gallery---Archive Download---Cancel")
+                        logger.warning(msg)
+                        raise Exception("You have clocked too many downloaded bytes on this gallery")
             elif "Your IP address has been temporarily banned for excessive pageloads" in content:
                 logger.warning(content)
                 await asyncio.sleep(12 * 60 * 60)
