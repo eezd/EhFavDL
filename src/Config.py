@@ -80,8 +80,10 @@ class Config:
                 self.request_headers = headers
 
                 # Watch
-                watch_fav_ids = str(config['watch_fav_ids'])
+                watch_fav_ids = str(config['watch_fav_ids']) if config['watch_fav_ids'] else None
+                watch_download_fav_ids = str(config['watch_download_fav_ids']) if config['watch_download_fav_ids'] else None
                 self.watch_fav_ids = watch_fav_ids
+                self.watch_download_fav_ids = watch_download_fav_ids
                 watch_lan_status = bool(config['watch_lan_status'])
                 self.watch_lan_status = watch_lan_status
                 watch_archive_status = bool(config['watch_archive_status'])
@@ -116,40 +118,53 @@ class Config:
                         await self.check_fetch_err(response, url)
                         return await response.json(content_type=None)
                 else:
-                    async with session.get(url, proxy=self.proxy_url if self.proxy_status else None) as response:
-                        await self.check_fetch_err(response, url)
-                        if tqdm_file_path is not None:
-                            total_size = int(response.headers.get('Content-Length', 0))
-                            desc_name = url.split('/')[-1] + "/" + os.path.basename(tqdm_file_path)
-                            temp_file_path = os.path.dirname(tqdm_file_path) + "/temp_" + os.path.basename(
-                                tqdm_file_path)
-                            with open(temp_file_path, 'wb') as f:
-                                with tqdm_asyncio(total=total_size, unit='B', unit_scale=True, desc=desc_name) as pbar:
-                                    # bytes_written = 0
-                                    async for chunk in response.content.iter_chunked(1024):
-                                        f.write(chunk)
-                                        # bytes_written += len(chunk)
-                                        # # Calculate the time to sleep to maintain the desired speed limit
-                                        # if bytes_written >= speed_limit_bps:
-                                        #     sleep_time = len(chunk) / speed_limit_bps
-                                        #     await asyncio.sleep(sleep_time)
-                                        pbar.update(len(chunk))
-                            if os.path.exists(tqdm_file_path):
-                                os.remove(tqdm_file_path)
-                            # Verify WebP Img
-                            if os.path.exists(temp_file_path):
-                                if tqdm_file_path.endswith(".webp"):
-                                    try:
-                                        webp_image = Image.open(temp_file_path)
-                                        webp_image.verify()
-                                        webp_image.close()
-                                    except Exception as e:
-                                        os.remove(temp_file_path)
-                                        logger.error(f"Failed to process image: {temp_file_path}. Error: {e}")
-                                        return "reload_image"
-                            os.rename(temp_file_path, tqdm_file_path)
-                            return True
-                        return await response.read()
+                    has_inline_set = True if 'inline_set' in url else False
+                    if has_inline_set:
+                        # 此处似乎需要先访问一次获取完整 Cookies的sk值，否则无法固定设置配置项
+                        # Task:可以通过将sk值填入yaml配置以避免此重复，但是sk其有效期是否足够长呢，其值是否需要频繁更新呢
+                        if not self.eh_cookies['sk']:
+                            async with session.get(url, proxy=self.proxy_url if self.proxy_status else None) as response:
+                                await self.check_fetch_err(response, url)
+                            # 考虑到上面存在的一次重复请求，添加一个延迟以降低请求频率
+                            await asyncio.sleep(1)
+                        async with session.get(url, proxy=self.proxy_url if self.proxy_status else None) as response:
+                            await self.check_fetch_err(response, url)
+                            return await response.read()
+                    else:
+                        async with session.get(url, proxy=self.proxy_url if self.proxy_status else None) as response:
+                            await self.check_fetch_err(response, url)
+                            if tqdm_file_path is not None:
+                                total_size = int(response.headers.get('Content-Length', 0))
+                                desc_name = url.split('/')[-1] + "/" + os.path.basename(tqdm_file_path)
+                                temp_file_path = os.path.dirname(tqdm_file_path) + "/temp_" + os.path.basename(
+                                    tqdm_file_path)
+                                with open(temp_file_path, 'wb') as f:
+                                    with tqdm_asyncio(total=total_size, unit='B', unit_scale=True, desc=desc_name) as pbar:
+                                        # bytes_written = 0
+                                        async for chunk in response.content.iter_chunked(1024):
+                                            f.write(chunk)
+                                            # bytes_written += len(chunk)
+                                            # # Calculate the time to sleep to maintain the desired speed limit
+                                            # if bytes_written >= speed_limit_bps:
+                                            #     sleep_time = len(chunk) / speed_limit_bps
+                                            #     await asyncio.sleep(sleep_time)
+                                            pbar.update(len(chunk))
+                                if os.path.exists(tqdm_file_path):
+                                    os.remove(tqdm_file_path)
+                                # Verify WebP Img
+                                if os.path.exists(temp_file_path):
+                                    if tqdm_file_path.endswith(".webp"):
+                                        try:
+                                            webp_image = Image.open(temp_file_path)
+                                            webp_image.verify()
+                                            webp_image.close()
+                                        except Exception as e:
+                                            os.remove(temp_file_path)
+                                            logger.error(f"Failed to process image: {temp_file_path}. Error: {e}")
+                                            return "reload_image"
+                                os.rename(temp_file_path, tqdm_file_path)
+                                return True
+                            return await response.read()
         except Exception as e:
             logger.error(e)
             if retry_attempts > 0:
@@ -162,8 +177,16 @@ class Config:
                                              retry_delay=retry_delay,
                                              retry_attempts=retry_attempts - 1)
             else:
-                logger.warning(f"The request limit has been exceeded. Program terminated.. {url}")
-                return False
+                while True:
+                    # 等待1~2小时即可恢复
+                    logger.warning("The request limit has been exceeded. Waiting 2 hour...")
+                    await asyncio.sleep(2 * 60 * 60)
+                    if "hath.network" in str(url):
+                        return "reload_image"
+                    logger.warning(
+                        f"Failed to retrieve data. Retrying in {retry_delay} seconds, {retry_attempts - 1} attempts remaining. {url}")
+                    await asyncio.sleep(retry_delay)
+                    return await self.fetch_data(url=url, json=json, data=data, tqdm_file_path=tqdm_file_path, retry_delay=retry_delay, retry_attempts=2)
 
     async def fetch_data_stream(self, url, file_path, stream_range=0, retry_delay=10, retry_attempts=10):
         try:
@@ -291,17 +314,23 @@ class Config:
 
             co.execute('''
                 CREATE TABLE IF NOT EXISTS tag_list (
-                    tid INTEGER PRIMARY KEY AUTOINCREMENT,
-                    tag TEXT UNIQUE NOT NULL,
-                    translated_tag TEXT
+                    "tid" INTEGER PRIMARY KEY AUTOINCREMENT,
+                    "tag" TEXT UNIQUE NOT NULL,
+                    "translated_tag" TEXT
                 )
             ''')
             co.execute('''
                 CREATE TABLE IF NOT EXISTS gid_tid (
-                    gid INTEGER UNSIGNED NOT NULL,
-                    tid INTEGER UNSIGNED NOT NULL,
+                    "gid" INTEGER UNSIGNED NOT NULL,
+                    "tid" INTEGER UNSIGNED NOT NULL,
                     PRIMARY KEY (gid, tid),
                     UNIQUE(gid, tid)
+                )
+            ''')
+            co.execute('''
+                CREATE TABLE IF NOT EXISTS watch_record (
+                    "id" INTEGER PRIMARY KEY NOT NULL,
+                    "last_check_time" TEXT
                 )
             ''')
 

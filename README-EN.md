@@ -72,8 +72,12 @@ lan_url: http://127.0.0.1:22299
 # Setting >>> Security >>> API Key
 lan_api_psw: jskada
 
-# python main.py -w
-watch_fav_ids: 3,4
+# python main.py -w2
+# watch_fav_ids: 3,4
+watch_fav_ids:
+# python main.py -w1 和 -w2
+# watch_download_fav_ids: 3,4
+watch_download_fav_ids: # 为空表示全部下载
 # False / True
 watch_lan_status: False
 # False / True
