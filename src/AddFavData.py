@@ -1,10 +1,9 @@
 import ast
 import asyncio
-
-from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 
 import pytz
+from bs4 import BeautifulSoup
 
 from src.Utils import *
 
@@ -75,25 +74,24 @@ class AddFavData(Config):
 
         Returns: [
             [
-                {'gid': gid, 'token': token, 'fav_id': fav_id},
+                {'gid': gid, 'token': token, 'now_updated': now_updated},
                 ...
             ],
-            Next_gid,
-            deadline_flag
+            Next_gid
         ]
         """
         search_list = res.select('.itg a[href]')
         if len(search_list) == 0:
             return [[], None]
         mylist = []
-        deadline_flag = False
-        id_name_dict = None
-        if check_time:
-            with sqlite3.connect(self.dbs_name) as co:
-                query = "SELECT fav_id, fav_name FROM fav_name"
-                results = co.execute(query).fetchall()
-                if results:
-                    id_name_dict = {fav_name: fav_id for fav_id, fav_name in results}
+        # deadline_flag = False
+        # id_name_dict = None
+        # if check_time:
+        #     with sqlite3.connect(self.dbs_name) as co:
+        #         query = "SELECT fav_id, fav_name FROM fav_name"
+        #         results = co.execute(query).fetchall()
+        #         if results:
+        #             id_name_dict = {fav_name: fav_id for fav_id, fav_name in results}
         for i in search_list:
             url = i.get('href')
             if str(url).find("/g/") == -1:
@@ -102,52 +100,60 @@ class AddFavData(Config):
                 gid = int(re.match('.*g/(.*)/(.*)/', url)[1])
                 token = re.match('.*g/(.*)/(.*)/', url)[2]
 
-                asia_time_updated = None
-                asia_time_fav = None
+                # asia_time_updated = None
+                # asia_time_fav = None
 
                 # 获取更新时间
                 div_tag = res.find('div', id=f'posted_{gid}')
                 if div_tag:
                     # 获取所在收藏夹
-                    fav_name = div_tag.get('title')
-                    fav_id = None
-                    if check_time:
-                        if id_name_dict:
-                            fav_id = id_name_dict.get(fav_name)
-                        time_text_updated = div_tag.get_text(strip=True)
-                        utc_time_updated = datetime.strptime(time_text_updated, "%Y-%m-%d %H:%M")
-                        utc_time_updated = pytz.utc.localize(utc_time_updated)
-
-                        tz = pytz.timezone('Asia/Shanghai')
-                        asia_time_updated = utc_time_updated.astimezone(tz)
+                    # fav_name = div_tag.get('title')
+                    # fav_id = None
+                    # if check_time:
+                    #     if id_name_dict:
+                    #         fav_id = id_name_dict.get(fav_name)
+                    time_text_updated = div_tag.get_text(strip=True)
+                    utc_time_updated = datetime.strptime(time_text_updated, "%Y-%m-%d %H:%M")
+                    # utc_time_updated = pytz.utc.localize(utc_time_updated)
+                    # 不用转时区
+                    # tz = pytz.timezone('Asia/Shanghai')
+                    # asia_time_updated = utc_time_updated.astimezone(tz)
+                    # print("更新", utc_time_updated)
+                else:
+                    logger.warning(
+                        "Unable to fetch the update time. Please visit https://github.com/eezd/EhFavDL/issues to report the issue.")
+                    sys.exit(1)
 
                 # 获取收藏时间
-                td_tag = res.find('td', class_='glfc glfav')
-                if td_tag and check_time:
-                    date_text = td_tag.find_all('p')[0].get_text(strip=True)  # 2024-07-25
-                    time_text = td_tag.find_all('p')[1].get_text(strip=True)  # 19:46
+                # td_tag = res.find('td', class_='glfc glfav')
+                # if td_tag and check_time:
+                #     date_text = td_tag.find_all('p')[0].get_text(strip=True)  # 2024-07-25
+                #     time_text = td_tag.find_all('p')[1].get_text(strip=True)  # 19:46
+                #
+                #     datetime_str = f"{date_text} {time_text}"
+                #     utc_time_fav = datetime.strptime(datetime_str, "%Y-%m-%d %H:%M")
+                #     utc_time_fav = pytz.utc.localize(utc_time_fav)
+                #     tz = pytz.timezone('Asia/Shanghai')
+                #     asia_time_fav = utc_time_fav.astimezone(tz)
+                #     print("收藏", asia_time_fav)
 
-                    datetime_str = f"{date_text} {time_text}"
-                    utc_time_fav = datetime.strptime(datetime_str, "%Y-%m-%d %H:%M")
-                    utc_time_fav = pytz.utc.localize(utc_time_fav)
-
-                    tz = pytz.timezone('Asia/Shanghai')
-                    asia_time_fav = utc_time_fav.astimezone(tz)
-
-                if check_time:
-                    if asia_time_updated and asia_time_fav and (asia_time_updated < check_time and asia_time_fav < check_time):
-                        deadline_flag = True
+                # if check_time:
+                #     if asia_time_updated and asia_time_fav and (
+                #             asia_time_updated < check_time and asia_time_fav < check_time):
+                #         deadline_flag = True
                 mylist.append({
                     'gid': gid,
                     'token': token,
-                    'fav_id': fav_id
+                    'now_updated': utc_time_updated
+                    # 'fav_id': fav_id
                 })
         next_gid = res.select_one('a#dnext[href]')
         if next_gid is not None:
             next_gid = re.match('.*=([0-9].*)', next_gid.get('href'))[1].replace("/", "").replace(" ", "")
             # next_gid = int(next_gid)
         mylist = remove_duplicates_2d_array(mylist)
-        return [mylist, next_gid, deadline_flag]
+        # return [mylist, next_gid, deadline_flag]
+        return [mylist, next_gid]
 
     async def add_fav_data(self):
         logger.info(f'Get User Favorite gid and token...')
@@ -175,12 +181,15 @@ class AddFavData(Config):
 
             eh_data = []
             fav_category_data = []
+            gallery_time_updates = []
             if len(search_data[0]) != 0:
                 for item_data in search_data[0]:
                     _gid = int(item_data['gid'])
                     _token = str(item_data['token'])
+                    _now_updated = item_data['now_updated']
                     eh_data.append((_gid, _token))
                     fav_category_data.append((_gid, _token, fav_id))
+                    gallery_time_updates.append((_gid, _now_updated))
                     all_gid.append(_gid)
             with sqlite3.connect(self.dbs_name) as co:
                 co.executemany(
@@ -190,6 +199,10 @@ class AddFavData(Config):
                 co.executemany(
                     '''INSERT OR IGNORE INTO fav_category(gid, token, fav_id, del_flag) VALUES (?,?,?,0)''',
                     fav_category_data)
+                co.commit()
+                co.executemany(
+                    '''INSERT OR REPLACE INTO gallery_time_updates(gid, current_update) VALUES (?,?)''',
+                    gallery_time_updates)
                 co.commit()
                 for gid, token, fav_id in fav_category_data:
                     co.execute('''UPDATE fav_category SET fav_id = ?, del_flag = 0 WHERE gid = ?''', (fav_id, gid))
@@ -230,7 +243,8 @@ class AddFavData(Config):
             if w_record:
                 last_check_time = datetime.strptime(w_record[0], '%Y-%m-%d %H:%M:%S.%f')
             else:
-                logger.warning("Failed to retrieve the last check time. Please run '1.Update User Fav Info' to record the check time first.")
+                logger.warning(
+                    "Failed to retrieve the last check time. Please run '1.Update User Fav Info' to record the check time first.")
                 sys.exit(1)
 
         now_check_time = datetime.now()
@@ -311,14 +325,16 @@ class AddFavData(Config):
                 max_depth = 2
                 if max_depth == 0:
                     max_depth = 1
-                    logger.info(f"This mode requires at least one level of recursion, parent gallery recursion depth has been set to {max_depth}")
+                    logger.info(
+                        f"This mode requires at least one level of recursion, parent gallery recursion depth has been set to {max_depth}")
                 elif max_depth > 0:
                     logger.info(f"Parent gallery recursion depth is {max_depth}")
                 elif max_depth == -1:
                     logger.warning("Warning: parent gallery will be recursively processed indefinitely")
                 else:
                     max_depth = 2
-                    logger.info(f"Depth parameter is incorrect, parent gallery recursion depth has been set to {max_depth}")
+                    logger.info(
+                        f"Depth parameter is incorrect, parent gallery recursion depth has been set to {max_depth}")
             elif sort_order == "inline_set=fs_f":
                 logger.info("Processing new favorites……")
                 max_depth = 0
@@ -393,9 +409,13 @@ class AddFavData(Config):
                                     parent_gid_tokens.append((parent_gid, parent_token))
                                     processed_pairs.add((parent_gid, parent_token))
                                 with sqlite3.connect(self.dbs_name) as co:
-                                    exist_old_item = co.execute('SELECT gid FROM eh_data WHERE gid = ? AND current_gid != ? AND current_token != ?', (parent_gid, base_data[10], base_data[11])).fetchone()
+                                    exist_old_item = co.execute(
+                                        'SELECT gid FROM eh_data WHERE gid = ? AND current_gid != ? AND current_token != ?',
+                                        (parent_gid, base_data[10], base_data[11])).fetchone()
                                     if exist_old_item:
-                                        co.execute('UPDATE eh_data SET current_gid = ?, current_token = ? WHERE gid = ? ', (base_data[10], base_data[11], parent_gid))
+                                        co.execute(
+                                            'UPDATE eh_data SET current_gid = ?, current_token = ? WHERE gid = ? ',
+                                            (base_data[10], base_data[11], parent_gid))
                                         co.commit()
                                         fsdel_count += 1
 
@@ -403,7 +423,8 @@ class AddFavData(Config):
                             # 插入/更新数据
                             with sqlite3.connect(self.dbs_name) as co:
                                 for data in format_data:
-                                    exist_data = co.execute('SELECT gid FROM eh_data WHERE gid = ?', (data[12],)).fetchone()
+                                    exist_data = co.execute('SELECT gid FROM eh_data WHERE gid = ?',
+                                                            (data[12],)).fetchone()
                                     if exist_data:
                                         update_sql = '''
                                             UPDATE eh_data SET
@@ -431,20 +452,26 @@ class AddFavData(Config):
                                     tags = ast.literal_eval(data[13])
                                     try:
                                         for tag in tags:
-                                            result = co.execute('SELECT tid FROM tag_list WHERE tag = ?', (tag,)).fetchone()
+                                            result = co.execute('SELECT tid FROM tag_list WHERE tag = ?',
+                                                                (tag,)).fetchone()
                                             if result:
                                                 tid = result[0]
                                             else:
                                                 co.execute('INSERT INTO tag_list (tag) VALUES (?)', (tag,))
-                                                tid = co.execute('SELECT tid FROM tag_list WHERE tag = ?', (tag,)).fetchone()[0]
-                                            co.execute('''INSERT OR IGNORE INTO gid_tid (gid, tid) VALUES (?, ?)''', (gid, tid))
+                                                tid = \
+                                                    co.execute('SELECT tid FROM tag_list WHERE tag = ?',
+                                                               (tag,)).fetchone()[
+                                                        0]
+                                            co.execute('''INSERT OR IGNORE INTO gid_tid (gid, tid) VALUES (?, ?)''',
+                                                       (gid, tid))
                                         co.commit()
                                     except Exception as e:
                                         print(f"Error processing tags: {e}")
 
                         # 递归查询上一级画廊检测旧数据
                         if parent_gid_tokens:
-                            parent_chunks = [parent_gid_tokens[i:i + piece] for i in range(0, len(parent_gid_tokens), piece)]
+                            parent_chunks = [parent_gid_tokens[i:i + piece] for i in
+                                             range(0, len(parent_gid_tokens), piece)]
                             for chunk in parent_chunks:
                                 new_depth = current_depth + 1
                                 # 递归深度限制
@@ -467,7 +494,8 @@ class AddFavData(Config):
             co.commit()
             total_count = co.execute('SELECT COUNT(*) FROM fav_category').fetchone()[0]
             del_count = co.execute('SELECT COUNT(*) FROM fav_category WHERE del_flag = 1').fetchone()[0]
-        logger.info(f'User Favorite Details:\nfsnewf_count:{fsnewf_count}, fsnewp_count:{fsnewp_count}, fsdel_count:{fsdel_count}\nA Total Of: {total_count}its , Deleted: {del_count}its')
+        logger.info(
+            f'User Favorite Details:\nfsnewf_count:{fsnewf_count}, fsnewp_count:{fsnewp_count}, fsdel_count:{fsdel_count}\nA Total Of: {total_count}its , Deleted: {del_count}its')
 
         return await self.clear_del_flag()
 
@@ -479,25 +507,31 @@ class AddFavData(Config):
 
     async def add_tags_data(self, get_all=False):
         """
-        默认get_all=False只更新标题为空或NULL的TAG
-        The default behavior `get_all=False` only updates TAGs where the title is empty or NULL.
-
-        以 `eh_data` 表为准, 更新字段数据及其tag( `gid_tid` & `tag_list` )
-        Based on the `eh_data` table, update the field data and its tags (`gid_tid` and `tag_list`).
+        通过 gallery_time_updates 表判断是否需要更新TAGS
         """
         logger.info(f'Get EH tags...')
         if not get_all:
             with sqlite3.connect(self.dbs_name) as co:
-                gid_token = co.execute(
-                    '''
-                    SELECT gid, token 
-                    FROM eh_data 
-                    WHERE title = "" OR title IS NULL
-                    '''
-                ).fetchall()
+                gid_token = co.execute('''
+                    SELECT
+                        eh.gid,
+                        eh.token 
+                    FROM
+                        eh_data AS eh
+                        JOIN gallery_time_updates AS gtu ON eh.gid = gtu.gid 
+                    WHERE
+                        gtu.current_update != gtu.previous_update
+                    ''').fetchall()
         else:
             with sqlite3.connect(self.dbs_name) as co:
-                gid_token = co.execute('''SELECT gid,token FROM eh_data''').fetchall()
+                gid_token = co.execute('''
+                    SELECT
+                        eh.gid,
+                        eh.token 
+                    FROM
+                        eh_data AS eh
+                        JOIN gallery_time_updates AS gtu ON eh.gid = gtu.gid 
+                ''').fetchall()
 
         total = len(gid_token)
         # 每次请求 25 个数据
@@ -590,6 +624,8 @@ class AddFavData(Config):
                                 co.execute('''INSERT INTO tag_list (tag) VALUES (?)''', (tag,))
                                 tid = co.execute('''SELECT tid FROM tag_list WHERE tag =?''', (tag,)).fetchone()[0]
                             co.execute('''INSERT OR IGNORE INTO gid_tid (gid, tid) VALUES (?, ?)''', (gid, tid))
+                        # 同步标志 / Synchronization flag
+                        co.execute('''UPDATE gallery_time_updates SET previous_update = current_update''')
                     co.commit()
                     progress_bar.update(piece)
 
