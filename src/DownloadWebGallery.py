@@ -1,6 +1,5 @@
 import asyncio
 
-from PIL import Image
 from bs4 import BeautifulSoup
 from tqdm.asyncio import tqdm_asyncio
 
@@ -69,17 +68,21 @@ class DownloadWebGallery(Config):
                     if dl_status == "reload_image":
                         logger.info(F"Reload Image. Retrying... {reload_count} / 6 ")
                 elif dl_status is True:
-                    if file_extension.lower() == ".webp":
-                        try:
-                            webp_image = Image.open(file_path)
-                            webp_image.verify()
-                            rgb_image = webp_image.convert('RGB')
-                            jpg_file_path = os.path.splitext(file_path)[0] + '.jpg'
-                            rgb_image.save(jpg_file_path, 'JPEG')
-                            os.remove(file_path)
-                            return True
-                        except Exception as e:
-                            logger.error(f"Failed to process image: {file_path}. Error: {e}")
+                    return True
+                    # if file_extension.lower() == ".webp":
+                    #     try:
+                    #         webp_image = Image.open(file_path)
+                    #         webp_image.verify()
+                    #         rgb_image = webp_image.convert('RGB')
+                    #         jpg_file_path = os.path.splitext(file_path)[0] + '.jpg'
+                    #         rgb_image.save(jpg_file_path, 'JPEG')
+                    #         os.remove(file_path)
+                    #         return True
+                    #     except Exception as e:
+                    #         logger.error(f"Failed to process image: {file_path}. Error: {e}")
+                    # else:
+                    #     # 补充非 webp 图片的处理
+                    #     return True
             return False
 
     async def get_image_url(self):

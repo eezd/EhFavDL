@@ -225,4 +225,4 @@ def xml_escape(title):
 
 
 def windows_escape(title):
-    return re.sub(r'''[\\/:*?"<>|]''', '', title)
+    return re.sub(r'''[\\/:*?"<>|\t]''', '', title)

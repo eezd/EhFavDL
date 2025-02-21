@@ -7,7 +7,9 @@ from src import *
 logger.add(f'./log/{datetime.today().date()}.log', rotation='10 MB')
 
 parser = argparse.ArgumentParser(description="Process some arguments.")
-parser.add_argument('-w', action='store_true', help="Listen to EH Fav and fetch data every 30 minutes.")
+parser.add_argument('-w', action='store_true', help="Listen to EH Fav and fetch data every 60 minutes with default watcher 1.")
+parser.add_argument('-w1', action='store_true', help="Listen to EH Fav and fetch data every 60 minutes with watcher 1.")
+parser.add_argument('-w2', action='store_true', help="Listen to EH Fav and fetch data every 60 minutes with watcher 2.")
 args = parser.parse_args()
 
 
@@ -15,7 +17,11 @@ async def main():
     Config().create_database()
 
     if args.w:
-        await Watch().apply()
+        await Watch().apply(1)
+    elif args.w1:
+        await Watch().apply(1)
+    elif args.w2:
+        await Watch().apply(2)
 
     while True:
         image_limits, total_limits = await Config().get_image_limits()

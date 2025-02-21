@@ -35,7 +35,7 @@ class Watch(Config):
         dl_list = []
         failed_gid_list = ""
         if fav_cat != "":
-            dl_list = get_web_gallery_download_list(fav_cat=self.watch_fav_ids)
+            dl_list = get_web_gallery_download_list(fav_cat=self.watch_download_fav_ids)
         if gids != "":
             dl_list = get_web_gallery_download_list(gids=gids)
         if not dl_list:
@@ -65,42 +65,97 @@ class Watch(Config):
             return await self.dl_new_gallery(gids=failed_gid_list)
         return True
 
-    async def apply(self):
-        while True:
-            image_limits, total_limits = await self.get_image_limits()
-            logger.info(f"Image Limits: {image_limits} / {total_limits}")
-            self.watch_move_data_path()
-            Checker().check_gid_in_local_cbz()
-            Checker().sync_local_to_sqlite_cbz(cover=True)
+    async def apply(self, method=1):
+        if method == 1:
+            dl_method = input("Download new galleries automatically?(y/n)").strip().lower()
+            if dl_method == 'y':
+                dl_method = True
+            else:
+                dl_method = False
 
-            # 更新 tags 信息, 用于判断是否存在新画廊
-            # Update tags information to determine if a new gallery exists.
-            add_fav_data = AddFavData()
-            await add_fav_data.add_tags_data(True)
+            while True:
+                image_limits, total_limits = await self.get_image_limits()
+                logger.info(f"Image Limits: {image_limits} / {total_limits}")
+                if dl_method:
+                    self.watch_move_data_path()
+                    Checker().check_gid_in_local_cbz()
+                    Checker().sync_local_to_sqlite_cbz(cover=True)
 
-            # 清理旧画廊并下载新画廊 / Clean up old galleries and download new galleries.
-            update_list = await add_fav_data.apply()
-            # update_list = await add_fav_data.clear_del_flag()
-            gids = [item[0] for item in update_list]
-            clear_old_file(move_list=gids)
-            current_gids = [item[2] for item in update_list]
-            await self.dl_new_gallery(gids=str(current_gids).replace("[", "").replace("]", ""),
-                                      archive_status=self.watch_archive_status)
-            self.watch_move_data_path()
-            await add_fav_data.clear_del_flag()
+                # 更新 tags 信息, 用于判断是否存在新画廊
+                # Update tags information to determine if a new gallery exists.
+                add_fav_data = AddFavData()
+                await add_fav_data.add_tags_data(True)
 
-            await self.dl_new_gallery(fav_cat=self.watch_fav_ids, archive_status=self.watch_archive_status)
-            self.watch_move_data_path()
-            if self.watch_lan_status:
-                await LANraragi(watch_status=True).lan_update_tags()
+                # 清理旧画廊并下载新画廊 / Clean up old galleries and download new galleries.
+                update_list = await add_fav_data.apply()
+                # update_list = await add_fav_data.clear_del_flag()
+                if dl_method:
+                    gids = [item[0] for item in update_list]
+                    clear_old_file(move_list=gids)
+                    current_gids = [item[2] for item in update_list]
+                    await self.dl_new_gallery(gids=str(current_gids).replace("[", "").replace("]", ""),
+                                            archive_status=self.watch_archive_status)
+                    self.watch_move_data_path()
+                    await add_fav_data.clear_del_flag()
 
-            if self.tags_translation:
-                await add_fav_data.translate_tags()
+                    await self.dl_new_gallery(fav_cat=self.watch_download_fav_ids, archive_status=self.watch_archive_status)
+                    self.watch_move_data_path()
+                    if self.watch_lan_status:
+                        await LANraragi(watch_status=True).lan_update_tags()
 
-            sleep_time = 60 * 60
-            logger.info(f"Done! Wait {sleep_time} s")
-            # 1小时后重新检查 / Recheck in 1 hour
-            await asyncio.sleep(sleep_time)
+                if self.tags_translation:
+                    await add_fav_data.translate_tags()
+
+                sleep_time = 60 * 60
+                logger.info(f"Done! Wait {sleep_time} s")
+                # 1小时后重新检查 / Recheck in 1 hour
+                await asyncio.sleep(sleep_time)
+        elif method == 2:
+            dl_method = input("Download new galleries automatically?(y/n)").strip().lower()
+            if dl_method == 'y':
+                dl_method = True
+            else:
+                dl_method = False
+            while True:
+                image_limits, total_limits = await self.get_image_limits()
+                logger.info(f"Image Limits: {image_limits} / {total_limits}")
+                update_list = []
+                if dl_method:
+                    self.watch_move_data_path()
+                    Checker().check_gid_in_local_cbz()
+                    Checker().sync_local_to_sqlite_cbz(cover=True)
+
+                add_fav_data = AddFavData()
+                if self.watch_fav_ids:
+                    for fav_id in self.watch_fav_ids:
+                        new_update_list = await add_fav_data.watch_fav_data(fav_id=fav_id)
+                        update_list.append(new_update_list)
+                else:
+                    new_update_list = await add_fav_data.watch_fav_data()
+                    update_list.append(new_update_list)
+
+                if dl_method:
+                    gids = [item[0] for item in update_list]
+                    clear_old_file(move_list=gids)
+                    current_gids = [item[2] for item in update_list]
+                    await self.dl_new_gallery(gids=str(current_gids).replace("[", "").replace("]", ""),
+                                            archive_status=self.watch_archive_status)
+                    self.watch_move_data_path()
+                    await add_fav_data.clear_del_flag()
+
+                    if self.watch_download_fav_ids:
+                        await self.dl_new_gallery(fav_cat=self.watch_download_fav_ids, archive_status=self.watch_archive_status)
+                        self.watch_move_data_path()
+                    if self.watch_lan_status:
+                        await LANraragi(watch_status=True).lan_update_tags()
+
+                if self.tags_translation:
+                    await add_fav_data.translate_tags()
+
+                sleep_time = 60 * 60
+                logger.info(f"Done! Wait {sleep_time} s")
+                # 1小时后重新检查 / Recheck in 1 hour
+                await asyncio.sleep(sleep_time)
 
 
 def unzip_data_path(data_path):
