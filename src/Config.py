@@ -81,8 +81,7 @@ class Config:
 
                 # Watch
                 watch_fav_ids = str(config['watch_fav_ids']) if config['watch_fav_ids'] else None
-                watch_download_fav_ids = str(config['watch_download_fav_ids']) if config[
-                    'watch_download_fav_ids'] else None
+                watch_download_fav_ids = str(config['watch_download_fav_ids']) if config['watch_download_fav_ids'] else None
                 self.watch_fav_ids = watch_fav_ids
                 self.watch_download_fav_ids = watch_download_fav_ids
                 watch_lan_status = bool(config['watch_lan_status'])
@@ -124,8 +123,7 @@ class Config:
                         # 此处似乎需要先访问一次获取完整 Cookies的sk值，否则无法固定设置配置项
                         # Task:可以通过将sk值填入yaml配置以避免此重复，但是sk其有效期是否足够长呢，其值是否需要频繁更新呢
                         if not self.eh_cookies['sk']:
-                            async with session.get(url,
-                                                   proxy=self.proxy_url if self.proxy_status else None) as response:
+                            async with session.get(url, proxy=self.proxy_url if self.proxy_status else None) as response:
                                 await self.check_fetch_err(response, url)
                             # 考虑到上面存在的一次重复请求，添加一个延迟以降低请求频率
                             await asyncio.sleep(1)
@@ -141,8 +139,7 @@ class Config:
                                 temp_file_path = os.path.dirname(tqdm_file_path) + "/temp_" + os.path.basename(
                                     tqdm_file_path)
                                 with open(temp_file_path, 'wb') as f:
-                                    with tqdm_asyncio(total=total_size, unit='B', unit_scale=True,
-                                                      desc=desc_name) as pbar:
+                                    with tqdm_asyncio(total=total_size, unit='B', unit_scale=True, desc=desc_name) as pbar:
                                         # bytes_written = 0
                                         async for chunk in response.content.iter_chunked(1024):
                                             f.write(chunk)
@@ -189,8 +186,7 @@ class Config:
                     logger.warning(
                         f"Failed to retrieve data. Retrying in {retry_delay} seconds, {retry_attempts - 1} attempts remaining. {url}")
                     await asyncio.sleep(retry_delay)
-                    return await self.fetch_data(url=url, json=json, data=data, tqdm_file_path=tqdm_file_path,
-                                                 retry_delay=retry_delay, retry_attempts=2)
+                    return await self.fetch_data(url=url, json=json, data=data, tqdm_file_path=tqdm_file_path, retry_delay=retry_delay, retry_attempts=2)
 
     async def fetch_data_stream(self, url, file_path, stream_range=0, retry_delay=10, retry_attempts=10):
         try:
@@ -335,13 +331,6 @@ class Config:
                 CREATE TABLE IF NOT EXISTS watch_record (
                     "id" INTEGER PRIMARY KEY NOT NULL,
                     "last_check_time" TEXT
-                )
-            ''')
-            co.execute('''
-                CREATE TABLE IF NOT EXISTS gallery_time_updates (
-                    "gid" INTEGER PRIMARY KEY NOT NULL,
-                    "previous_update" TEXT DEFAULT "",
-                    "current_update" TEXT DEFAULT ""
                 )
             ''')
 
