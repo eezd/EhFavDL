@@ -13,6 +13,16 @@ Download favorites from E-Hentai / Exhentai, written in Python 3.11, with suppor
 
 [文档](docs.md)/[Docs English](docs-en.md)
 
+> The current **main** branch is a test version. For a stable release, please
+> use [v1.3.3](https://github.com/eezd/EhFavDL/releases/tag/v1.3.3).
+>
+> The main features have been tested and are basically fine, but more in-depth code testing and a **code review** have
+> not yet been conducted.
+>
+> Special thanks to [@bf179](https://github.com/bf179) for the inspiration.
+>
+> ~~Let's leave it like this for now, too lazy to create a Pre-Release.~~
+
 ## 📌 TODO
 
 - [x]  Support for `Sqlite` storage
@@ -33,7 +43,7 @@ Download favorites from E-Hentai / Exhentai, written in Python 3.11, with suppor
 pip install -r requirements.txt
 ```
 
-2. Configure `config.yaml`
+2. Configure`config.yaml`
 
 ```yaml
 # 缺少 sk 和 hath_perks 会导致无法获取正确的 IP 配额
@@ -72,8 +82,10 @@ lan_url: http://127.0.0.1:22299
 # Setting >>> Security >>> API Key
 lan_api_psw: jskada
 
-# python main.py -w
-watch_fav_ids: 3,4
+# python main.py -w1 / w2
+# watch_fav_ids: 3,4
+watch_fav_ids:
+
 # False / True
 watch_lan_status: False
 # False / True
@@ -90,7 +102,7 @@ python main.py
 python main.py -w
 ```
 
-- Best Practice: You can now use EH favorites to categorize galleries `>=1.1.2`
+- Best Practice: You can now use EH favorites to categorize galleries`>=1.1.2`
 
 ![lan-fav](/img/lan-fav.png)
 

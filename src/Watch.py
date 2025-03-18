@@ -1,6 +1,6 @@
 import asyncio
 
-from src import Checker, DownloadWebGallery, AddFavData, DownloadArchiveGallery, LANraragi
+from src import DownloadWebGallery, AddFavData, DownloadArchiveGallery, LANraragi
 from src.Utils import *
 
 
@@ -65,25 +65,47 @@ class Watch(Config):
             return await self.dl_new_gallery(gids=failed_gid_list)
         return True
 
-    async def apply(self):
+    async def apply(self, method=1):
         while True:
             image_limits, total_limits = await self.get_image_limits()
             logger.info(f"Image Limits: {image_limits} / {total_limits}")
-            self.watch_move_data_path()
-            Checker().check_gid_in_local_cbz()
-            Checker().sync_local_to_sqlite_cbz(cover=True)
+            # self.watch_move_data_path()
+            # Checker().check_gid_in_local_cbz()
+            # Checker().sync_local_to_sqlite_cbz(cover=True)
 
             # 更新 tags 信息, 用于判断是否存在新画廊
             # Update tags information to determine if a new gallery exists.
             add_fav_data = AddFavData()
-            await add_fav_data.add_tags_data(True)
+            await add_fav_data.update_category()
+            if method == 1:
+                await add_fav_data.post_fav_data()
+                # await add_fav_data.update_meta_data(True)
+            elif method == 2:
+                await add_fav_data.post_fav_data(url_params="?f_search=&inline_set=fs_p", get_all=False)
+                await add_fav_data.update_meta_data()
 
-            # 清理旧画廊并下载新画廊 / Clean up old galleries and download new galleries.
-            update_list = await add_fav_data.apply()
-            # update_list = await add_fav_data.clear_del_flag()
-            gids = [item[0] for item in update_list]
+            update_list = await add_fav_data.clear_del_flag()
+            fav_update_list = []
+            # watch_fav_ids
+            with sqlite3.connect(self.dbs_name) as co:
+                if self.watch_fav_ids is not None:
+                    query = "SELECT gid FROM fav_category WHERE fav_id IN ({})".format(
+                        ",".join("?" * len(self.watch_fav_ids.split(",")))
+                    )
+                    params = self.watch_fav_ids.split(",")
+                else:
+                    query = "SELECT gid FROM fav_category WHERE fav_id IN (0,1,2,3,4,5,6,7,8,9)"
+                    params = []
+                total_gids = co.execute(query, params).fetchall()
+                if total_gids is not None:
+                    total_gids = {gid[0] for gid in total_gids}
+                    for item in update_list:
+                        if item[0] in total_gids:
+                            fav_update_list.append(item)
+
+            gids = [item[0] for item in fav_update_list]
             clear_old_file(move_list=gids)
-            current_gids = [item[2] for item in update_list]
+            current_gids = [item[2] for item in fav_update_list]
             await self.dl_new_gallery(gids=str(current_gids).replace("[", "").replace("]", ""),
                                       archive_status=self.watch_archive_status)
             self.watch_move_data_path()
