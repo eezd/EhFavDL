@@ -7,7 +7,8 @@ from src import *
 logger.add(f'./log/{datetime.today().date()}.log', rotation='10 MB')
 
 parser = argparse.ArgumentParser(description="Process some arguments.")
-parser.add_argument('-w', action='store_true', help="Listen to EH Fav and fetch data every 60 minutes with default watcher 1.")
+parser.add_argument('-w', action='store_true',
+                    help="Listen to EH Fav and fetch data every 60 minutes with default watcher 1.")
 parser.add_argument('-w1', action='store_true', help="Listen to EH Fav and fetch data every 60 minutes with watcher 1.")
 parser.add_argument('-w2', action='store_true', help="Listen to EH Fav and fetch data every 60 minutes with watcher 2.")
 args = parser.parse_args()
@@ -28,7 +29,7 @@ async def main():
         logger.info(f"Image Limits: {image_limits} / {total_limits}")
         time.sleep(1)
         print("\n1. Update User Fav Info")
-        print("2. Update Gallery Metadata (Update Tags)")
+        print("2. Update Gallery Metadata")
         print("3. Download Web Gallery")
         print("4. Download Web Gallery (News Gallery)")
         print("5. Download Archive Gallery")
@@ -53,7 +54,7 @@ async def main():
             await add_fav_data.apply()
         elif num == 2:
             await add_fav_data.update_category()
-            await add_fav_data.add_tags_data(True)
+            await add_fav_data.update_meta_data(True)
         elif num == 3:
             fav_cat = str(input("请输入你需要下载的收藏夹ID(0-9)\nPlease enter the collection you want to download.:"))
             dl_list = get_web_gallery_download_list(fav_cat=fav_cat)
@@ -162,5 +163,37 @@ async def main():
                     break
 
 
+# async def test():
+#     Config().create_database()
+#     await AddFavData().update_category()
+#     post_data = await AddFavData().post_eh_api({
+#         "method": "gdata",
+#         "gidlist": [
+#             [3252864, "e5da96be2c"],
+#         ],
+#         "namespace": 1
+#     })
+#     print(post_data)
+#     AddFavData().wirte_fav_data(post_data)
+#     url = f'https://{self.base_url}/favorites.php'
+#     hx_res = await Config().fetch_data(url)
+#     hx_res_bs = BeautifulSoup(hx_res, 'html.parser')
+#     search_data = AddFavData().format_fav_page_info(hx_res_bs)
+#     print(search_data)
+#     await AddFavData().post_fav_data(get_all=False, url_params="?f_search=&inline_set=fs_p")
+
+# asyncio.run(
+#     AddFavData().translate_tags()
+# )
+# sys.exit(1)
 if __name__ == "__main__":
     asyncio.run(main())
+    # with open("response_data.json", "w", encoding="utf-8") as json_file:
+    #     json.dump(asyncio.run(AddFavData().post_eh_api({
+    #         "method": "gdata",
+    #         "gidlist": [
+    #             [3235245, "ebb2b1254a"]
+    #         ],
+    #         "namespace": 1
+    #     })), json_file, ensure_ascii=False, indent=4)
+    # asyncio.run(test())

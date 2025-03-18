@@ -13,6 +13,14 @@ E-Hentai / Exhentai 下载收藏夹，基于 Python3.11 编写，支持 LANrarag
 
 [文档](docs.md)/[Docs English](docs-en.md)
 
+> 当前 main 分支暂为测试版, 稳定版请使用 [v1.3.3](https://github.com/eezd/EhFavDL/releases/tag/v1.3.3)
+>
+> 主要功能已测试完，基本没问题，但还未进行更深入的代码测试及code review。
+>
+> 感谢 [@bf179](https://github.com/bf179) 提供思路
+>
+> ~~就先这样吧, 懒得开 Pre-Releases~~
+
 ## 📌 TODO
 
 - [x] 支持 `Sqlite` 存储
@@ -72,12 +80,10 @@ lan_url: http://127.0.0.1:22299
 # Setting >>> Security >>> API Key
 lan_api_psw: jskada
 
-# python main.py -w2
+# python main.py -w1 / w2
 # watch_fav_ids: 3,4
 watch_fav_ids:
-# python main.py -w1 和 -w2
-# watch_download_fav_ids: 3,4
-watch_download_fav_ids: # 为空表示全部下载
+
 # False / True
 watch_lan_status: False
 # False / True
