@@ -84,8 +84,8 @@ class Config:
                 self.watch_fav_ids = watch_fav_ids
                 watch_lan_status = bool(config['watch_lan_status'])
                 self.watch_lan_status = watch_lan_status
-                watch_archive_status = bool(config['watch_archive_status'])
-                self.watch_archive_status = watch_archive_status
+                # watch_archive_status = bool(config['watch_archive_status'])
+                # self.watch_archive_status = watch_archive_status
 
         except FileNotFoundError as e:
             logger.error('File config.yaml not found')

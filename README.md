@@ -13,21 +13,12 @@ E-Hentai / Exhentai 下载收藏夹，基于 Python3.11 编写，支持 LANrarag
 
 [文档](docs.md)/[Docs English](docs-en.md)
 
-> 当前 main 分支暂为测试版, 稳定版请使用 [v1.3.3](https://github.com/eezd/EhFavDL/releases/tag/v1.3.3)
->
-> 主要功能已测试完，基本没问题，但还未进行更深入的代码测试及code review。
->
-> 感谢 [@bf179](https://github.com/bf179) 提供思路
->
-> ~~就先这样吧, 懒得开 Pre-Releases~~
-
 ## 📌 TODO
 
 - [x] 支持 `Sqlite` 存储
 - [x] 支持 `.cbz` 存储
-- [x] 监听自动下载并更新画廊
+- [x] 支持更新已下载的画廊
 - [x] 通过Web下载(支持重新下载)
-- [x] 通过Archive下载原图或1280x(支持断点续传)
 - [x] 支持中文Tag(需设置config.yaml---tags_translation)
 - [x] 生成 `ComicInfo.xml` (支持 Komga/LANraragi)
 - [x] 支持 `LANraragi Api` 自动更新META数据
@@ -56,7 +47,6 @@ cookies:
 User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36
 
 proxy:
-  # False / True
   enable: True
   url: http://127.0.0.1:7890
 
@@ -70,8 +60,8 @@ website: exhentai.org
 # Only DownloadWebGallery
 connect_limit: 3
 
-# 是否启用标签翻译(适用于 5. Create ComicInfo.xml & 8. Update LANraragi Tags)
-# Would you like to enable tag translation (applicable to 5. Create ComicInfo.xml & 8. Update LANraragi Tags)?
+# 是否启用标签翻译
+# Would you like to enable tag translation
 # False / True
 tags_translation: False
 
@@ -81,13 +71,10 @@ lan_url: http://127.0.0.1:22299
 lan_api_psw: jskada
 
 # python main.py -w1 / w2
-# watch_fav_ids: 3,4
-watch_fav_ids:
+watch_fav_ids: 0,1,2,3,4,5,6,7,8,9
 
 # False / True
 watch_lan_status: False
-# False / True
-watch_archive_status: False
 ```
 
 3. Run
@@ -98,6 +85,10 @@ python main.py
 # or
 
 python main.py -w
+# or
+python main.py -w1
+# or
+python main.py -w2
 ```
 
 - 最佳用法: 现在可以使用 eh 的收藏夹来分类画廊了 `>=1.1.2`

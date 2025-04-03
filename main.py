@@ -32,16 +32,14 @@ async def main():
         print("2. Update Gallery Metadata")
         print("3. Download Web Gallery")
         print("4. Download Web Gallery (News Gallery)")
-        print("5. Download Archive Gallery")
-        print("6. Download Archive Gallery (News Gallery)")
-        print("7. Update Tags Translation")
-        print("8. Create ComicInfo.xml(only-folder)")
-        print("9. Update ComicInfo.xml(folder&.cbz)")
-        print("10. Directory To CBZ File")
-        print("11. Rename CBZ File (Compatible with LANraragi)")
-        print("12. Rename Gid-Name")
-        print("13. Update LANraragi Tags")
-        print("14. Options (Checker)...")
+        print("5. Update Tags Translation")
+        print("6. Create ComicInfo.xml(only-folder)")
+        print("7. Update ComicInfo.xml(folder&.cbz)")
+        print("8. Directory To CBZ File")
+        print("9. Rename CBZ File (Compatible with LANraragi)")
+        print("10. Rename Gid-Name")
+        print("11. Update LANraragi Tags")
+        print("12. Options (Checker)...")
 
         num = input("Select Number:")
         num = int(num) if num else None
@@ -80,57 +78,57 @@ async def main():
                 else:
                     logger.warning("Download failed, retry in 120 seconds")
                     await asyncio.sleep(120)
+        # elif num == 5:
+        #     await DownloadArchiveGallery().apply()
+        # elif num == 6:
+        #     update_list = await add_fav_data.clear_del_flag()
+        #     gids = [item[0] for item in update_list]
+        #     current_gids = [item[2] for item in update_list]
+        #     clear_old_file(move_list=gids)
+        #     while True:
+        #         dl_list_status = await Watch().dl_new_gallery(gids=str(current_gids).replace("[", "").replace("]", ""),
+        #                                                       archive_status=True)
+        #         if dl_list_status:
+        #             break
+        #         else:
+        #             logger.warning("Download failed, retry in 120 seconds")
+        #             await asyncio.sleep(120)
         elif num == 5:
-            await DownloadArchiveGallery().apply()
-        elif num == 6:
-            update_list = await add_fav_data.clear_del_flag()
-            gids = [item[0] for item in update_list]
-            current_gids = [item[2] for item in update_list]
-            clear_old_file(move_list=gids)
-            while True:
-                dl_list_status = await Watch().dl_new_gallery(gids=str(current_gids).replace("[", "").replace("]", ""),
-                                                              archive_status=True)
-                if dl_list_status:
-                    break
-                else:
-                    logger.warning("Download failed, retry in 120 seconds")
-                    await asyncio.sleep(120)
-        elif num == 7:
             if Config().tags_translation:
                 await add_fav_data.translate_tags()
-        elif num == 8:
+        elif num == 6:
             folder = input(f"Please enter the file directory.\n")
             if folder == "":
                 print("Cancel")
                 sys.exit(1)
             ComicInfo().update_meta_info(target_path=folder, only_folder=True)
-        elif num == 9:
+        elif num == 7:
             folder = input(f"Please enter the file directory.\n")
             if folder == "":
                 print("Cancel")
                 sys.exit(1)
             ComicInfo().update_meta_info(target_path=folder)
-        elif num == 10:
+        elif num == 8:
             folder = input(f"Please enter the file directory.\n")
             if folder == "":
                 print("Cancel")
                 sys.exit(1)
             directory_to_cbz(target_path=folder)
-        elif num == 11:
+        elif num == 9:
             folder = input(f"Please enter the file directory.\n")
             if folder == "":
                 print("Cancel")
                 sys.exit(1)
             rename_cbz_file(target_path=folder)
-        elif num == 12:
+        elif num == 10:
             folder = input(f"Please enter the file directory.\n")
             if folder == "":
                 print("Cancel")
                 sys.exit(1)
             rename_gid_name(target_path=folder)
-        elif num == 13:
+        elif num == 11:
             await LANraragi().lan_update_tags()
-        elif num == 14:
+        elif num == 12:
             while True:
                 print("0. Return")
                 print("1. Checker().check_gid_in_local_cbz()")
@@ -188,12 +186,12 @@ async def main():
 # sys.exit(1)
 if __name__ == "__main__":
     asyncio.run(main())
-    # with open("response_data.json", "w", encoding="utf-8") as json_file:
-    #     json.dump(asyncio.run(AddFavData().post_eh_api({
-    #         "method": "gdata",
-    #         "gidlist": [
-    #             [3235245, "ebb2b1254a"]
-    #         ],
-    #         "namespace": 1
-    #     })), json_file, ensure_ascii=False, indent=4)
-    # asyncio.run(test())
+# with open("response_data.json", "w", encoding="utf-8") as json_file:
+#     json.dump(asyncio.run(AddFavData().post_eh_api({
+#         "method": "gdata",
+#         "gidlist": [
+#             [3235245, "ebb2b1254a"]
+#         ],
+#         "namespace": 1
+#     })), json_file, ensure_ascii=False, indent=4)
+# asyncio.run(test())

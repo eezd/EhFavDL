@@ -79,7 +79,7 @@ class Watch(Config):
             await add_fav_data.update_category()
             if method == 1:
                 await add_fav_data.post_fav_data()
-                # await add_fav_data.update_meta_data(True)
+                await add_fav_data.update_meta_data(True)
             elif method == 2:
                 await add_fav_data.post_fav_data(url_params="?f_search=&inline_set=fs_p", get_all=False)
                 await add_fav_data.update_meta_data()
@@ -106,12 +106,11 @@ class Watch(Config):
             gids = [item[0] for item in fav_update_list]
             clear_old_file(move_list=gids)
             current_gids = [item[2] for item in fav_update_list]
-            await self.dl_new_gallery(gids=str(current_gids).replace("[", "").replace("]", ""),
-                                      archive_status=self.watch_archive_status)
+            await self.dl_new_gallery(gids=str(current_gids).replace("[", "").replace("]", ""))
             self.watch_move_data_path()
             await add_fav_data.clear_del_flag()
 
-            await self.dl_new_gallery(fav_cat=self.watch_fav_ids, archive_status=self.watch_archive_status)
+            await self.dl_new_gallery(fav_cat=self.watch_fav_ids)
             self.watch_move_data_path()
             if self.watch_lan_status:
                 await LANraragi(watch_status=True).lan_update_tags()

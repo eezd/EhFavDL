@@ -399,6 +399,7 @@ class AddFavData(Config):
     async def post_fav_data(self, url_params="?f_search=&inline_set=fs_f", get_all=True):
         """
         url_params: 默认按照收藏时间排序
+        ?f_search=&inline_set=fs_p / ?f_search=&inline_set=fs_f
 
         get_all=True: 获取所有数据
         get_all=False: 只获取新画廊(按收藏时间排序与更新时间)
@@ -418,7 +419,6 @@ class AddFavData(Config):
                 co.execute('UPDATE fav_category SET del_flag = 1')
                 co.commit()
 
-        # 根据收藏时间, 逐步获取收藏夹数据
         while True:
             if next_gid is None:
                 break
@@ -460,6 +460,11 @@ class AddFavData(Config):
                 with sqlite3.connect(self.dbs_name) as co:
                     query = f"SELECT COUNT(*) FROM eh_data WHERE gid IN ({','.join(['?'] * len(gid_list))})"
                     count = co.execute(query, gid_list).fetchone()[0]
+                if count == 0:
+                    logger.error("因当前页面所有画廊均为新画廊，无法进行更新。")
+                    logger.error("The current page has all new galleries, unable to update.")
+                    logger.error("Please run 2. Update Gallery Metadata >>> 1. Update User Fav Info")
+                    sys.exit(1)
                 # 当前没有新画廊时，跳出循环
                 if count == len(gid_list):
                     break
@@ -600,6 +605,6 @@ class AddFavData(Config):
 
         await self.post_fav_data()
 
-        # await self.update_meta_data()
+        await self.update_meta_data()
 
         return await self.clear_del_flag()

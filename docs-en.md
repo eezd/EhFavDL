@@ -1,144 +1,79 @@
 ## EH Gallery Update Strategy
 
-If you have added a gallery with `gid=123` to your collection, and that gallery gets updated on a certain day, the new gallery will have a different `gid`.
+If you have added a gallery with `gid=123` to your collection, and that gallery gets updated on a certain day, the new
+gallery will have a different `gid`.
 
-This creates a new issue: in this project, your old gallery and the updated gallery will coexist, as there is no way to determine their relationship.
+This creates a new issue: in this project, your old gallery and the updated gallery will coexist, as there is no way to
+determine their relationship.
 
 **Q: How can this be resolved?**  
-**A:** You can run `2. Update Gallery Metadata (Update Tags)`. This will update the `current_gid` and `current_token` of the old gallery to match the new gallery.
+**A:** You can run `2. Update Gallery Metadata (Update Tags)`. This will update the `current_gid` and `current_token` of
+the old gallery to match the new gallery.
 
 **Q: What should I do if a downloaded gallery has been updated?**  
-**A:** First, run `2. Update Gallery Metadata (Update Tags)`, and then download the updated gallery using `4. Download Web Gallery (News Gallery)` or `6. Download Archive Gallery (News Gallery)`.
+**A:** First, run `2. Update Gallery Metadata (Update Tags)`, and then download the updated gallery
+using `4. Download Web Gallery (News Gallery)` or `6. Download Archive Gallery (News Gallery)`.
 
 ## Docs
 
-This project can be run in two modes: Default Mode and Watch Mode.
-
-### config.yaml
-
-- `connect_limit`: It's recommended not to exceed 3, as a higher limit may lead to IP bans.
-- `watch`
-  - `watch_fav_ids`: In watch mode, the favorite IDs that need to be downloaded.
-  - `watch_lan_status`: In watch mode, whether to update `LANraragi` metadata.
-  - `watch_archive_status`: In watch mode, whether to download in `archive` mode.
+This project runs in two modes: Default Mode and Watch Mode.
 
 ### Watch Mode
 
-```sh
-$ python main.py -w
+- `python main.py -w1`
+    - Update all data in the favorites
+    - Update all Meta data
+    - Clean up old galleries and download new galleries
+    - Download galleries from `watch_fav_ids`
 
-2024-09-02 19:08:11.677 | INFO     | src.Watch:apply:60 - Image Limits: 486 / 50000                       
-2024-09-02 19:08:11.683 | INFO     | src.Checker:check_gid_in_local_cbz:81 - gid_list_1280x count: 0      
-2024-09-02 19:08:11.686 | INFO     | src.Checker:check_gid_in_local_cbz:82 - gid_list_original count: 2   
-2024-09-02 19:08:11.692 | INFO     | src.Checker:sync_local_to_sqlite_cbz:102 - gid_list_1280x count: 0   
-2024-09-02 19:08:11.694 | INFO     | src.Checker:sync_local_to_sqlite_cbz:103 - gid_list_original count: 1
-2024-09-02 19:08:11.708 | INFO     | src.Checker:sync_local_to_sqlite_cbz:117 - Finish sync local to sqlite. web_1280x_flag: 0, original_flag: 1
-2024-09-02 19:08:11.710 | INFO     | src.Checker:sync_local_to_sqlite_cbz:118 - Finish sync local to sqlite.                                    
-2024-09-02 19:08:11.714 | INFO     | src.AddFavData:add_tags_data:202 - Get EH tags...
- 10%|███████████| 200/2032 [00:15<02:23, 12.73it/s]
-2024-09-02 19:09:53.587 | INFO     | src.AddFavData:translate_tags:22 - Downloading translation database...
-2024-09-02 19:09:58.719 | WARNING  | src.AddFavData:translate_tags:49 - Invalid tag: miyoshi shiomi
-2024-09-02 19:09:58.722 | WARNING  | src.AddFavData:translate_tags:49 - Invalid tag: nyotaika
-2024-09-02 19:09:58.731 | WARNING  | src.AddFavData:translate_tags:49 - Invalid tag: tawawa club
-2024-09-02 19:09:58.737 | INFO     | src.AddFavData:update_category:60 - Get Favorite Category Name...
-2024-09-02 19:10:00.578 | INFO     | src.AddFavData:add_fav_data:124 - Get User Favorite gid and token...
-2024-09-02 19:10:00.588 | INFO     | src.AddFavData:add_fav_data:138 - Get [0th]...
-2024-09-02 19:10:03.323 | INFO     | src.AddFavData:add_fav_data:178 - Switch to [1th] ...
-2024-09-02 19:10:03.326 | INFO     | src.AddFavData:add_fav_data:138 - Get [1th]...
-2024-09-02 19:10:05.116 | INFO     | src.AddFavData:add_fav_data:178 - Switch to [2th] ...
-2024-09-02 19:10:05.118 | INFO     | src.AddFavData:add_fav_data:138 - Get [2th]...
-2024-09-02 19:10:07.477 | INFO     | src.AddFavData:add_fav_data:178 - Switch to [3th] ...
-2024-09-02 19:10:07.479 | INFO     | src.AddFavData:add_fav_data:138 - Get [3th]...
-2024-09-02 19:10:09.217 | INFO     | src.AddFavData:add_fav_data:178 - Switch to [4th] ...
-2024-09-02 19:10:09.219 | INFO     | src.AddFavData:add_fav_data:138 - Get [4th]...
-2024-09-02 19:10:11.536 | INFO     | src.AddFavData:add_fav_data:178 - Switch to [5th] ...
-2024-09-02 19:10:11.537 | INFO     | src.AddFavData:add_fav_data:138 - Get [5th]...
-2024-09-02 19:10:13.302 | INFO     | src.AddFavData:add_fav_data:178 - Switch to [6th] ...
-2024-09-02 19:10:13.303 | INFO     | src.AddFavData:add_fav_data:138 - Get [6th]...
-2024-09-02 19:10:23.203 | INFO     | src.AddFavData:add_fav_data:178 - Switch to [7th] ...
-2024-09-02 19:10:23.206 | INFO     | src.AddFavData:add_fav_data:138 - Get [7th]...
-2024-09-02 19:10:35.248 | INFO     | src.AddFavData:add_fav_data:178 - Switch to [8th] ...
-2024-09-02 19:10:35.252 | INFO     | src.AddFavData:add_fav_data:138 - Get [8th]...
-2024-09-02 19:10:51.033 | INFO     | src.AddFavData:add_fav_data:178 - Switch to [9th] ...
-2024-09-02 19:10:51.035 | INFO     | src.AddFavData:add_fav_data:138 - Get [9th]...
-2024-09-02 19:11:08.796 | INFO     | src.AddFavData:add_fav_data:182 -  User Favorite, A Total Of: 2027...
-2024-09-02 19:11:08.798 | INFO     | src.AddFavData:add_tags_data:202 - Get EH tags...
-2024-09-02 19:11:10.523 | INFO     | src.Checker:sync_local_to_sqlite_cbz:102 - gid_list_1280x count: 0
-2024-09-02 19:11:10.525 | INFO     | src.Checker:sync_local_to_sqlite_cbz:103 - gid_list_original count: 1
-2024-09-02 19:11:10.538 | INFO     | src.Checker:sync_local_to_sqlite_cbz:117 - Finish sync local to sqlite. web_1280x_flag: 0, original_flag: 1
-2024-09-02 19:11:10.539 | INFO     | src.Checker:sync_local_to_sqlite_cbz:118 - Finish sync local to sqlite.
-2024-09-02 19:11:10.547 | INFO     | src.common:get_web_gallery_download_list:39 - (fav_cat = 3,4) total download list:[
-    [
-        3028715,
-        "920ad36b4d",
-        "..."
-    ],
-    [
-        3028714,
-        "8318eb330a",
-        "..."
-    ],
-    [
-        2781060,
-        "2836efe17e",
-        "..."
-    ],
-    [
-        2763895,
-        "05907ee0af",
-        "..."
-    ]
-]
-(len: 4)
+- `python main.py -w2`
+    - Update Meta data of galleries on the first few pages of favorites, sorted by **update time** (the loop will stop
+      when there are no new galleries on the current page)
+    - Clean up old galleries and download new galleries
+    - Download galleries from `watch_fav_ids`
 
-2024-09-02 19:11:11.682 | INFO     | src.Config:wait_image_limits:288 - Image Limits: 450 / (50000*0.8 = 40000.0)
-2024-09-02 19:11:11.684 | INFO     | src.DownloadWebGallery:apply:170 - Download Web Gallery...: https://exhentai.org/g/3028715/920ad36b4d/
-048.jpg/00000049.jpg: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 314k/314k [00:00<00:00, 454kB/s] 
-029.jpg/00000030.jpg: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 495k/495k [00:00<00:00, 614kB/s] 
-019.jpg/00000020.jpg: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 441k/441k [00:00<00:00, 535kB/s] 
-DownloadWebGallery>>https://exhentai.org/g/3028715/920ad36b4d/:  18%|█████████████████▎                                                                              | 9/50 [00:11<00:41,  1.02s/it]
+Therefore, the `w2` mode saves a lot of time compared to `w1` because it does not need to update all Meta data through
+the EH API.
 
-...
+However, `w2` is not without drawbacks. It cannot determine which galleries have been removed from favorites because it
+does not retrieve all the favorite data.
 
-2024-09-02 19:12:14.309 | INFO     | src.Support:create_xml:158 - Create ./data2\web\3028715-.../ComicInfo.xml
-2024-09-02 19:12:14.705 | INFO     | src.Support:create_cbz:37 - Create CBZ: ./data2\web\3028715-...-1280x.cbz
-2024-09-02 19:12:14.718 | INFO     | src.DownloadWebGallery:apply:224 - [OK] Download Web Gallery...: https://exhentai.org/g/3028715/920ad36b4d/
+```python
+class Watch(Config):
+    ...
 
-...
+    async def apply(self, method=1):
+        ...
+        if method == 1:
+            await add_fav_data.post_fav_data()
+            await add_fav_data.update_meta_data(True)
+        elif method == 2:
+            await add_fav_data.post_fav_data(url_params="?f_search=&inline_set=fs_p", get_all=False)
+            await add_fav_data.update_meta_data()
 
-2024-09-02 19:15:15.691 | INFO     | src.Watch:watch_move_data_path:27 - Moved: ./data2\web\2763895-...-1280x.cbz -> .
-/data2\2763895-...-1280x.cbz
-2024-09-02 19:15:15.693 | INFO     | src.Watch:watch_move_data_path:27 - Moved: ./data2\web\2781060-...-1280x.cbz -> ./data2\27810
-60-...-1280x.cbz
-2024-09-02 19:15:15.695 | INFO     | src.Watch:watch_move_data_path:27 - Moved: ./data2\web\3028714-...-1280x.cbz -> ./data2\3028714-...-1280x.cbz
-2024-09-02 19:15:15.698 | INFO     | src.Watch:watch_move_data_path:27 - Moved: ./data2\web\3028715-...-1280x.cbz -> ./data2\3028715-...-1280x.cbz
-2024-09-02 19:15:15.699 | INFO     | src.Watch:apply:104 - Done! Wait 3600 s
+        update_list = await add_fav_data.clear_del_flag()
 ```
 
-### Default Mode
-
+### Default
 
 ```sh
 $ python main.py 
 
-2024-09-02 18:54:31.585 | INFO     | __main__:main:24 - Image Limits: 650 / 50000
+2025-04-03 17:44:18.031 | INFO     | __main__:main:29 - Image Limits: 0 / 50000
 
 1. Update User Fav Info
-2. Update Gallery Metadata (Update Tags)
+2. Update Gallery Metadata
 3. Download Web Gallery
 4. Download Web Gallery (News Gallery)
-5. Download Archive Gallery
-6. Download Archive Gallery (News Gallery)
-7. Update Tags Translation
-8. Create ComicInfo.xml(only-folder)
-9. Update ComicInfo.xml(folder&.cbz)
-10. Directory To CBZ File
-11. Rename CBZ File (Compatible with LANraragi)
-12. Rename Gid-Name
-13. Update LANraragi Tags
-14. Options (Checker)...
-
-Select Number: 14
+5. Update Tags Translation
+6. Create ComicInfo.xml(only-folder)
+7. Update ComicInfo.xml(folder&.cbz)
+8. Directory To CBZ File
+9. Rename CBZ File (Compatible with LANraragi)
+10. Rename Gid-Name
+11. Update LANraragi Tags
+12. Options (Checker)...
+Select Number:12
 
 0. Return
 1. Checker().check_gid_in_local_cbz()
@@ -148,82 +83,79 @@ Select Number: 14
 (Options) Select Number:
 ```
 
-1. Update User Fav Info
+- `1. Update User Fav Info`
+    - Get gallery data from the favorites.
+- `2. Update Gallery Metadata`
+    - Update all gallery Meta data using the EH API.
+- `3. Download Web Gallery`
+    - Download web galleries; the files will be saved in the `$data_path$\web` folder.
+- `4. Download Web Gallery (News Gallery)`
+    - Move old galleries to the `$data_path$\web\del` folder, then download new galleries based on the `current_gid`
+      field in the `eh_data` table.
+    - Tips: Please run `2. Update Gallery Metadata (Update Tags)` first to ensure the Meta data is up-to-date.
+- `5. Update Tags Translation`
+    - Update tags translation data.
+- `6. Create ComicInfo.xml (only-folder)`
+    - Create a `ComicInfo.xml` file for folders starting with `gid-`. (Data is fetched based on `gid`.)
+- `7. Update ComicInfo.xml (folder & .cbz)`
+    - Unzip all `.cbz` files and folders that meet the criteria, add a `ComicInfo.xml`, and then compress them back
+      into `.cbz` files. This will result in a large number of read/write operations.
+- `8. Directory To CBZ File`
+    - Convert folders starting with `gid-` into `cbz` files.
+- `9. Rename CBZ File (Compatible with LANraragi)`
+    - In `LANraragi`, if the file name is too long, it will cause errors. You can use this function to format the file
+      name length.
+- `10. Rename Gid-Name`
+    - Rename files and folders based on the `gid` value to `title_jpn`.
+- `11. Update LANraragi Tags`
+    - Update LANraragi tags.
+- `12. Options (Checker)...`
+    - `Checker().check_gid_in_local_cbz(target_path="")`: Move duplicate `gid` CBZ files in the directory to
+      the `duplicate_del` folder.
+    - `Checker().sync_local_to_sqlite_cbz(cover=False, target_path="")`: Set the corresponding `original_flag`
+      and `web_1280x_flag` fields based on local files.
+        - `cover=True` will reset the `original_flag` and `web_1280x_flag` values in the `fav_category` table and set
+          them based on local files.
+    - `Checker().check_loc_file()`: Check if zip files are corrupted.
 
-Update Fav information.
+## Project Analysis
 
-2. Update Gallery Metadata (Update Tags)
+I think it's necessary to have a small section explaining some important aspects of this project to help you better
+understand its logic, while also helping me organize the flow.
 
-Update Data Using the EH API
+### Identifying Old Galleries
 
-3. Download Web Gallery
+The simplest way is to use `AddFavData().update_meta_data(get_all=True)` to directly update all Meta data. Galleries
+where `gid != current_gid` are considered old galleries.
 
-Download the Web gallery. Files will be saved in the `$data_path$\web` folder.
+Another shortcut approach is using `AddFavData().post_fav_data(url_params="?f_search=&inline_set=fs_p", get_all=False)`.
 
-4. Download Web Gallery (News Gallery)
+The page is first sorted by **update time**, and if all galleries on the current page are already in the database, it
+means there are no old galleries, and the loop can be skipped. (Since no new galleries imply no old galleries either.)
 
-Move the old galleries to the `$data_path$\web\del` folder, then download the new galleries based on the `current_gid` field in the `eh_data` table.
+If new galleries exist, `AddFavData().deep_check()` is used for a thorough check.
 
-**Tips:** Please run `2. Update Gallery Metadata (Update Tags)` first to ensure that the metadata is up to date.
-
-5. Download Archive Gallery
-
-Use `GP` points to download. Files will be saved in the `$data_path$\archive` folder.
-
-6. Download Archive Gallery (News Gallery)
-
-Move the old gallery to the `$data_path$\archive\del` folder, then use `GP` points to download new galleries based on the `current_gid` field in the `eh_data` table.
-
-**Tips:** Please run `2. Update Gallery Metadata (Update Tags)` first to ensure the metadata is up to date.
-
-7. Update Tags Translation
-
-8. Create ComicInfo.xml(only-folder)
-
-Create a `ComicInfo.xml` file for folders starting with "gid-" (retrieve data based on the gid).
-
-9. Update ComicInfo.xml(folder&.cbz)
-
-Create or update `ComicInfo.xml` for both folders and `.cbz` files that meet the specified criteria.
-
-Regarding `9. Update ComicInfo.xml (folder & .cbz)`, please be very cautious. The reason I didn’t include it in `-w` is that it would result in a massive amount of data being written. For example, if I’ve already downloaded 200GB of galleries, this method would decompress and then recompress them, resulting in 400GB of write operations in a single cycle. If this runs every hour, my SSD wouldn’t be able to handle it. Therefore, I recommend using LANraragi, which doesn’t read the metadata from `.cbz` files, but instead reads from the `LANraragi` database.
-
-10. Directory To CBZ File
-
-Convert folders starting with `gid-` into `cbz` files.
-
-11. Rename CBZ File (Compatible with LANraragi)
-
-In `LANraragi`, if a file name is too long, it may cause the system to freeze and throw an error. Use this feature to format file names to a manageable length.
-
-12.  Rename Gid-Name
-
-Rename files and folders based on `gid`, with the value set to `title_jpn`.
-
-13. Update LANraragi Tags
-
-Update LANraragi Tags.
-
-14. Options (Checker)...
-
-- `Checker().check_gid_in_local_cbz(target_path="")`: Move CBZ files with duplicate GIDs in the directory to the `duplicate_del` folder.
-- `Checker().sync_local_to_sqlite_cbz(cover=False, target_path="")`: Set the `original_flag` and `web_1280x_flag` fields based on local files.
-- Setting `cover=True` will reset the `original_flag` and `web_1280x_flag` fields in the `fav_category` table and reassign values based on local files.
-- `Checker().check_loc_file()`: Check if ZIP files are corrupted.
-
-## Tips
-
-When using the `Watch` mode, if there are too many galleries to download and you can't finish downloading them all at once, and you find that running it again to fetch the database `tags` and `fav` data takes too much time, you can skip updating the `tags & fav` data. (But remember to change it back after you're done, or this mode will not work properly.)
+> `if count == 0`: This `if` condition is a safety measure to prevent excessive resource consumption.
 
 ```python
-class Watch(Config):
-    @logger.catch
-    async def apply(self):
-        while True:
-            ...
-            add_fav_data = AddFavData()
-            #await add_fav_data.add_tags_data(True)
-            ...
-            #update_list = await add_fav_data.apply()
-            update_list = await add_fav_data.clear_del_flag()
+class AddFavData(Config):
+    async def post_fav_data(...):
+        ...
+        if get_all is False:
+            gid_list = [gid for gid, _ in eh_data]
+            with sqlite3.connect(self.dbs_name) as co:
+                query = f"SELECT COUNT(*) FROM eh_data WHERE gid IN ({','.join(['?'] * len(gid_list))})"
+                count = co.execute(query, gid_list).fetchone()[0]
+            if count == 0:
+                logger.error("因当前页面所有画廊均为新画廊，无法进行更新。")
+                logger.error("The current page has all new galleries, unable to update.")
+                logger.error("Please run 2. Update Gallery Metadata >>> 1. Update User Fav Info")
+                sys.exit(1)
+            # 当前没有新画廊时，跳出循环
+            if count == len(gid_list):
+                break
+            elif url_params == "?f_search=&inline_set=fs_p":
+                # 按照更新时间排序 + get_all is False 时, 需要进行深度检测
+                await self.deep_check(gid_token=eh_data)
 ```
+

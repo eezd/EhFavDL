@@ -13,27 +13,16 @@ Download favorites from E-Hentai / Exhentai, written in Python 3.11, with suppor
 
 [文档](docs.md)/[Docs English](docs-en.md)
 
-> The current **main** branch is a test version. For a stable release, please
-> use [v1.3.3](https://github.com/eezd/EhFavDL/releases/tag/v1.3.3).
->
-> The main features have been tested and are basically fine, but more in-depth code testing and a **code review** have
-> not yet been conducted.
->
-> Special thanks to [@bf179](https://github.com/bf179) for the inspiration.
->
-> ~~Let's leave it like this for now, too lazy to create a Pre-Release.~~
-
 ## 📌 TODO
 
-- [x]  Support for `Sqlite` storage
-- [x]  Support for `.cbz` storage
-- [x]  Monitor for automatic downloads and gallery updates
-- [x]  Download via Web (supports re-download)
-- [x]  Download original or 1280x images via Archive (supports resuming downloads)
-- [x]  Support for Chinese Tags (requires configuration in `config.yaml` --- `tags_translation`)
-- [x]  Generate `ComicInfo.xml` (compatible with Komga/LANraragi)
-- [x]  Support for `LANraragi API` to automatically update META data
-- [x]  Recalculate wait time based on `IP quota` and display remaining `IP quota`
+- [x] Support `Sqlite` storage
+- [x] Support `.cbz` storage
+- [x] Support updating downloaded galleries
+- [x] Download via Web (supports re-downloading)
+- [x] Support Chinese Tags (requires config.yaml --- tags_translation)
+- [x] Generate `ComicInfo.xml` (supports Komga/LANraragi)
+- [x] Support `LANraragi API` for automatic META data updates
+- [x] Recalculate wait time based on `IP quota`, display remaining `IP quota`
 
 ## 🔨 Installation
 
@@ -58,7 +47,6 @@ cookies:
 User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36
 
 proxy:
-  # False / True
   enable: True
   url: http://127.0.0.1:7890
 
@@ -72,8 +60,8 @@ website: exhentai.org
 # Only DownloadWebGallery
 connect_limit: 3
 
-# 是否启用标签翻译(适用于 5. Create ComicInfo.xml & 8. Update LANraragi Tags)
-# Would you like to enable tag translation (applicable to 5. Create ComicInfo.xml & 8. Update LANraragi Tags)?
+# 是否启用标签翻译
+# Would you like to enable tag translation
 # False / True
 tags_translation: False
 
@@ -83,13 +71,10 @@ lan_url: http://127.0.0.1:22299
 lan_api_psw: jskada
 
 # python main.py -w1 / w2
-# watch_fav_ids: 3,4
-watch_fav_ids:
+watch_fav_ids: 0,1,2,3,4,5,6,7,8,9
 
 # False / True
 watch_lan_status: False
-# False / True
-watch_archive_status: False
 ```
 
 3. Run
@@ -100,6 +85,10 @@ python main.py
 # or
 
 python main.py -w
+# or
+python main.py -w1
+# or
+python main.py -w2
 ```
 
 - Best Practice: You can now use EH favorites to categorize galleries`>=1.1.2`
