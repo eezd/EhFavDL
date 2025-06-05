@@ -89,6 +89,8 @@ python main.py -w
 python main.py -w1
 # or
 python main.py -w2
+# or
+python main.py -w3
 ```
 
 - 最佳用法: 现在可以使用 eh 的收藏夹来分类画廊了 `>=1.1.2`

@@ -32,6 +32,11 @@ This project runs in two modes: Default Mode and Watch Mode.
     - Clean up old galleries and download new galleries
     - Download galleries from `watch_fav_ids`
 
+- `python main.py -w3`
+  - Download galleries only 
+  - Suitable for situations where you've just run `w1`, but the program was interrupted due to unforeseen issues, and you don't want to spend time updating all gallery data and all meta data again.
+
+
 Therefore, the `w2` mode saves a lot of time compared to `w1` because it does not need to update all Meta data through
 the EH API.
 

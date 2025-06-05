@@ -89,6 +89,8 @@ python main.py -w
 python main.py -w1
 # or
 python main.py -w2
+# or
+python main.py -w3
 ```
 
 - Best Practice: You can now use EH favorites to categorize galleries`>=1.1.2`

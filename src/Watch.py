@@ -1,4 +1,5 @@
 import asyncio
+import sys
 
 from src import DownloadWebGallery, AddFavData, DownloadArchiveGallery, LANraragi
 from src.Utils import *
@@ -82,6 +83,8 @@ class Watch(Config):
                 await add_fav_data.update_meta_data(True)
             elif method == 2:
                 await add_fav_data.post_fav_data(url_params="?f_search=&inline_set=fs_p", get_all=False)
+                await add_fav_data.update_meta_data()
+            elif method == 3:
                 await add_fav_data.update_meta_data()
 
             update_list = await add_fav_data.clear_del_flag()

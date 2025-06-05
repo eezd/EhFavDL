@@ -11,6 +11,7 @@ parser.add_argument('-w', action='store_true',
                     help="Listen to EH Fav and fetch data every 60 minutes with default watcher 1.")
 parser.add_argument('-w1', action='store_true', help="Listen to EH Fav and fetch data every 60 minutes with watcher 1.")
 parser.add_argument('-w2', action='store_true', help="Listen to EH Fav and fetch data every 60 minutes with watcher 2.")
+parser.add_argument('-w3', action='store_true', help="Listen to EH Fav and fetch data every 60 minutes with watcher 3.")
 args = parser.parse_args()
 
 
@@ -23,6 +24,8 @@ async def main():
         await Watch().apply(1)
     elif args.w2:
         await Watch().apply(2)
+    elif args.w3:
+        await Watch().apply(3)
 
     while True:
         image_limits, total_limits = await Config().get_image_limits()
