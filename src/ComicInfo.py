@@ -11,8 +11,7 @@ class ComicInfo(Config):
 
     def create_xml(self, gid, path):
         with sqlite3.connect(self.dbs_name) as co:
-            co = co.execute(f'''SELECT title,category,posted,token FROM eh_data WHERE gid="{gid}"''')
-            db_data = co.fetchone()
+            db_data = co.execute(f'''SELECT title,title_jpn,category,posted,token FROM eh_data WHERE gid="{gid}"''').fetchone()
             if db_data is None:
                 logger.warning(f"The ID does not exist>> {gid}")
                 sys.exit(1)
@@ -34,9 +33,14 @@ class ComicInfo(Config):
                     db_tags.append(tag[1])
                 else:
                     db_tags.append(tag[0])
-            xml_t = xml_escape(db_data[0])
-            category = db_data[1]
-            posted = str(datetime.fromtimestamp(int(db_data[2]))).split(" ")[0].split("-")
+            if self.prefer_japanese_title and db_data[1] is not None and db_data[1] != "" and len(str(db_data[1]).strip()) > 3:
+                print("Using Japanese title" + str(db_data[1]))
+                xml_t = xml_escape(str(db_data[1]))
+            else:
+                print("Using English title" + str(db_data[0]))
+                xml_t = xml_escape(str(db_data[0]))
+            category = db_data[2]
+            posted = str(datetime.fromtimestamp(int(db_data[3]))).split(" ")[0].split("-")
             tags = str(db_tags).replace("[", "").replace("]", "").replace("'", "").split(",")
             art = ""
             for _tags in tags:
@@ -60,7 +64,7 @@ class ComicInfo(Config):
             f'<Series/>',
             r'<PageCount/>',
             r'<URL/>',
-            f'<Web>{self.base_url}/g/{gid}/{db_data[3]}</Web>',
+            f'<Web>{self.base_url}/g/{gid}/{db_data[4]}</Web>',
             r'<Characters/>',
             r'<Translated>Yes</Translated>',
             r'</ComicInfo>',

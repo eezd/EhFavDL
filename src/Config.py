@@ -42,6 +42,9 @@ class Config:
                 tags_translation = bool(config['tags_translation'])
                 self.tags_translation = tags_translation
 
+                prefer_japanese_title = bool(config['prefer_japanese_title'])
+                self.prefer_japanese_title = prefer_japanese_title
+
                 connect_limit = str(config['connect_limit'])
                 self.connect_limit = connect_limit
 
