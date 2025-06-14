@@ -65,6 +65,11 @@ connect_limit: 3
 # False / True
 tags_translation: False
 
+# ComicInfo 是否优先使用日语标题
+# ComicInfo: Whether to prefer the Japanese title
+# False / True
+prefer_japanese_title: True
+
 # LANraragi
 lan_url: http://127.0.0.1:22299
 # Setting >>> Security >>> API Key
