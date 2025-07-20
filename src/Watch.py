@@ -1,7 +1,7 @@
 import asyncio
 import sys
 
-from src import DownloadWebGallery, AddFavData, DownloadArchiveGallery, LANraragi
+from src import DownloadWebGallery, AddFavData, DownloadArchiveGallery, LANraragi, Checker
 from src.Utils import *
 
 
@@ -70,9 +70,9 @@ class Watch(Config):
         while True:
             image_limits, total_limits = await self.get_image_limits()
             logger.info(f"Image Limits: {image_limits} / {total_limits}")
-            # self.watch_move_data_path()
-            # Checker().check_gid_in_local_cbz()
-            # Checker().sync_local_to_sqlite_cbz(cover=True)
+            self.watch_move_data_path()
+            Checker().check_gid_in_local_cbz()
+            Checker().sync_local_to_sqlite_cbz(cover=True)
 
             # 更新 tags 信息, 用于判断是否存在新画廊
             # Update tags information to determine if a new gallery exists.

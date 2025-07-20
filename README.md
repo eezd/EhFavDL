@@ -13,6 +13,8 @@ E-Hentai / Exhentai 下载收藏夹，基于 Python3.11 编写，支持 LANrarag
 
 [文档](docs.md)/[Docs English](docs-en.md)
 
+> 正在使用 v1.3.4 的请尽快更新到 v1.3.5, watch 模式存在一个重大疏漏, 导致无法实时同步本地画廊
+
 ## 📌 TODO
 
 - [x] 支持 `Sqlite` 存储

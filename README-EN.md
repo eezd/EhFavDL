@@ -13,6 +13,8 @@ Download favorites from E-Hentai / Exhentai, written in Python 3.11, with suppor
 
 [文档](docs.md)/[Docs English](docs-en.md)
 
+> For those using v1.3.4, please update to v1.3.5 as soon as possible. There is a critical oversight in the watch mode that prevents real-time synchronization of the local gallery.
+
 ## 📌 TODO
 
 - [x] Support `Sqlite` storage
