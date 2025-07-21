@@ -112,6 +112,24 @@ class Checker(Config):
             original_len = co.execute('SELECT count(*) FROM fav_category WHERE original_flag = 1').fetchone()[0]
             logger.info(f'Finish sync local to sqlite. web_1280x_flag: {web_len}, original_flag: {original_len}')
             logger.info(f'Finish sync local to sqlite.')
+    def clear_old_file(self, target_path=""):
+        """
+        清理本地旧画廊文件
+        Clean up old gallery files in the local directory.
+        """
+        if target_path == "":
+            target_path = self.gallery_path
+        with sqlite3.connect(self.dbs_name) as co:
+            for i in os.listdir(target_path):
+                if not re.match(r'^\d+-.*\.cbz', i):
+                    continue
+                gid = re.match(r'^(\d+)-', i).group(1)
+                data = co.execute(f'SELECT gid, current_gid FROM eh_data WHERE gid = ?', (gid,)).fetchone()
+                if data[0] != data[1]:
+                    folder_path = os.path.join(target_path, i)
+                    dest_path = os.path.join(self.del_path, i)
+                    shutil.move(folder_path, dest_path)
+                    logger.info(f"Moved: {folder_path} -> {dest_path}")
 
     def check_loc_file(self):
         folder = input(f"Please enter the file directory.\n")
