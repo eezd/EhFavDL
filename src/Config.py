@@ -245,9 +245,14 @@ class Config:
                 if '�' in content:
                     logger.warning("Some characters were replaced.")
             if "IP quota exhausted" in content:
-                logger.warning("IP quota exhausted. wait 360 seconds and try again.")
-                await asyncio.sleep(360)
-                raise Exception("IP quota exhausted")
+                soup = BeautifulSoup(content, 'html.parser')
+                target_text = re.compile(r'IP quota exhausted')
+                for text_node in soup.find_all(string=target_text):
+                    is_comment = text_node.find_parent(class_='c6')
+                    if not is_comment:
+                        logger.warning("IP quota exhausted. wait 360 seconds and try again.")
+                        await asyncio.sleep(360)
+                        raise Exception("IP quota exhausted")
             elif "This IP address has been temporarily banned due to an excessive request rate" in content:
                 hours_match = re.search(r'(\d+) hours?', content)
                 minutes_match = re.search(r'(\d+) minutes?', content)
