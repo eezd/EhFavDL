@@ -8,7 +8,9 @@ import sys
 import time
 import zipfile
 
+from PIL import Image
 from loguru import logger
+from pyzbar import pyzbar
 from tqdm import tqdm
 
 from src.Config import Config
@@ -226,3 +228,18 @@ def xml_escape(title):
 
 def windows_escape(title):
     return re.sub(r'''[\\/:*?"<>|\t]''', '', title)
+
+
+def decode_qr_code(img_path):
+    qr_results = []
+
+    try:
+        img = Image.open(img_path)
+        # 出现 "WARNING: .\zbar\decoder\pdf417.c" 的错误信息不用理
+        decoded_objects = pyzbar.decode(img)
+        for obj in decoded_objects:
+            qr_results.append(obj.data.decode('utf-8'))
+    except Exception as e:
+        pass
+
+    return qr_results

@@ -4,3 +4,4 @@ loguru==0.7.2
 Pillow==11.0.0
 PyYAML==6.0.2
 tqdm==4.66.6
+pyzbar==0.1.9

@@ -67,6 +67,19 @@ connect_limit: 3
 # False / True
 tags_translation: False
 
+# 是否去除二维码广告页
+# Would you like to enable ad cleaner
+ad_cleaning:
+  enable: False
+  # 白名单: 包含该内容的二维码不会被视作广告
+  # Whitelist: Contents that will not be flagged as ads
+  whitelist: [pixiv, patreon, fanbox, fantia]
+  # 已被清理过广告的画廊后缀
+  #   {ad_count} - 被清理掉的含广告的页数
+  # Suffix for galleries that have been ad-cleaned
+  #   {ad_count} - number of advertisement pages removed
+  cleaned_suffix: _{ad_count}pRm
+
 # ComicInfo 是否优先使用日语标题
 # ComicInfo: Whether to prefer the Japanese title
 # False / True

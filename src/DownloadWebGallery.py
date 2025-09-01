@@ -204,6 +204,38 @@ class DownloadWebGallery(Config):
             logger.warning(f"Failed for missing pages: {self.long_url}")
             return False
 
+        # 去除含二维码的广告页 / Remove ad page with QR code
+        if self.ad_cleaning:
+            ad_pages = []
+            white_page_count = 0
+            white_list = self.whitelist
+            for root, _, files in os.walk(self.filepath_tmp):
+                for file in files:
+                    qr_results = decode_qr_code(os.path.join(root, file))
+                    if qr_results:
+                        if any(any(item in result for result in qr_results) for item in white_list):
+                            logger.warning(f"Found white QR page {file} : {qr_results}")
+                            white_page_count += 1
+                            continue
+                        else:
+                            logger.info(f"Found ad QR page {file} : {qr_results}")
+                            ad_pages.append(os.path.join(root, file))
+
+            dir_name = os.path.basename(os.path.normpath(self.filepath_tmp))
+            ad_path = os.path.join(self.data_path, 'ad', 'Ad_' + dir_name)
+            os.makedirs(ad_path, exist_ok=True)
+
+            for ad_page in ad_pages:
+                if os.path.exists(ad_page):
+                    shutil.move(ad_page, os.path.join(ad_path, os.path.basename(ad_page)))
+                else:
+                    continue
+
+            logger.info(f"Removed {len(ad_pages)} ad pages")
+            if len(ad_pages):
+                cleaned_suffix = self.cleaned_suffix.format(ad_count=len(ad_pages))
+                self.filepath_end = self.filepath_end + cleaned_suffix
+
         # move file
         if os.path.isdir(self.filepath_end):
             logger.warning(f"Directory already exists, coverage {self.filepath_end}")

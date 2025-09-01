@@ -42,6 +42,10 @@ class Config:
                 tags_translation = bool(config['tags_translation'])
                 self.tags_translation = tags_translation
 
+                self.ad_cleaning = bool(config['ad_cleaning']['enable'])
+                self.whitelist = list(config['ad_cleaning']['whitelist'])
+                self.cleaned_suffix = str(config['ad_cleaning']['cleaned_suffix'])
+
                 prefer_japanese_title = bool(config['prefer_japanese_title'])
                 self.prefer_japanese_title = prefer_japanese_title
 
@@ -92,7 +96,8 @@ class Config:
 
         except FileNotFoundError as e:
             logger.error('File config.yaml not found')
-            logger.error(e)
+            self.create_default_config()
+            logger.warning('Default config file has been created, please edit it first')
             sys.exit(1)
         except Exception as e:
             logger.error(e)
@@ -366,3 +371,72 @@ class Config:
                 await asyncio.sleep(wait_time)
             else:
                 return image_limits, total_limits
+
+    def create_default_config(self):
+        default_config = r"""
+# 缺少 sk 和 hath_perks 会导致无法获取正确的 IP 配额
+# Missing sk and hath_perks will result in the inability to obtain the correct IP quota.
+cookies:
+  ipb_member_id: 1234567
+  ipb_pass_hash: 123456789abcdefg
+  igneous: d2fbv51sa
+  sk: asdjnasdjk
+  hath_perks: m1.m2...
+
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36
+
+proxy:
+  enable: True
+  url: http://127.0.0.1:7890
+
+dbs_name: ./data.db
+
+data_path: E:\Hso\exhentaiDL\data
+
+# e-hentai.org / exhentai.org
+website: exhentai.org
+
+# Only DownloadWebGallery
+connect_limit: 3
+
+# 是否启用标签翻译
+# Would you like to enable tag translation
+# False / True
+tags_translation: False
+
+# 是否去除二维码广告页
+# Would you like to enable ad cleaner
+ad_cleaning:
+  enable: False
+  # 白名单: 包含该内容的二维码不会被视作广告
+  # Whitelist: Contents that will not be flagged as ads
+  whitelist: [pixiv, patreon, fanbox, fantia]
+  # 已被清理过广告的画廊后缀
+  #   {ad_count} - 被清理掉的含广告的页数
+  # Suffix for galleries that have been ad-cleaned
+  #   {ad_count} - number of advertisement pages removed
+  cleaned_suffix: _{ad_count}pRm
+
+# ComicInfo 是否优先使用日语标题
+# ComicInfo: Whether to prefer the Japanese title
+# False / True
+prefer_japanese_title: True
+
+# LANraragi
+lan_url: http://127.0.0.1:22299
+# Setting >>> Security >>> API Key
+lan_api_psw: jskada
+
+# python main.py -w1 / w2
+watch_fav_ids: 0,1,2,3,4,5,6,7,8,9
+
+# False / True
+watch_lan_status: False
+"""
+
+        try:
+            with open('./config.yaml', 'w', encoding='UTF-8') as file:
+                file.write(default_config)
+            return True
+        except Exception as e:
+            return False
