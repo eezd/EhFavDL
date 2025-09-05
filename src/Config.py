@@ -240,6 +240,9 @@ class Config:
         if 'text' in content_type or 'json' in content_type or 'html' in content_type:
             try:
                 content = await response.text()
+                if 'text/html' in content_type and content == '':
+                    logger.error(f"The content is empty. Please check if the cookies are correct.")
+                    sys.exit(1)
             except Exception as e:
                 content = await response.text(errors='replace')
                 if '�' in content:
