@@ -138,6 +138,7 @@ async def main():
                 print("2. Checker().sync_local_to_sqlite_cbz()")
                 print("3. Checker().sync_local_to_sqlite_cbz(True)")
                 print("4. Checker().check_loc_file()")
+                print("5. Checker().clear_old_file()")
                 num = input("(Options) Select Number:")
                 num = int(num) if num else None
                 if num == 1:
@@ -160,6 +161,12 @@ async def main():
                     Checker().sync_local_to_sqlite_cbz(cover=True, target_path=folder)
                 elif num == 4:
                     Checker().check_loc_file()
+                elif num == 5:
+                    folder = input(f"Please enter the file directory.\n")
+                    if folder == "":
+                        print("Cancel")
+                        sys.exit(1)
+                    Checker().clear_old_file(target_path=folder)
                 elif num == 0:
                     break
 

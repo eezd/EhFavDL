@@ -122,6 +122,7 @@ Select Number:12
         - `cover=True` will reset the `original_flag` and `web_1280x_flag` values in the `fav_category` table and set
           them based on local files.
     - `Checker().check_loc_file()`: Check if zip files are corrupted.
+    - `Checker().clear_old_file()`: Clear the old gallery (gid != current_gid)
 
 ## Project Analysis
 

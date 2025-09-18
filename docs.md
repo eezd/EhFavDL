@@ -111,6 +111,7 @@ Select Number:12
   - `Checker().sync_local_to_sqlite_cbz(cover=False, target_path="")`: 根据本地文件设置对应的 `original_flag`和 `web_1280x_flag` 字段. 
   - `cover=True` 会重置 fav_category 表 original_flag 和 web_1280x_flag 字段值, 根据本地文件重新设置
   - `Checker().check_loc_file()`: 检查zip文件是否有损坏
+  - `Checker().clear_old_file()`: 清理旧画廊(gid!=current_gid)
 
 ## 项目解析
 
