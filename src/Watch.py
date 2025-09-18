@@ -116,6 +116,7 @@ class Watch(Config):
             await self.dl_new_gallery(fav_cat=self.watch_fav_ids)
             self.watch_move_data_path()
             if self.watch_lan_status:
+                rename_cbz_file()
                 await LANraragi(watch_status=True).lan_update_tags()
 
             if self.tags_translation:
