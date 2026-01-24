@@ -351,9 +351,16 @@ class Config:
         hx_res = await self.fetch_data(url="https://e-hentai.org/home.php")
         response = BeautifulSoup(hx_res, 'html.parser')
         limits_arr = response.select('div.homebox p strong')
-        image_limits = int(limits_arr[0].text.strip().replace(",", ""))
-        total_limits = int(limits_arr[1].text.strip().replace(",", ""))
-        return image_limits, total_limits
+        try:
+            if len(limits_arr) == 1:
+                return 0, int(limits_arr[0].text.strip().replace(",", ""))
+            else:
+                image_limits = int(limits_arr[0].text.strip().replace(",", ""))
+                total_limits = int(limits_arr[1].text.strip().replace(",", ""))
+                return image_limits, total_limits
+        except Exception:
+            logger.warning("Failed to get image limits")
+            return 0, 20000
 
     async def wait_image_limits(self):
         """
