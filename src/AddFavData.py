@@ -77,16 +77,33 @@ class AddFavData(Config):
                 current_token = item.get('current_token', token)
                 parent_gid = item.get('parent_gid', gid)
                 parent_token = item.get('parent_token', token)
+
+                upsert_sql = """
+                INSERT INTO eh_data (
+                    gid, token, title, title_jpn, category,
+                    thumb, uploader, posted, filecount,
+                    filesize, expunged, rating, current_gid, current_token
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(gid) DO UPDATE SET
+                    token         = excluded.token,
+                    title         = excluded.title,
+                    title_jpn     = excluded.title_jpn,
+                    category      = excluded.category,
+                    thumb         = excluded.thumb,
+                    uploader      = excluded.uploader,
+                    posted        = excluded.posted,
+                    filecount     = excluded.filecount,
+                    filesize      = excluded.filesize,
+                    expunged      = excluded.expunged,
+                    rating        = excluded.rating,
+                    current_gid   = excluded.current_gid,
+                    current_token = excluded.current_token
+                ;
+                """
+
                 # Add data to the eh_data table.
-                co.execute('''
-                            INSERT 
-                                OR REPLACE INTO eh_data ( 
-                                gid, token, title, title_jpn, category, 
-                                thumb, uploader, posted, filecount, 
-                                filesize, expunged, rating, current_gid, current_token )
-                            VALUES
-                                ( ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? )
-                    ''', item.get('data'))
+                co.execute(upsert_sql, item.get('data'))
 
                 # Clear tag data
                 co.execute('DELETE FROM gid_tid WHERE gid =?', (gid,))
