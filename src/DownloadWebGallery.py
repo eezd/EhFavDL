@@ -151,7 +151,7 @@ class DownloadWebGallery(Config):
                 logger.warning(
                     f"This gallery is unavailable due to a copyright claim. {self.long_url}    {self.title}")
                 with sqlite3.connect(self.dbs_name) as co:
-                    co.execute(f'UPDATE eh_data SET copyright_flag=1 WHERE gid={self.gid}')
+                    co.execute('UPDATE eh_data SET copyright_flag=1 WHERE gid=?', (self.gid,))
                     co.commit()
                 return False
         if len(res_image_list) == 0:
@@ -217,7 +217,7 @@ class DownloadWebGallery(Config):
         shutil.rmtree(self.filepath_end)
 
         with sqlite3.connect(self.dbs_name) as co:
-            co.execute(f'UPDATE fav_category SET web_1280x_flag = 1 WHERE gid = {self.gid}')
+            co.execute('UPDATE fav_category SET web_1280x_flag = 1 WHERE gid = ?', (self.gid,))
             co.commit()
 
         logger.info(f"[OK] Download Web Gallery...: {self.long_url}")

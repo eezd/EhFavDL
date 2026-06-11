@@ -1,5 +1,6 @@
 import asyncio
 import copy
+import threading
 import os
 import re
 import sqlite3
@@ -19,76 +20,80 @@ ssl_context.set_ciphers('HIGH:!DH:!aNULL')
 
 
 class Config:
-    def __init__(self):
+    _config_cache = {}
+    _session_cache = {}
+    _session_lock = threading.Lock()
+
+    def __init__(self, config_path='./config.yaml'):
         try:
-            with open('./config.yaml', 'r', encoding='UTF-8') as file:
-                config = yaml.load(file, Loader=yaml.FullLoader)
+            self.config_path = os.path.abspath(config_path)
+            config = self._load_config(self.config_path)
 
-                base_url = str(config['website'])
-                self.base_url = base_url
+            base_url = str(config['website'])
+            self.base_url = base_url
 
-                data_path = str(config['data_path'])
-                self.data_path = data_path
+            data_path = str(config['data_path'])
+            self.data_path = data_path
 
-                self.gallery_path = os.path.join(data_path, 'gallery')
-                self.web_path = os.path.join(data_path, 'web')
-                self.archive_path = os.path.join(data_path, 'archive')
-                self.del_path = os.path.join(data_path, 'del')
-                self.duplicate_del_path = os.path.join(data_path, 'duplicate_del')
+            self.gallery_path = os.path.join(data_path, 'gallery')
+            self.web_path = os.path.join(data_path, 'web')
+            self.archive_path = os.path.join(data_path, 'archive')
+            self.del_path = os.path.join(data_path, 'del')
+            self.duplicate_del_path = os.path.join(data_path, 'duplicate_del')
 
-                dbs_name = str(config['dbs_name'])
-                self.dbs_name = dbs_name
+            dbs_name = str(config['dbs_name'])
+            self.dbs_name = dbs_name
 
-                tags_translation = bool(config['tags_translation'])
-                self.tags_translation = tags_translation
+            tags_translation = bool(config['tags_translation'])
+            self.tags_translation = tags_translation
 
-                prefer_japanese_title = bool(config['prefer_japanese_title'])
-                self.prefer_japanese_title = prefer_japanese_title
+            prefer_japanese_title = bool(config['prefer_japanese_title'])
+            self.prefer_japanese_title = prefer_japanese_title
 
-                connect_limit = str(config['connect_limit'])
-                self.connect_limit = connect_limit
+            connect_limit = int(config['connect_limit'])
+            self.connect_limit = connect_limit
 
-                lan_url = str(config['lan_url'])
-                self.lan_url = lan_url
+            lan_url = str(config['lan_url'])
+            self.lan_url = lan_url
 
-                lan_api_psw = str(config['lan_api_psw'])
-                self.lan_api_psw = lan_api_psw
+            lan_api_psw = str(config['lan_api_psw'])
+            self.lan_api_psw = lan_api_psw
 
-                eh_cookies = {
-                    "ipb_member_id": str(config['cookies']['ipb_member_id']),
-                    "ipb_pass_hash": str(config['cookies']['ipb_pass_hash']),
-                    "igneous": str(config['cookies']['igneous']),
-                }
-                if 'sk' in config['cookies']:
-                    eh_cookies['sk'] = str(config['cookies']['sk'])
-                if 'hath_perks' in config['cookies']:
-                    eh_cookies['hath_perks'] = str(config['cookies']['hath_perks'])
-                self.eh_cookies = eh_cookies
+            eh_cookies = {
+                "ipb_member_id": str(config['cookies']['ipb_member_id']),
+                "ipb_pass_hash": str(config['cookies']['ipb_pass_hash']),
+                "igneous": str(config['cookies']['igneous']),
+            }
+            if 'sk' in config['cookies']:
+                eh_cookies['sk'] = str(config['cookies']['sk'])
+            if 'hath_perks' in config['cookies']:
+                eh_cookies['hath_perks'] = str(config['cookies']['hath_perks'])
+            self.eh_cookies = eh_cookies
 
-                proxy_status = bool(config['proxy']['enable'])
-                self.proxy_status = proxy_status
+            proxy_status = bool(config['proxy']['enable'])
+            self.proxy_status = proxy_status
 
-                proxy_url = config['proxy']['url']
-                self.proxy_url = proxy_url
+            proxy_url = config['proxy']['url']
+            self.proxy_url = proxy_url
 
-                proxy_list = {
-                    'http://': proxy_url,
-                    'https://': proxy_url,
-                }
-                self.proxy_list = proxy_list
+            proxy_list = {
+                'http://': proxy_url,
+                'https://': proxy_url,
+            }
+            self.proxy_list = proxy_list
 
-                headers = {
-                    "User-Agent": config['User-Agent'],
-                }
-                self.request_headers = headers
+            headers = {
+                "User-Agent": config['User-Agent'],
+            }
+            self.request_headers = headers
 
-                # Watch
-                watch_fav_ids = str(config['watch_fav_ids']) if config['watch_fav_ids'] else None
-                self.watch_fav_ids = watch_fav_ids
-                watch_lan_status = bool(config['watch_lan_status'])
-                self.watch_lan_status = watch_lan_status
-                # watch_archive_status = bool(config['watch_archive_status'])
-                # self.watch_archive_status = watch_archive_status
+            # Watch
+            watch_fav_ids = str(config['watch_fav_ids']) if config['watch_fav_ids'] else None
+            self.watch_fav_ids = watch_fav_ids
+            watch_lan_status = bool(config['watch_lan_status'])
+            self.watch_lan_status = watch_lan_status
+            # watch_archive_status = bool(config['watch_archive_status'])
+            # self.watch_archive_status = watch_archive_status
 
         except FileNotFoundError as e:
             logger.error('File config.yaml not found')
@@ -98,76 +103,123 @@ class Config:
             logger.error(e)
             sys.exit(1)
 
+    @classmethod
+    def _load_config(cls, config_path):
+        config_path = os.path.abspath(config_path)
+        cached = cls._config_cache.get(config_path)
+        if cached is not None:
+            return cached
+        with open(config_path, 'r', encoding='UTF-8') as file:
+            config = yaml.safe_load(file) or {}
+        cls._config_cache[config_path] = config
+        return config
+
+    def get_db_connection(self):
+        return sqlite3.connect(self.dbs_name)
+
+    async def get_session(self):
+        loop = asyncio.get_running_loop()
+        session_key = (self.config_path, id(loop))
+        session = self._session_cache.get(session_key)
+        if session is not None and not session.closed:
+            return session
+        with self._session_lock:
+            session = self._session_cache.get(session_key)
+            if session is None or session.closed:
+                self._session_cache[session_key] = aiohttp.ClientSession(
+                    headers=self.request_headers,
+                    cookies=self.eh_cookies,
+                    connector=aiohttp.TCPConnector(ssl=ssl_context),
+                )
+            return self._session_cache[session_key]
+
+    @classmethod
+    async def close_cached_sessions(cls):
+        for session in list(cls._session_cache.values()):
+            if session is not None and not session.closed:
+                await session.close()
+        cls._session_cache.clear()
+
     async def fetch_data(self, url, json=None, data=None, tqdm_file_path=None, retry_delay=5, retry_attempts=5):
         """
         Return: True | False | "reload_image"
         """
         try:
-            async with aiohttp.ClientSession(headers=self.request_headers, cookies=self.eh_cookies,
-                                             connector=aiohttp.TCPConnector(ssl_context=ssl_context),
-                                             timeout=aiohttp.ClientTimeout(connect=30)) as session:
-                # Convert speed limit from 10KB/s to bytes per second
-                # speed_limit_bps = 10 * 1024
-                if data is not None:
-                    async with session.post(url, data=data,
-                                            proxy=self.proxy_url if self.proxy_status else None) as response:
-                        await self.check_fetch_err(response, url)
-                        return await response.read()
-                elif json is not None:
-                    async with session.post(url, json=json,
-                                            proxy=self.proxy_url if self.proxy_status else None) as response:
-                        await self.check_fetch_err(response, url)
-                        return await response.json(content_type=None)
-                else:
-                    # has_inline_set = True if 'inline_set' in url else False
-                    # if has_inline_set:
-                    #     # 此处似乎需要先访问一次获取完整 Cookies的sk值，否则无法固定设置配置项
-                    #     # Task:可以通过将sk值填入yaml配置以避免此重复，但是sk其有效期是否足够长呢，其值是否需要频繁更新呢
-                    #     if not self.eh_cookies['sk']:
-                    #         async with session.get(url,
-                    #                                proxy=self.proxy_url if self.proxy_status else None) as response:
-                    #             await self.check_fetch_err(response, url)
-                    #         # 考虑到上面存在的一次重复请求，添加一个延迟以降低请求频率
-                    #         await asyncio.sleep(1)
-                    #     async with session.get(url, proxy=self.proxy_url if self.proxy_status else None) as response:
-                    #         await self.check_fetch_err(response, url)
-                    #         return await response.read()
-                    # else:
-                    async with session.get(url, proxy=self.proxy_url if self.proxy_status else None) as response:
-                        await self.check_fetch_err(response, url)
-                        if tqdm_file_path is not None:
-                            total_size = int(response.headers.get('Content-Length', 0))
-                            desc_name = url.split('/')[-1] + "/" + os.path.basename(tqdm_file_path)
-                            temp_file_path = os.path.dirname(tqdm_file_path) + "/temp_" + os.path.basename(
-                                tqdm_file_path)
-                            with open(temp_file_path, 'wb') as f:
-                                with tqdm_asyncio(total=total_size, unit='B', unit_scale=True,
-                                                  desc=desc_name) as pbar:
-                                    # bytes_written = 0
-                                    async for chunk in response.content.iter_chunked(1024):
-                                        f.write(chunk)
-                                        # bytes_written += len(chunk)
-                                        # # Calculate the time to sleep to maintain the desired speed limit
-                                        # if bytes_written >= speed_limit_bps:
-                                        #     sleep_time = len(chunk) / speed_limit_bps
-                                        #     await asyncio.sleep(sleep_time)
-                                        pbar.update(len(chunk))
-                            if os.path.exists(tqdm_file_path):
-                                os.remove(tqdm_file_path)
-                            # Verify Img
-                            if os.path.exists(temp_file_path):
-                                # if tqdm_file_path.endswith(".webp"):
-                                try:
-                                    webp_image = Image.open(temp_file_path)
-                                    webp_image.verify()
-                                    webp_image.close()
-                                except Exception as e:
-                                    os.remove(temp_file_path)
-                                    logger.error(f"Failed to process image: {temp_file_path}. Error: {e}")
-                                    return "reload_image"
-                            os.rename(temp_file_path, tqdm_file_path)
-                            return True
-                        return await response.read()
+            session = await self.get_session()
+            # Convert speed limit from 10KB/s to bytes per second
+            # speed_limit_bps = 10 * 1024
+            if data is not None:
+                async with session.post(
+                    url,
+                    data=data,
+                    timeout=aiohttp.ClientTimeout(connect=30),
+                    proxy=self.proxy_url if self.proxy_status else None,
+                ) as response:
+                    await self.check_fetch_err(response, url)
+                    return await response.read()
+            elif json is not None:
+                async with session.post(
+                    url,
+                    json=json,
+                    timeout=aiohttp.ClientTimeout(connect=30),
+                    proxy=self.proxy_url if self.proxy_status else None,
+                ) as response:
+                    await self.check_fetch_err(response, url)
+                    return await response.json(content_type=None)
+            else:
+                # has_inline_set = True if 'inline_set' in url else False
+                # if has_inline_set:
+                #     # 此处似乎需要先访问一次获取完整 Cookies的sk值，否则无法固定设置配置项
+                #     # Task:可以通过将sk值填入yaml配置以避免此重复，但是sk其有效期是否足够长呢，其值是否需要频繁更新呢
+                #     if not self.eh_cookies['sk']:
+                #         async with session.get(url,
+                #                                proxy=self.proxy_url if self.proxy_status else None) as response:
+                #             await self.check_fetch_err(response, url)
+                #         # 考虑到上面存在的一次重复请求，添加一个延迟以降低请求频率
+                #         await asyncio.sleep(1)
+                #     async with session.get(url, proxy=self.proxy_url if self.proxy_status else None) as response:
+                #         await self.check_fetch_err(response, url)
+                #         return await response.read()
+                # else:
+                async with session.get(
+                    url,
+                    proxy=self.proxy_url if self.proxy_status else None,
+                    timeout=aiohttp.ClientTimeout(connect=30),
+                ) as response:
+                    await self.check_fetch_err(response, url)
+                    if tqdm_file_path is not None:
+                        total_size = int(response.headers.get('Content-Length', 0))
+                        desc_name = url.split('/')[-1] + "/" + os.path.basename(tqdm_file_path)
+                        temp_file_path = os.path.dirname(tqdm_file_path) + "/temp_" + os.path.basename(
+                            tqdm_file_path)
+                        with open(temp_file_path, 'wb') as f:
+                            with tqdm_asyncio(total=total_size, unit='B', unit_scale=True,
+                                              desc=desc_name) as pbar:
+                                # bytes_written = 0
+                                async for chunk in response.content.iter_chunked(1024):
+                                    f.write(chunk)
+                                    # bytes_written += len(chunk)
+                                    # # Calculate the time to sleep to maintain the desired speed limit
+                                    # if bytes_written >= speed_limit_bps:
+                                    #     sleep_time = len(chunk) / speed_limit_bps
+                                    #     await asyncio.sleep(sleep_time)
+                                    pbar.update(len(chunk))
+                        if os.path.exists(tqdm_file_path):
+                            os.remove(tqdm_file_path)
+                        # Verify Img
+                        if os.path.exists(temp_file_path):
+                            # if tqdm_file_path.endswith(".webp"):
+                            try:
+                                webp_image = Image.open(temp_file_path)
+                                webp_image.verify()
+                                webp_image.close()
+                            except Exception as e:
+                                os.remove(temp_file_path)
+                                logger.error(f"Failed to process image: {temp_file_path}. Error: {e}")
+                                return "reload_image"
+                        os.rename(temp_file_path, tqdm_file_path)
+                        return True
+                    return await response.read()
         except Exception as e:
             logger.error(e)
             if retry_attempts > 0:
@@ -199,19 +251,20 @@ class Config:
             if stream_range != 0:
                 headers.update({'Range': f'bytes={stream_range}-'})
                 mode = 'ab'
-            async with aiohttp.ClientSession(headers=headers, cookies=self.eh_cookies,
-                                             connector=aiohttp.TCPConnector(ssl_context=ssl_context)) as session:
-                async with session.get(url, proxy=self.proxy_url if self.proxy_status else None) as response:
-                    await self.check_fetch_err(response, file_path)
-                    with tqdm_asyncio(total=int(response.headers.get("Content-Length", 0)) + stream_range,
-                                      initial=stream_range,
-                                      unit="B", unit_scale=True) as progress_bar:
-                        folder_path = os.path.dirname(file_path)
-                        os.makedirs(folder_path, exist_ok=True)
-                        with open(file_path, mode) as f:
-                            async for data in response.content.iter_chunked(1024):
-                                f.write(data)
-                                progress_bar.update(len(data))
+            session = await self.get_session()
+            async with session.get(url, proxy=self.proxy_url if self.proxy_status else None,
+                                   headers=headers,
+                                   timeout=aiohttp.ClientTimeout(total=None, connect=30)) as response:
+                await self.check_fetch_err(response, file_path)
+                with tqdm_asyncio(total=int(response.headers.get("Content-Length", 0)) + stream_range,
+                                  initial=stream_range,
+                                  unit="B", unit_scale=True) as progress_bar:
+                    folder_path = os.path.dirname(file_path)
+                    os.makedirs(folder_path, exist_ok=True)
+                    with open(file_path, mode) as f:
+                        async for data in response.content.iter_chunked(1024):
+                            f.write(data)
+                            progress_bar.update(len(data))
                 return True
         except BaseException as e:
             logger.error(e)
@@ -219,7 +272,7 @@ class Config:
                 file_size = 0
                 logger.warning(
                     f"Failed to fetch data. Retrying in {retry_delay} seconds, {retry_attempts - 1} attempts left")
-                if os.path.exists(file_path) and str(file_path).find(".zip"):
+                if os.path.exists(file_path) and str(file_path).lower().endswith(".zip"):
                     try:
                         with zipfile.ZipFile(file_path, 'r') as zip_file:
                             zip_file.testzip()

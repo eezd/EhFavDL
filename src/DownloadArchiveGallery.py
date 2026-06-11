@@ -143,7 +143,7 @@ class DownloadArchiveGallery(Config):
             logger.warning(
                 f"This gallery is unavailable due to a copyright claim. https://{self.base_url}/g/{gid}/{token}    {title}")
             with sqlite3.connect(self.dbs_name) as co:
-                co.execute(f'''UPDATE eh_data SET copyright_flag=1 WHERE gid={gid}''')
+                co.execute('''UPDATE eh_data SET copyright_flag=1 WHERE gid=?''', (gid,))
                 co.commit()
             return False
 
@@ -185,7 +185,10 @@ class DownloadArchiveGallery(Config):
             shutil.rmtree(extract_to, ignore_errors=True)
             os.remove(file_path)
             with sqlite3.connect(self.dbs_name) as co:
-                co.execute(f'''UPDATE fav_category SET {download_type}=1 WHERE gid={gid}''')
+                if download_type == "web_1280x_flag":
+                    co.execute('''UPDATE fav_category SET web_1280x_flag = 1 WHERE gid = ?''', (gid,))
+                else:
+                    co.execute('''UPDATE fav_category SET original_flag = 1 WHERE gid = ?''', (gid,))
                 co.commit()
             logger.info(f"https://{self.base_url}/g/{gid}/{token}/, download OK")
             return True
@@ -193,7 +196,12 @@ class DownloadArchiveGallery(Config):
     async def go_dl(self, fav_cat, original_flag=False):
         dl_list = []
         # 检查数量和下载列表 / Check Quantity and Download List
+        fav_cat_values = [fav_id.strip() for fav_id in str(fav_cat).split(",") if fav_id.strip()]
+        if len(fav_cat_values) == 0:
+            logger.warning("fav_cat is empty.")
+            return
         with sqlite3.connect(self.dbs_name) as co:
+            placeholders = ",".join(["?"] * len(fav_cat_values))
             ce = co.execute(f'''
             SELECT
                 gid,
@@ -203,11 +211,11 @@ class DownloadArchiveGallery(Config):
             FROM
                 eh_data 
             WHERE
-                gid in ( SELECT gid FROM fav_category WHERE fav_id IN ({fav_cat}) AND web_1280x_flag = 0 AND original_flag = 0 ) 
+                gid in ( SELECT gid FROM fav_category WHERE fav_id IN ({placeholders}) AND web_1280x_flag = 0 AND original_flag = 0 ) 
                 AND copyright_flag = 0 
             ORDER BY
                 gid DESC
-            ''')
+            ''', fav_cat_values)
             # Testing
             # ce = co.execute(f'''
             # SELECT

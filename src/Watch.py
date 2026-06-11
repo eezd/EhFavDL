@@ -63,7 +63,7 @@ class Watch(Config):
         if len(failed_gid_list) > 0:
             logger.warning(f"Download failed, retry in 30 seconds. gids = {failed_gid_list}")
             await asyncio.sleep(30)
-            return await self.dl_new_gallery(gids=failed_gid_list)
+            return await self.dl_new_gallery(gids=failed_gid_list, archive_status=archive_status)
         return True
 
     async def apply(self, method=1):
@@ -92,13 +92,17 @@ class Watch(Config):
             # watch_fav_ids
             with sqlite3.connect(self.dbs_name) as co:
                 if self.watch_fav_ids is not None:
-                    query = "SELECT gid FROM fav_category WHERE fav_id IN ({})".format(
-                        ",".join("?" * len(self.watch_fav_ids.split(",")))
-                    )
-                    params = self.watch_fav_ids.split(",")
+                    watch_fav_ids = [fav_id.strip() for fav_id in self.watch_fav_ids.split(",") if fav_id.strip()]
+                    if len(watch_fav_ids) == 0:
+                        query = "SELECT gid FROM fav_category WHERE fav_id IN (?,?,?,?,?,?,?,?,?,?)"
+                        params = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+                    else:
+                        placeholders = ",".join(["?"] * len(watch_fav_ids))
+                        query = f"SELECT gid FROM fav_category WHERE fav_id IN ({placeholders})"
+                        params = watch_fav_ids
                 else:
-                    query = "SELECT gid FROM fav_category WHERE fav_id IN (0,1,2,3,4,5,6,7,8,9)"
-                    params = []
+                    query = "SELECT gid FROM fav_category WHERE fav_id IN (?,?,?,?,?,?,?,?,?,?)"
+                    params = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
                 total_gids = co.execute(query, params).fetchall()
                 if total_gids is not None:
                     total_gids = {gid[0] for gid in total_gids}

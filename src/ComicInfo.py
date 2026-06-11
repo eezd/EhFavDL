@@ -11,28 +11,35 @@ class ComicInfo(Config):
 
     def create_xml(self, gid, path):
         with sqlite3.connect(self.dbs_name) as co:
-            db_data = co.execute(f'''SELECT title,title_jpn,category,posted,token FROM eh_data WHERE gid="{gid}"''').fetchone()
+            db_data = co.execute(
+                '''SELECT title, title_jpn, category, posted, token FROM eh_data WHERE gid = ?''',
+                (gid,),
+            ).fetchone()
             if db_data is None:
                 logger.warning(f"The ID does not exist>> {gid}")
                 sys.exit(1)
             # 获取 tid 列表 / Get tid_list
-            tid_list = co.execute(f'''SELECT tid FROM gid_tid WHERE gid="{gid}"''').fetchall()
-            tid_list = [tid[0] for tid in tid_list]
-            # 在 tag_list 中查询对应 tag
-            placeholders = ','.join(['?'] * len(tid_list))
-            tag_list = co.execute(f'''
-            SELECT tag, translated_tag 
-            FROM
-                tag_list 
-            WHERE
-                tid IN ( {placeholders} )
-            ''', tid_list).fetchall()
+            tid_rows = co.execute(
+                '''SELECT tid FROM gid_tid WHERE gid = ?''',
+                (gid,),
+            ).fetchall()
+            tid_list = [tid[0] for tid in tid_rows]
             db_tags = []
-            for tag in tag_list:
-                if tag[1] is not None and tag[1] != "" and self.tags_translation == True:
-                    db_tags.append(tag[1])
-                else:
-                    db_tags.append(tag[0])
+            if tid_list:
+                placeholders = ','.join(['?'] * len(tid_list))
+                tag_list = co.execute(
+                    f'''
+                    SELECT tag, translated_tag
+                    FROM tag_list
+                    WHERE tid IN ({placeholders})
+                    ''',
+                    tid_list,
+                ).fetchall()
+                for tag, translated_tag in tag_list:
+                    if self.tags_translation and translated_tag is not None and translated_tag != "":
+                        db_tags.append(translated_tag)
+                    else:
+                        db_tags.append(tag)
             if self.prefer_japanese_title and db_data[1] is not None and db_data[1] != "" and len(str(db_data[1]).strip()) > 3:
                 print("Using Japanese title" + str(db_data[1]))
                 xml_t = xml_escape(str(db_data[1]))
@@ -40,14 +47,13 @@ class ComicInfo(Config):
                 print("Using English title" + str(db_data[0]))
                 xml_t = xml_escape(str(db_data[0]))
             category = db_data[2]
-            posted = str(datetime.fromtimestamp(int(db_data[3]))).split(" ")[0].split("-")
-            tags = str(db_tags).replace("[", "").replace("]", "").replace("'", "").split(",")
-            art = ""
-            for _tags in tags:
-                if _tags.find("artist") != -1:
-                    art = art + _tags.split(":")[1] + ", "
-            art = art.strip()[:-1]
-            tags = str(db_tags).replace("[", "").replace("]", "").replace("'", "")
+            posted = datetime.fromtimestamp(int(db_data[3])).strftime("%Y-%m-%d").split("-")
+            art = ", ".join(
+                tag.split(":", 1)[1]
+                for tag in db_tags
+                if tag.startswith("artist:") and ":" in tag
+            )
+            tags = ", ".join(db_tags)
         data_list = [
             r'<ComicInfo xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" encoding="utf-8">',
             r'<Manga/>',

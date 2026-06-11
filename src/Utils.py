@@ -16,36 +16,95 @@ from src.Config import Config
 self = Config()
 
 
+def _split_csv_values(raw_values):
+    if raw_values is None or raw_values == "":
+        return []
+    if isinstance(raw_values, (list, tuple, set)):
+        values = raw_values
+    else:
+        values = str(raw_values).split(",")
+    return [str(value).strip() for value in values if str(value).strip()]
+
+
+def collect_gid_cbz_groups(target_path):
+    """
+    收集目录下按 gid 分组的 CBZ 文件，分别返回原图和 1280x 版本。
+    """
+    gid_list_original = {}
+    gid_list_1280x = {}
+
+    for name in os.listdir(target_path):
+        full_path = os.path.join(target_path, name)
+        if not re.match(r'^\d+-.*\.cbz$', name) or not os.path.isfile(full_path):
+            continue
+        gid = re.match(r'^(\d+)-', name).group(1)
+        if '-1280x' in name.lower():
+            gid_list_1280x.setdefault(gid, []).append(name)
+        else:
+            gid_list_original.setdefault(gid, []).append(name)
+
+    return gid_list_original, gid_list_1280x
+
+
+def move_path_with_collision(old_path, dest_dir):
+    os.makedirs(dest_dir, exist_ok=True)
+    base_name = os.path.basename(old_path)
+    dest_path = os.path.join(dest_dir, base_name)
+    if os.path.exists(dest_path):
+        timestamp = time.strftime("%Y%m%d%H%M%S")
+        root, ext = os.path.splitext(base_name)
+        suffix = 0
+        while True:
+            suffix_part = "" if suffix == 0 else f"_{suffix}"
+            dest_path = os.path.join(dest_dir, f"{root}_{timestamp}{suffix_part}{ext}")
+            if not os.path.exists(dest_path):
+                break
+            suffix += 1
+    shutil.move(old_path, dest_path)
+    return dest_path
+
+
 def get_web_gallery_download_list(fav_cat="", gids=""):
     dl_list = []
     with sqlite3.connect(self.dbs_name) as co:
-        _sql = ""
-        if fav_cat != "":
-            _sql += f"AND fc.fav_id IN ({fav_cat}) "
-        if gids != "":
-            _sql += f"AND eh.gid IN ({gids}) "
-        if fav_cat == "" and gids == "":
+        fav_cat_values = _split_csv_values(fav_cat)
+        gid_values = _split_csv_values(gids)
+        if not fav_cat_values and not gid_values:
             logger.warning("fav_cat AND gids both are empty.")
             sys.exit(1)
+
+        sql_params = []
+        sql_conditions = []
+        if fav_cat_values:
+            sql_conditions.append(f"fc.fav_id IN ({','.join(['?'] * len(fav_cat_values))})")
+            sql_params.extend(fav_cat_values)
+        if gid_values:
+            sql_conditions.append(f"eh.gid IN ({','.join(['?'] * len(gid_values))})")
+            sql_params.extend(gid_values)
+
+        extra_sql = ""
+        if sql_conditions:
+            extra_sql = " AND " + " AND ".join(sql_conditions)
+
         ce = co.execute(f'''
         SELECT
                 fc.gid,
                 fc.token,
                 eh.title,
-                eh.title_jpn 
+                eh.title_jpn
         FROM
                 eh_data AS eh,
-                fav_category AS fc 
+                fav_category AS fc
         WHERE
-                fc.web_1280x_flag = 0 
+                fc.web_1280x_flag = 0
                 AND fc.original_flag = 0
                 AND fc.del_flag = 0
-                AND eh.copyright_flag = 0 
-                AND eh.gid = fc.gid 
-                {_sql} 
+                AND eh.copyright_flag = 0
+                AND eh.gid = fc.gid
+                {extra_sql}
         ORDER BY
                 fc.gid DESC
-        ''').fetchall()
+        ''', sql_params).fetchall()
         for i in ce:
             if i[3] is not None and i[3] != "":
                 title = str(i[3])
@@ -67,19 +126,23 @@ def clear_old_file(move_list):
     """
     del_dir = self.del_path
     os.makedirs(del_dir, exist_ok=True)
+    gallery_map = {}
+    for folder_name in os.listdir(self.gallery_path):
+        match = re.match(r'^(\d+)-', folder_name)
+        if match:
+            gallery_map.setdefault(match.group(1), []).append(folder_name)
+
     with sqlite3.connect(self.dbs_name) as co:
+        delete_targets = []
         for gid in move_list:
-            for folder_name in os.listdir(self.gallery_path):
+            for folder_name in gallery_map.get(str(gid), []):
                 folder_path = os.path.join(self.gallery_path, folder_name)
-                if folder_name.startswith(f"{gid}-"):
-                    dest_path = os.path.join(del_dir, folder_name)
-                    if os.path.exists(dest_path):
-                        timestamp = time.strftime("%Y%m%d%H%M%S")
-                        dest_path = os.path.join(del_dir, f"{folder_name}_{timestamp}")
-                    shutil.move(folder_path, dest_path)
-                    co.execute(f'''DELETE FROM fav_category WHERE gid = {gid} ''')
-                    co.commit()
-                    logger.info(f"Moved: {folder_path} -> {dest_path}")
+                dest_path = move_path_with_collision(folder_path, del_dir)
+                delete_targets.append((gid,))
+                logger.info(f"Moved: {folder_path} -> {dest_path}")
+        if delete_targets:
+            co.executemany('DELETE FROM fav_category WHERE gid = ?', delete_targets)
+        co.commit()
 
 
 def create_cbz(src_path, target_path=""):
@@ -175,7 +238,7 @@ def rename_gid_name(target_path=""):
             if item.find("-1280x") != -1:
                 web_str = "-1280x"
             gid = re.match(r'^(\d+)-', item).group(1)
-            co_title = co.execute(f'''SELECT title,title_jpn FROM eh_data WHERE gid="{gid}"''').fetchone()
+            co_title = co.execute('''SELECT title,title_jpn FROM eh_data WHERE gid=?''', (gid,)).fetchone()
             if co_title is not None:
                 if co_title[1] is not None and co_title[1] != "":
                     title = str(co_title[1])
