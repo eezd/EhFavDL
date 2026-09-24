@@ -6,6 +6,12 @@ from tqdm.asyncio import tqdm_asyncio
 from src.ComicInfo import ComicInfo
 from src.Utils import *
 
+# Retry settings for images served by H@H nodes (*.hath.network).
+# Delays help avoid repeatedly hitting the same node or route after a failure.
+HATH_RELOAD_ATTEMPTS = 8   # Increased from 6.
+HATH_RELOAD_DELAY = 3      # Seconds before retrying a failed image.
+HATH_PAGE_RELOAD_DELAY = 2 # Seconds before retrying a failed /s/ page.
+
 
 class DownloadWebGallery(Config):
 
@@ -34,7 +40,7 @@ class DownloadWebGallery(Config):
         """
         async with semaphore:
             reload_count = 0
-            while reload_count < 6:
+            while reload_count < HATH_RELOAD_ATTEMPTS:
                 reload_count += 1
                 real_url = await self.fetch_data(url=url)
                 if real_url is False:
@@ -48,7 +54,8 @@ class DownloadWebGallery(Config):
                     # <h1>Error 503 Backend fetch failed</h1>...
                 except Exception as e:
                     logger.error(e)
-                    logger.warning(f"download_image, retrying...{reload_count}/6")
+                    logger.warning(f"download_image, retrying...{reload_count}/{HATH_RELOAD_ATTEMPTS}")
+                    await asyncio.sleep(HATH_PAGE_RELOAD_DELAY)
                     continue
 
                 load_fail = soup.select_one('#loadfail').get('onclick')
@@ -66,7 +73,10 @@ class DownloadWebGallery(Config):
 
                 if isinstance(dl_status, str):
                     if dl_status == "reload_image":
-                        logger.info(F"Reload Image. Retrying... {reload_count} / 6 ")
+                        logger.info(
+                            F"Reload Image. Retrying... {reload_count} / {HATH_RELOAD_ATTEMPTS} "
+                            F"(delay {HATH_RELOAD_DELAY}s) | {url}")
+                        await asyncio.sleep(HATH_RELOAD_DELAY)
                 elif dl_status is True:
                     return True
                     # if file_extension.lower() == ".webp":
