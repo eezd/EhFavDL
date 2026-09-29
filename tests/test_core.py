@@ -1,3 +1,4 @@
+import asyncio
 import xml.etree.ElementTree as ET
 import os
 import sqlite3
@@ -6,6 +7,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from src.AddFavData import AddFavData
 from src.AppConfig import AppConfig
 from src.ComicInfo import ComicInfo
 from src.Checker import Checker
@@ -286,6 +288,43 @@ class AsyncInfrastructureTests(unittest.IsolatedAsyncioTestCase):
             result,
             [["https://exhentai.org/s/aaa/1-1", "00000001"], ["https://exhentai.org/s/bbb/1-2", "00000002"]],
         )
+
+    async def test_update_meta_data_retries_only_failed_and_terminates(self):
+        with self.database.connection() as co:
+            co.executemany(
+                "INSERT INTO eh_data(gid, token, title) VALUES (?,?,?)",
+                [(1, "a", "Old A"), (2, "b", "Old B"), (3, "c", "Old C")],
+            )
+            co.commit()
+
+        calls = []
+        failures = {1: 1, 3: 99}
+
+        async def fake_api(url, json):
+            calls.append([gid for gid, _ in json["gidlist"]])
+            items = []
+            for gid, token in json["gidlist"]:
+                if failures.get(gid, 0) > 0:
+                    failures[gid] -= 1
+                    items.append({"gid": gid, "error": "Key missing, or incorrect key provided."})
+                    continue
+                items.append({
+                    "gid": gid, "token": token, "title": f"New {gid}", "title_jpn": "", "category": "Manga",
+                    "thumb": "", "uploader": "u", "posted": "1704067200", "filecount": "5", "filesize": 1,
+                    "expunged": False, "rating": "4.5", "tags": ["artist:x"] if gid == 1 else [],
+                })
+            return {"gmetadata": items}
+
+        add_fav = AddFavData(self.config, self.database, mock.Mock(fetch_data=fake_api))
+        with mock.patch("src.AddFavData.asyncio.sleep", new_callable=mock.AsyncMock):
+            await asyncio.wait_for(add_fav.update_meta_data(get_all=True), timeout=5)
+
+        self.assertEqual(calls, [[1, 2, 3], [1, 3], [3]])
+        with self.database.connection() as co:
+            titles = dict(co.execute("SELECT gid, title FROM eh_data").fetchall())
+            tag_counts = dict(co.execute("SELECT gid, COUNT(*) FROM gid_tid GROUP BY gid").fetchall())
+        self.assertEqual(titles, {1: "New 1", 2: "New 2", 3: "Old C"})
+        self.assertEqual(tag_counts, {1: 1})
 
 
 if __name__ == "__main__":

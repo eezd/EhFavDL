@@ -14,6 +14,9 @@ from tqdm import tqdm
 from src.Service import Service
 from src.Utils import clear_old_file, remove_duplicates_2d_array
 
+META_BATCH_SIZE = 25
+META_RETRY = 3
+
 
 class AddFavData(Service):
     def __init__(self, config, database, eh_client):
@@ -198,6 +201,9 @@ class AddFavData(Service):
         format_data = []
         for sub_post_data in json_data:
             gid = sub_post_data['gid']
+            if 'error' in sub_post_data:
+                logger.warning(f"EH API error for gid={gid}: {sub_post_data['error']}")
+                continue
             token = sub_post_data['token']
             expunged = sub_post_data.get('expunged')
             expunged = 0 if expunged in (False, 0) else 1
@@ -239,7 +245,7 @@ class AddFavData(Service):
         Based on the `eh_data` table, update the field data and its tags (`gid_tid` and `tag_list`).
         """
         logger.info(f'Get Meta Data...')
-        with sqlite3.connect(self.dbs_name) as co:
+        with self.database.connection() as co:
             if not get_all:
                 gid_token = co.execute(
                     '''
@@ -250,38 +256,25 @@ class AddFavData(Service):
                 ).fetchall()
             else:
                 gid_token = co.execute('''SELECT gid,token FROM eh_data''').fetchall()
-        total = len(gid_token)
-        piece = 25
-        if total != 0:
-            gid_token = [list(t) for t in gid_token]
-            gid_token = [gid_token[i:i + piece] for i in range(0, len(gid_token), piece)]
-            post_json_arr = []
-            for i in gid_token:
-                post_json_arr.append({
-                    "method": "gdata",
-                    "gidlist": i,
-                    "namespace": 1
-                })
-            with tqdm(total=total) as progress_bar:
-                for post_json in post_json_arr:
-                    post_data = await self.post_eh_api(post_json)
-                    self.write_meta_data(post_data)
-                    progress_bar.update(min(piece, total - progress_bar.n))
 
-            with sqlite3.connect(self.dbs_name) as co:
-                missed_tag = co.execute('''
-                    SELECT
-                        gid
-                    FROM
-                        eh_data
-                    WHERE
-                        gid NOT IN ( SELECT gid FROM gid_tid WHERE gid IS NOT NULL )
-                    ''').fetchall()
-            if len(missed_tag) > 0:
-                logger.warning(f"Missed data: {missed_tag}")
-                logger.warning("Retry in 3 seconds")
+        targets = [list(t) for t in gid_token]
+        for attempt in range(1, META_RETRY + 1):
+            missing = []
+            with tqdm(total=len(targets)) as progress_bar:
+                for i in range(0, len(targets), META_BATCH_SIZE):
+                    chunk = targets[i:i + META_BATCH_SIZE]
+                    post_data = await self.post_eh_api({"method": "gdata", "gidlist": chunk, "namespace": 1})
+                    self.write_meta_data(post_data)
+                    returned = {item['gid'] for item in post_data}
+                    missing.extend(pair for pair in chunk if pair[0] not in returned)
+                    progress_bar.update(len(chunk))
+            if not missing:
+                return
+            targets = missing
+            if attempt < META_RETRY:
+                logger.warning(f"Missed metadata for {len(missing)} galleries, retry in 3 seconds")
                 await asyncio.sleep(3)
-                await self.update_meta_data()
+        logger.warning(f"Metadata unavailable after {META_RETRY} attempts: {[gid for gid, _ in missing]}")
 
     def format_fav_page_info(self, res):
         """
