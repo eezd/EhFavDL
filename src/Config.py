@@ -6,6 +6,7 @@ import re
 import sqlite3
 import ssl
 import sys
+import urllib.request
 import zipfile
 
 import aiohttp
@@ -13,6 +14,7 @@ import yaml
 from PIL import Image
 from bs4 import BeautifulSoup
 from loguru import logger
+from tqdm import tqdm
 from tqdm.asyncio import tqdm_asyncio
 
 ssl_context = ssl.create_default_context()
@@ -181,47 +183,18 @@ class Config:
                 #         await self.check_fetch_err(response, url)
                 #         return await response.read()
                 # else:
+                # Use urllib for file downloads; HTML pages still use aiohttp.
+                if tqdm_file_path is not None:
+                    return await self.fetch_file_blocking(url=url, tqdm_file_path=tqdm_file_path)
                 async with session.get(
                     url,
                     proxy=self.proxy_url if self.proxy_status else None,
                     timeout=aiohttp.ClientTimeout(connect=30),
                 ) as response:
                     await self.check_fetch_err(response, url)
-                    if tqdm_file_path is not None:
-                        total_size = int(response.headers.get('Content-Length', 0))
-                        desc_name = url.split('/')[-1] + "/" + os.path.basename(tqdm_file_path)
-                        temp_file_path = os.path.dirname(tqdm_file_path) + "/temp_" + os.path.basename(
-                            tqdm_file_path)
-                        with open(temp_file_path, 'wb') as f:
-                            with tqdm_asyncio(total=total_size, unit='B', unit_scale=True,
-                                              desc=desc_name) as pbar:
-                                # bytes_written = 0
-                                async for chunk in response.content.iter_chunked(1024):
-                                    f.write(chunk)
-                                    # bytes_written += len(chunk)
-                                    # # Calculate the time to sleep to maintain the desired speed limit
-                                    # if bytes_written >= speed_limit_bps:
-                                    #     sleep_time = len(chunk) / speed_limit_bps
-                                    #     await asyncio.sleep(sleep_time)
-                                    pbar.update(len(chunk))
-                        if os.path.exists(tqdm_file_path):
-                            os.remove(tqdm_file_path)
-                        # Verify Img
-                        if os.path.exists(temp_file_path):
-                            # if tqdm_file_path.endswith(".webp"):
-                            try:
-                                webp_image = Image.open(temp_file_path)
-                                webp_image.verify()
-                                webp_image.close()
-                            except Exception as e:
-                                os.remove(temp_file_path)
-                                logger.error(f"Failed to process image: {temp_file_path}. Error: {e}")
-                                return "reload_image"
-                        os.rename(temp_file_path, tqdm_file_path)
-                        return True
                     return await response.read()
         except Exception as e:
-            logger.error(e)
+            logger.error(f"{type(e).__name__}: {e} | URL: {url}")
             if retry_attempts > 0:
                 if "hath.network" in str(url):
                     return "reload_image"
@@ -243,6 +216,60 @@ class Config:
                     await asyncio.sleep(retry_delay)
                     return await self.fetch_data(url=url, json=json, data=data, tqdm_file_path=tqdm_file_path,
                                                  retry_delay=retry_delay, retry_attempts=2)
+
+    async def fetch_file_blocking(self, url, tqdm_file_path):
+        """Download one image with urllib in a separate thread.
+
+        Some H@H nodes ("Genetic Lifeform and Distributed Open Server 1.6.4",
+        using ``Connection: close``) cause aiohttp to lose the trailing bytes of
+        the response body, resulting in ContentLengthError or SSLEOFError. The
+        same URL returns a complete file with curl and urllib.
+
+        The return contract matches the aiohttp path: return True or
+        "reload_image", or raise an exception handled by fetch_data.
+        """
+        headers = dict(self.request_headers or {})
+        if getattr(self, 'eh_cookies', None):
+            headers['Cookie'] = '; '.join(f'{k}={v}' for k, v in self.eh_cookies.items() if v)
+
+        temp_file_path = os.path.dirname(tqdm_file_path) + "/temp_" + os.path.basename(tqdm_file_path)
+        desc_name = url.split('/')[-1] + "/" + os.path.basename(tqdm_file_path)
+
+        def _download():
+            ctx = ssl.create_default_context()
+            handlers = [urllib.request.HTTPSHandler(context=ctx)]
+            if self.proxy_status and self.proxy_url:
+                handlers.append(urllib.request.ProxyHandler(
+                    {'http': self.proxy_url, 'https': self.proxy_url}))
+            opener = urllib.request.build_opener(*handlers)
+            req = urllib.request.Request(url, headers=headers)
+            with opener.open(req, timeout=60) as resp:
+                total = int(resp.headers.get('Content-Length', 0))
+                with open(temp_file_path, 'wb') as f:
+                    with tqdm(total=total, unit='B', unit_scale=True, desc=desc_name) as pbar:
+                        while True:
+                            chunk = resp.read(65536)
+                            if not chunk:
+                                break
+                            f.write(chunk)
+                            pbar.update(len(chunk))
+
+        await asyncio.to_thread(_download)
+
+        if os.path.exists(tqdm_file_path):
+            os.remove(tqdm_file_path)
+        # Verify Img
+        if os.path.exists(temp_file_path):
+            try:
+                webp_image = Image.open(temp_file_path)
+                webp_image.verify()
+                webp_image.close()
+            except Exception as e:
+                os.remove(temp_file_path)
+                logger.error(f"Failed to process image: {temp_file_path}. Error: {e}")
+                return "reload_image"
+        os.rename(temp_file_path, tqdm_file_path)
+        return True
 
     async def fetch_data_stream(self, url, file_path, stream_range=0, retry_delay=10, retry_attempts=10):
         try:
@@ -267,7 +294,7 @@ class Config:
                             progress_bar.update(len(data))
                 return True
         except BaseException as e:
-            logger.error(e)
+            logger.error(f"{type(e).__name__}: {e} | URL: {url} | PATH: {file_path}")
             if retry_attempts > 0:
                 file_size = 0
                 logger.warning(
