@@ -1,27 +1,28 @@
 import asyncio
+import os
+import re
+import shutil
+import sqlite3
 
 from bs4 import BeautifulSoup
+from loguru import logger
 from tqdm.asyncio import tqdm_asyncio
 
+from src.Service import Service
 from src.ComicInfo import ComicInfo
-from src.Utils import *
+from src.Utils import create_cbz, windows_escape
 
 
-class DownloadWebGallery(Config):
-
-    def __init__(self, gid, token, title):
-        super().__init__()
+class DownloadWebGallery(Service):
+    def __init__(self, config, database, eh_client, quota, gid, token, title):
+        super().__init__(config, database, eh_client, quota)
 
         self.gid = gid
         self.token = token
 
-        # invalid format name
         self.title = windows_escape(title)
-
         self.filepath_tmp = os.path.join(self.web_path, 'temp', str(self.gid) + '-' + self.title + "-1280x")
-
         self.filepath_end = os.path.join(self.web_path, str(self.gid) + '-' + self.title + "-1280x")
-
         self.long_url = f"https://{self.base_url}/g/{self.gid}/{self.token}/"
 
     @logger.catch
@@ -203,7 +204,6 @@ class DownloadWebGallery(Config):
         if file_count != len(res_image_list):
             logger.warning(f"Failed for missing pages: {self.long_url}")
             return False
-
         # move file
         if os.path.isdir(self.filepath_end):
             logger.warning(f"Directory already exists, coverage {self.filepath_end}")
@@ -211,8 +211,7 @@ class DownloadWebGallery(Config):
             shutil.move(self.filepath_tmp, self.filepath_end)
         else:
             shutil.move(self.filepath_tmp, self.filepath_end)
-
-        ComicInfo().create_xml(gid=self.gid, path=self.filepath_end)
+        ComicInfo(self.config, self.database).create_xml(gid=self.gid, path=self.filepath_end)
         create_cbz(src_path=self.filepath_end, target_path=self.filepath_end)
         shutil.rmtree(self.filepath_end)
 

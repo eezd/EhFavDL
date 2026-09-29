@@ -44,7 +44,7 @@ However, `w2` is not without drawbacks. It cannot determine which galleries have
 does not retrieve all the favorite data.
 
 ```python
-class Watch(Config):
+class Watch:
     ...
 
     async def apply(self, method=1):
@@ -145,7 +145,7 @@ If new galleries exist, `AddFavData().deep_check()` is used for a thorough check
 > `if count == 0`: This `if` condition is a safety measure to prevent excessive resource consumption.
 
 ```python
-class AddFavData(Config):
+class AddFavData:
     async def post_fav_data(...):
         ...
         if get_all is False:

@@ -1,11 +1,17 @@
+import base64
+import re
+import sys
+
 import aiohttp
+from loguru import logger
+from tqdm import tqdm
 
-from .Utils import *
 
 
-class LANraragi(Config):
-    def __init__(self, watch_status=False):
-        super().__init__()
+from src.Service import Service
+class LANraragi(Service):
+    def __init__(self, config, database, watch_status=False):
+        super().__init__(config, database)
         self.watch_status = watch_status
 
     def lan_request(self):

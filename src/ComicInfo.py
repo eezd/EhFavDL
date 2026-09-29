@@ -1,13 +1,21 @@
 import os.path
+import re
+import shutil
+import sqlite3
+import sys
+import zipfile
 from datetime import datetime
 
-from src.Utils import *
+from loguru import logger
+from tqdm import tqdm
+
+from src.Service import Service
+from src.Utils import create_cbz, xml_escape
 
 
-class ComicInfo(Config):
-
-    def __init__(self):
-        super().__init__()
+class ComicInfo(Service):
+    def __init__(self, config, database):
+        super().__init__(config, database)
 
     def create_xml(self, gid, path):
         with sqlite3.connect(self.dbs_name) as co:

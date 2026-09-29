@@ -36,7 +36,7 @@ A: 先运行 `2. Update Gallery Metadata (Update Tags)`，然后使用 `4. Downl
 w2 并不是没有缺点的，他无法判断哪些画廊被移除收藏夹了，因为他没有获取所有收藏夹数据。
 
 ```python
-class Watch(Config):
+class Watch:
     ...
     async def apply(self, method=1):
         ...
@@ -131,7 +131,7 @@ Select Number:12
 > `if count == 0`：该 if 是作为一个保险，避免资源的过度消耗。
 
 ```python
-class AddFavData(Config):
+class AddFavData:
     async def post_fav_data(...):
         ...
             if get_all is False:

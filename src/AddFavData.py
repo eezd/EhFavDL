@@ -1,16 +1,23 @@
 import ast
 import asyncio
+import json
 import os
+import re
+import sqlite3
+import sys
 from datetime import datetime
 
 from bs4 import BeautifulSoup
+from loguru import logger
+from tqdm import tqdm
 
-from src.Utils import *
+from src.Service import Service
+from src.Utils import clear_old_file, remove_duplicates_2d_array
 
 
-class AddFavData(Config):
-    def __init__(self):
-        super().__init__()
+class AddFavData(Service):
+    def __init__(self, config, database, eh_client):
+        super().__init__(config, database, eh_client)
 
     async def translate_tags(self):
         """
@@ -531,7 +538,7 @@ class AddFavData(Config):
                 AND eh.gid == eh.current_gid
                 AND eh.current_gid IN ( SELECT gid FROM eh_data )
             ''').fetchall()
-            clear_old_file([i[0] for i in del_list])
+            clear_old_file(self.database, self.gallery_path, self.del_path, [i[0] for i in del_list])
 
             del_list = co.execute('''
             SELECT
@@ -550,7 +557,7 @@ class AddFavData(Config):
                 AND eh.current_gid IN ( SELECT gid FROM eh_data )
                 AND eh.current_gid IN ( SELECT gid FROM fav_category WHERE del_flag = 0 AND (original_flag = 1 OR web_1280x_flag = 1) )
             ''').fetchall()
-            clear_old_file([i[0] for i in del_list])
+            clear_old_file(self.database, self.gallery_path, self.del_path, [i[0] for i in del_list])
 
             update_list = co.execute('''
             SELECT

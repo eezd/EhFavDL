@@ -1,15 +1,15 @@
 import os
-import gc
 import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
+from src.AppConfig import AppConfig
 from src.ComicInfo import ComicInfo
-from src.Config import Config
-from src.DownloadArchiveGallery import DownloadArchiveGallery
-from src.Watch import Watch
+from src.Checker import Checker
+from src.Database import Database
+from src.EhClient import EhClient
 import src.Utils as utils_mod
 from src.Utils import (
     clear_old_file,
@@ -19,6 +19,7 @@ from src.Utils import (
     windows_escape,
     xml_escape,
 )
+from src.Watch import Watch
 
 
 def build_config_file(root: Path) -> Path:
@@ -56,23 +57,17 @@ watch_lan_status: False
 
 class CoreBehaviorTests(unittest.TestCase):
     def setUp(self):
-        Config._config_cache.clear()
-        Config._session_cache.clear()
         self.tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.root = Path(self.tmp.name)
         self.config_path = build_config_file(self.root)
-        self.config = Config(config_path=str(self.config_path))
-        self.config.create_database()
+        self.config = AppConfig.load(str(self.config_path))
+        self.database = Database(self.config.dbs_name)
+        self.database.initialize()
         os.makedirs(self.config.gallery_path, exist_ok=True)
         os.makedirs(self.config.del_path, exist_ok=True)
-        utils_mod.self = self.config
 
     def tearDown(self):
-        utils_mod.self = None
-        gc.collect()
         self.tmp.cleanup()
-        Config._config_cache.clear()
-        Config._session_cache.clear()
 
     def test_config_loads_custom_path(self):
         self.assertEqual(self.config.base_url, "exhentai.org")
@@ -82,6 +77,20 @@ class CoreBehaviorTests(unittest.TestCase):
     def test_pure_helpers(self):
         self.assertEqual(windows_escape('a<b>c:d|e?f*g"h/i\t'), "abcdefghi")
         self.assertEqual(xml_escape('a & b < c > d " e \' f'), "a &amp; b &lt; c &gt; d &quot; e &apos; f")
+
+    def test_config_parses_string_booleans_and_list_ids(self):
+        config_text = self.config_path.read_text(encoding="utf-8")
+        config_text = config_text.replace("enable: False", "enable: 'false'")
+        config_text = config_text.replace("tags_translation: False", "tags_translation: 'false'")
+        config_text = config_text.replace("watch_fav_ids: 0,1", "watch_fav_ids:\n  - 0\n  - 1")
+        self.config_path.write_text(config_text, encoding="utf-8")
+
+        config = AppConfig.load(str(self.config_path))
+
+        self.assertFalse(config.proxy_status)
+        self.assertFalse(config.tags_translation)
+        self.assertEqual(config.watch_fav_ids, "0,1")
+
 
     def test_collect_gid_groups(self):
         (self.root / "data" / "gallery" / "100-test.cbz").write_text("x", encoding="utf-8")
@@ -104,7 +113,7 @@ class CoreBehaviorTests(unittest.TestCase):
             )
             co.commit()
 
-        clear_old_file([123])
+        clear_old_file(self.database, self.config.gallery_path, self.config.del_path, [123])
 
         self.assertFalse(src_file.exists())
         moved_files = list((self.root / "data" / "del").glob("123-sample.cbz*"))
@@ -112,6 +121,14 @@ class CoreBehaviorTests(unittest.TestCase):
         with sqlite3.connect(self.config.dbs_name) as co:
             row = co.execute("SELECT COUNT(*) FROM fav_category WHERE gid = 123").fetchone()[0]
         self.assertEqual(row, 0)
+
+    def test_checker_skips_local_gallery_without_metadata(self):
+        orphan = self.root / "data" / "gallery" / "999-orphan.cbz"
+        orphan.write_text("payload", encoding="utf-8")
+
+        Checker(self.config, self.database).clear_old_file()
+
+        self.assertTrue(orphan.exists())
 
     def test_download_list_uses_title_jpn_and_filters(self):
         with sqlite3.connect(self.config.dbs_name) as co:
@@ -125,7 +142,7 @@ class CoreBehaviorTests(unittest.TestCase):
             )
             co.commit()
 
-        dl_list = get_web_gallery_download_list(fav_cat="1")
+        dl_list = get_web_gallery_download_list(self.database, fav_cat="1")
         self.assertEqual(dl_list, [[321, "abc", "Japanese"]])
 
     def test_move_path_with_collision_appends_timestamp(self):
@@ -166,8 +183,7 @@ class CoreBehaviorTests(unittest.TestCase):
 
         output_dir = self.root / "data" / "gallery" / "777-sample"
         os.makedirs(output_dir, exist_ok=True)
-        comic_info = ComicInfo.__new__(ComicInfo)
-        Config.__init__(comic_info, config_path=str(self.config_path))
+        comic_info = ComicInfo(self.config, self.database)
         comic_info.create_xml(777, str(output_dir))
 
         xml_file = output_dir / "ComicInfo.xml"
@@ -176,42 +192,49 @@ class CoreBehaviorTests(unittest.TestCase):
         self.assertIn("<Title>English</Title>", xml_text)
 
 
-class AsyncConfigTests(unittest.IsolatedAsyncioTestCase):
+
+
+class AsyncInfrastructureTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        Config._config_cache.clear()
-        Config._session_cache.clear()
         self.tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
         self.root = Path(self.tmp.name)
         self.config_path = build_config_file(self.root)
-        self.config = Config(config_path=str(self.config_path))
+        self.config = AppConfig.load(str(self.config_path))
+        self.database = Database(self.config.dbs_name)
+        self.database.initialize()
 
     async def asyncTearDown(self):
-        await Config.close_cached_sessions()
-        Config._config_cache.clear()
-        Config._session_cache.clear()
         self.tmp.cleanup()
 
-    async def test_session_cache_is_loop_scoped(self):
-        session_a = await self.config.get_session()
-        session_b = await self.config.get_session()
+    async def test_eh_client_reuses_and_closes_session(self):
+        client = EhClient(self.config)
+        session_a = await client.get_session()
+        session_b = await client.get_session()
+
         self.assertIs(session_a, session_b)
         self.assertFalse(session_a.closed)
-        await Config.close_cached_sessions()
+
+        await client.close()
+
         self.assertTrue(session_a.closed)
 
-    @mock.patch("src.Watch.get_web_gallery_download_list", return_value=[[999, "tok", "title"]])
-    @mock.patch("src.Watch.asyncio.sleep", new_callable=mock.AsyncMock)
-    async def test_watch_retry_preserves_archive_mode(self, mocked_sleep, mocked_get_list):
-        watch = Watch.__new__(Watch)
-        Config.__init__(watch, config_path=str(self.config_path))
+    async def test_watch_retries_failed_gallery(self):
+        watch = Watch(self.config, self.database, mock.Mock(), mock.Mock())
+        download = mock.Mock()
+        download.apply = mock.AsyncMock(side_effect=[False, True])
 
-        with mock.patch.object(DownloadArchiveGallery, "dl_gallery", new_callable=mock.AsyncMock) as mocked_dl:
-            mocked_dl.side_effect = [False, True]
-            await watch.dl_new_gallery(gids="999", archive_status=True)
+        with mock.patch(
+            "src.Watch.get_web_gallery_download_list",
+            side_effect=[[[999, "tok", "title"]], [[999, "tok", "title"]]],
+        ) as get_download_list, mock.patch(
+            "src.Watch.DownloadWebGallery", return_value=download
+        ), mock.patch("src.Watch.asyncio.sleep", new_callable=mock.AsyncMock) as sleep:
+            result = await watch.dl_new_gallery(gids="999")
 
-        self.assertEqual(mocked_dl.call_count, 2)
-        self.assertTrue(all(call.kwargs["original_flag"] is False for call in mocked_dl.call_args_list))
-        mocked_sleep.assert_awaited_once()
+        self.assertTrue(result)
+        self.assertEqual(get_download_list.call_count, 2)
+        self.assertEqual(download.apply.await_count, 2)
+        sleep.assert_awaited_once_with(30)
 
 
 if __name__ == "__main__":
