@@ -21,7 +21,7 @@ async def run(args):
     from src.Checker import Checker
     from src.ComicInfo import ComicInfo
     from src.Database import Database
-    from src.DownloadWebGallery import DownloadWebGallery
+    from src.DownloadWebGallery import DownloadStatus, DownloadWebGallery
     from src.EhClient import EhClient
     from src.ImageQuota import ImageQuota
     from src.LANraragi import LANraragi
@@ -84,7 +84,12 @@ async def run(args):
                         sys.exit(1)
                     for gid, token, title in dl_list:
                         status = await DownloadWebGallery(config, database, eh_client, quota, gid, token, title).apply()
-                        if not status:
+                        if status is DownloadStatus.COPYRIGHT_BLOCKED:
+                            logger.warning(
+                                f"Skipped copyright-blocked gallery: "
+                                f"https://{config.base_url}/g/{gid}/{token}"
+                            )
+                        elif status is not DownloadStatus.SUCCESS:
                             logger.warning(f"Download https://{config.base_url}/g/{gid}/{token} failed")
                 elif num == 4:
                     update_list = await add_fav_data.clear_del_flag()

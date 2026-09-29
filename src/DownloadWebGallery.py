@@ -3,6 +3,7 @@ import os
 import re
 import shutil
 import sqlite3
+from enum import Enum
 
 from bs4 import BeautifulSoup
 from loguru import logger
@@ -11,6 +12,13 @@ from tqdm.asyncio import tqdm_asyncio
 from src.Service import Service
 from src.ComicInfo import ComicInfo
 from src.Utils import create_cbz, windows_escape
+
+
+class DownloadStatus(Enum):
+    SUCCESS = "success"
+    RETRYABLE_FAILURE = "retryable_failure"
+    COPYRIGHT_BLOCKED = "copyright_blocked"
+
 
 MAX_IMAGE_ATTEMPTS = 6
 MAX_QUOTA_WAITS = 3
@@ -159,10 +167,10 @@ class DownloadWebGallery(Service):
                 with sqlite3.connect(self.dbs_name) as co:
                     co.execute('UPDATE eh_data SET copyright_flag=1 WHERE gid=?', (self.gid,))
                     co.commit()
-                return False
+                return DownloadStatus.COPYRIGHT_BLOCKED
         if len(res_image_list) == 0:
             logger.warning(f"Failed to get image urls: {self.long_url}")
-            return False
+            return DownloadStatus.RETRYABLE_FAILURE
 
         # init
         semaphore = asyncio.Semaphore(int(self.connect_limit))
@@ -193,7 +201,7 @@ class DownloadWebGallery(Service):
         for result in results:
             if not result:
                 logger.warning(f"Failed to download image: {self.long_url}")
-                return False
+                return DownloadStatus.RETRYABLE_FAILURE
 
         # claer temp file
         if os.path.exists(self.filepath_tmp):
@@ -208,7 +216,7 @@ class DownloadWebGallery(Service):
             file_count += len(files)
         if file_count != len(res_image_list):
             logger.warning(f"Failed for missing pages: {self.long_url}")
-            return False
+            return DownloadStatus.RETRYABLE_FAILURE
         # move file
         if os.path.isdir(self.filepath_end):
             logger.warning(f"Directory already exists, coverage {self.filepath_end}")
@@ -229,4 +237,4 @@ class DownloadWebGallery(Service):
         after_image_limits, after_total_limits = await self.get_image_limits()
         logger.info(
             f"OK, {after_image_limits - before_image_limits} IP quotas used({after_image_limits} / {after_total_limits}): {self.long_url}")
-        return True
+        return DownloadStatus.SUCCESS

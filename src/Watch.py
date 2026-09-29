@@ -8,7 +8,7 @@ from loguru import logger
 
 from src.AddFavData import AddFavData
 from src.Checker import Checker
-from src.DownloadWebGallery import DownloadWebGallery
+from src.DownloadWebGallery import DownloadStatus, DownloadWebGallery
 from src.LANraragi import LANraragi
 from src.Utils import clear_old_file, get_web_gallery_download_list, rename_cbz_file
 
@@ -44,7 +44,13 @@ class Watch:
                 status = await DownloadWebGallery(
                     self.config, self.database, self.eh_client, self.quota, gid, token, title
                 ).apply()
-                if not status:
+                if status is DownloadStatus.COPYRIGHT_BLOCKED:
+                    logger.warning(
+                        f"Skipping retry for copyright-blocked gallery: "
+                        f"https://{self.config.base_url}/g/{gid}/{token}"
+                    )
+                    continue
+                if status is not DownloadStatus.SUCCESS:
                     failed.append((gid, token, title))
                     logger.warning(f"Download https://{self.config.base_url}/g/{gid}/{token} failed")
             if not failed:

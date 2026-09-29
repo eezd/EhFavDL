@@ -12,7 +12,7 @@ from src.AppConfig import AppConfig
 from src.ComicInfo import ComicInfo
 from src.Checker import Checker
 from src.Database import Database
-from src.DownloadWebGallery import DownloadWebGallery
+from src.DownloadWebGallery import DownloadStatus, DownloadWebGallery
 from src.EhClient import EhClient
 import src.Utils as utils_mod
 from src.Utils import (
@@ -261,18 +261,60 @@ class AsyncInfrastructureTests(unittest.IsolatedAsyncioTestCase):
         return result, download.apply, sleep, get_download_list
 
     async def test_watch_retries_failed_gallery(self):
-        result, apply, sleep, _ = await self.run_watch_download([False, True], gids="999")
+        result, apply, sleep, _ = await self.run_watch_download(
+            [DownloadStatus.RETRYABLE_FAILURE, DownloadStatus.SUCCESS], gids="999"
+        )
 
         self.assertTrue(result)
         self.assertEqual(apply.await_count, 2)
         sleep.assert_awaited_once_with(30)
 
     async def test_watch_gives_up_after_max_rounds(self):
-        result, apply, sleep, _ = await self.run_watch_download([False] * 10, gids="999")
+        result, apply, sleep, _ = await self.run_watch_download(
+            [DownloadStatus.RETRYABLE_FAILURE] * 10, gids="999"
+        )
 
         self.assertFalse(result)
         self.assertEqual(apply.await_count, 3)
         self.assertEqual(sleep.await_count, 2)
+
+    async def test_watch_does_not_retry_copyright_blocked_gallery(self):
+        result, apply, sleep, _ = await self.run_watch_download(
+            [DownloadStatus.COPYRIGHT_BLOCKED], gids="999"
+        )
+
+        self.assertTrue(result)
+        self.assertEqual(apply.await_count, 1)
+        sleep.assert_not_awaited()
+
+    async def test_watch_retries_only_retryable_failures(self):
+        watch = Watch(self.config, self.database, mock.Mock(), mock.Mock())
+        outcomes = {
+            100: [DownloadStatus.COPYRIGHT_BLOCKED],
+            200: [DownloadStatus.RETRYABLE_FAILURE, DownloadStatus.SUCCESS],
+        }
+        calls = {gid: 0 for gid in outcomes}
+
+        def make_download(_, __, ___, ____, gid, _____, ______):
+            async def apply():
+                outcome = outcomes[gid][calls[gid]]
+                calls[gid] += 1
+                return outcome
+
+            return mock.Mock(apply=mock.AsyncMock(side_effect=apply))
+
+        with mock.patch(
+            "src.Watch.get_web_gallery_download_list",
+            return_value=[[100, "a", "copyright"], [200, "b", "retry"]],
+        ), mock.patch("src.Watch.DownloadWebGallery", side_effect=make_download), mock.patch(
+            "src.Watch.asyncio.sleep", new_callable=mock.AsyncMock
+        ) as sleep:
+            result = await asyncio.wait_for(watch.dl_new_gallery(gids="100,200"), timeout=5)
+
+        self.assertTrue(result)
+        self.assertEqual(calls, {100: 1, 200: 2})
+        sleep.assert_awaited_once_with(30)
+
 
     async def test_watch_skips_when_no_targets(self):
         result, apply, _, get_download_list = await self.run_watch_download([], fav_cat=None)
@@ -345,6 +387,31 @@ class AsyncInfrastructureTests(unittest.IsolatedAsyncioTestCase):
             result,
             [["https://exhentai.org/s/aaa/1-1", "00000001"], ["https://exhentai.org/s/bbb/1-2", "00000002"]],
         )
+
+    async def test_apply_returns_copyright_status_and_persists_flag(self):
+        with self.database.connection() as co:
+            co.execute(
+                "INSERT INTO eh_data(gid, token, title) VALUES (?,?,?)",
+                (1, "tok", "title"),
+            )
+            co.commit()
+
+        client = mock.Mock(
+            fetch_data=mock.AsyncMock(
+                return_value=b'<div class="d"><p>This gallery is unavailable due to a copyright claim by X.</p></div>'
+            )
+        )
+        quota = mock.Mock(wait_until_available=mock.AsyncMock(return_value=(0, 5000)))
+        result = await self.make_download(client, quota).apply()
+
+        self.assertIs(result, DownloadStatus.COPYRIGHT_BLOCKED)
+        self.assertEqual(client.fetch_data.await_count, 1)
+        with self.database.connection() as co:
+            flag = co.execute(
+                "SELECT copyright_flag FROM eh_data WHERE gid = 1"
+            ).fetchone()[0]
+        self.assertEqual(flag, 1)
+
 
     async def test_update_meta_data_retries_only_failed_and_terminates(self):
         with self.database.connection() as co:
