@@ -1,21 +1,38 @@
 import argparse
 import asyncio
+import sys
 from datetime import datetime
 
-from src import *
 
-logger.add(f'./log/{datetime.today().date()}.log', rotation='10 MB')
-
-parser = argparse.ArgumentParser(description="Process some arguments.")
-parser.add_argument('-w', action='store_true',
-                    help="Listen to EH Fav and fetch data every 60 minutes with default watcher 1.")
-parser.add_argument('-w1', action='store_true', help="Listen to EH Fav and fetch data every 60 minutes with watcher 1.")
-parser.add_argument('-w2', action='store_true', help="Listen to EH Fav and fetch data every 60 minutes with watcher 2.")
-parser.add_argument('-w3', action='store_true', help="Listen to EH Fav and fetch data every 60 minutes with watcher 3.")
-args = parser.parse_args()
+def build_parser():
+    parser = argparse.ArgumentParser(description="Download E-Hentai and ExHentai favorites.")
+    parser.add_argument('-w', action='store_true',
+                        help="Listen to EH Fav and fetch data every 60 minutes with default watcher 1.")
+    parser.add_argument('-w1', action='store_true', help="Listen to EH Fav and fetch data every 60 minutes with watcher 1.")
+    parser.add_argument('-w2', action='store_true', help="Listen to EH Fav and fetch data every 60 minutes with watcher 2.")
+    parser.add_argument('-w3', action='store_true', help="Listen to EH Fav and fetch data every 60 minutes with watcher 3.")
+    return parser
 
 
-async def main():
+async def run(args):
+    from loguru import logger
+
+    from src import (
+        AddFavData,
+        Checker,
+        ComicInfo,
+        Config,
+        DownloadWebGallery,
+        LANraragi,
+        Watch,
+        clear_old_file,
+        directory_to_cbz,
+        get_web_gallery_download_list,
+        rename_cbz_file,
+        rename_gid_name,
+    )
+
+    logger.add(f'./log/{datetime.today().date()}.log', rotation='10 MB')
     Config().create_database()
 
     try:
@@ -174,37 +191,10 @@ async def main():
         await Config.close_cached_sessions()
 
 
-# async def test():
-#     Config().create_database()
-#     await AddFavData().update_category()
-#     post_data = await AddFavData().post_eh_api({
-#         "method": "gdata",
-#         "gidlist": [
-#             [3252864, "e5da96be2c"],
-#         ],
-#         "namespace": 1
-#     })
-#     print(post_data)
-#     AddFavData().wirte_fav_data(post_data)
-#     url = f'https://{self.base_url}/favorites.php'
-#     hx_res = await Config().fetch_data(url)
-#     hx_res_bs = BeautifulSoup(hx_res, 'html.parser')
-#     search_data = AddFavData().format_fav_page_info(hx_res_bs)
-#     print(search_data)
-#     await AddFavData().post_fav_data(get_all=False, url_params="?f_search=&inline_set=fs_p")
+def cli():
+    args = build_parser().parse_args()
+    asyncio.run(run(args))
 
-# asyncio.run(
-#     AddFavData().translate_tags()
-# )
-# sys.exit(1)
+
 if __name__ == "__main__":
-    asyncio.run(main())
-# with open("response_data.json", "w", encoding="utf-8") as json_file:
-#     json.dump(asyncio.run(AddFavData().post_eh_api({
-#         "method": "gdata",
-#         "gidlist": [
-#             [3235245, "ebb2b1254a"]
-#         ],
-#         "namespace": 1
-#     })), json_file, ensure_ascii=False, indent=4)
-# asyncio.run(test())
+    cli()
