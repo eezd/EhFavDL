@@ -12,6 +12,8 @@ from src.DownloadWebGallery import DownloadWebGallery
 from src.LANraragi import LANraragi
 from src.Utils import clear_old_file, get_web_gallery_download_list, rename_cbz_file
 
+MAX_DOWNLOAD_ROUNDS = 3
+
 
 class Watch:
     def __init__(self, config, database, eh_client, quota):
@@ -31,28 +33,28 @@ class Watch:
                 shutil.move(full_path, dest_path)
                 logger.info(f"Moved: {full_path} -> {dest_path}")
 
-    async def dl_new_gallery(self, fav_cat="", gids=""):
-        dl_list = []
-        failed_gid_list = ""
-        if fav_cat != "":
-            dl_list = get_web_gallery_download_list(self.database, fav_cat=fav_cat)
-        if gids != "":
-            dl_list = get_web_gallery_download_list(self.database, gids=gids)
-        if not dl_list:
+    async def dl_new_gallery(self, fav_cat=None, gids=None):
+        """Download galleries selected by fav_cat or gids; retry failures up to MAX_DOWNLOAD_ROUNDS."""
+        if not fav_cat and not gids:
             return True
-        for gid, token, title in dl_list:
-            status = await DownloadWebGallery(
-                self.config, self.database, self.eh_client, self.quota, gid, token, title
-            ).apply()
-            if not status:
-                failed_gid_list += "," + str(gid)
-                logger.warning(f"Download https://{self.config.base_url}/g/{gid}/{token} failed")
-        if failed_gid_list:
-            failed_gid_list = failed_gid_list[1:]
-            logger.warning(f"Download failed, retry in 30 seconds. gids = {failed_gid_list}")
-            await asyncio.sleep(30)
-            return await self.dl_new_gallery(gids=failed_gid_list)
-        return True
+        dl_list = get_web_gallery_download_list(self.database, fav_cat=fav_cat or "", gids=gids or "")
+        for round_no in range(1, MAX_DOWNLOAD_ROUNDS + 1):
+            failed = []
+            for gid, token, title in dl_list:
+                status = await DownloadWebGallery(
+                    self.config, self.database, self.eh_client, self.quota, gid, token, title
+                ).apply()
+                if not status:
+                    failed.append((gid, token, title))
+                    logger.warning(f"Download https://{self.config.base_url}/g/{gid}/{token} failed")
+            if not failed:
+                return True
+            dl_list = failed
+            if round_no < MAX_DOWNLOAD_ROUNDS:
+                logger.warning(f"Download failed, retry in 30 seconds. gids = {[gid for gid, _, _ in failed]}")
+                await asyncio.sleep(30)
+        logger.warning(f"Giving up after {MAX_DOWNLOAD_ROUNDS} rounds. gids = {[gid for gid, _, _ in failed]}")
+        return False
 
     async def apply(self, method=1):
         while True:

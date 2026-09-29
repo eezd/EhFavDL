@@ -249,23 +249,37 @@ class AsyncInfrastructureTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(session_a.closed)
 
-    async def test_watch_retries_failed_gallery(self):
+    async def run_watch_download(self, apply_results, **kwargs):
         watch = Watch(self.config, self.database, mock.Mock(), mock.Mock())
-        download = mock.Mock()
-        download.apply = mock.AsyncMock(side_effect=[False, True])
-
+        download = mock.Mock(apply=mock.AsyncMock(side_effect=apply_results))
         with mock.patch(
-            "src.Watch.get_web_gallery_download_list",
-            side_effect=[[[999, "tok", "title"]], [[999, "tok", "title"]]],
+            "src.Watch.get_web_gallery_download_list", return_value=[[999, "tok", "title"]]
         ) as get_download_list, mock.patch(
             "src.Watch.DownloadWebGallery", return_value=download
         ), mock.patch("src.Watch.asyncio.sleep", new_callable=mock.AsyncMock) as sleep:
-            result = await watch.dl_new_gallery(gids="999")
+            result = await asyncio.wait_for(watch.dl_new_gallery(**kwargs), timeout=5)
+        return result, download.apply, sleep, get_download_list
+
+    async def test_watch_retries_failed_gallery(self):
+        result, apply, sleep, _ = await self.run_watch_download([False, True], gids="999")
 
         self.assertTrue(result)
-        self.assertEqual(get_download_list.call_count, 2)
-        self.assertEqual(download.apply.await_count, 2)
+        self.assertEqual(apply.await_count, 2)
         sleep.assert_awaited_once_with(30)
+
+    async def test_watch_gives_up_after_max_rounds(self):
+        result, apply, sleep, _ = await self.run_watch_download([False] * 10, gids="999")
+
+        self.assertFalse(result)
+        self.assertEqual(apply.await_count, 3)
+        self.assertEqual(sleep.await_count, 2)
+
+    async def test_watch_skips_when_no_targets(self):
+        result, apply, _, get_download_list = await self.run_watch_download([], fav_cat=None)
+
+        self.assertTrue(result)
+        get_download_list.assert_not_called()
+        apply.assert_not_awaited()
 
     def make_download(self, eh_client=None, quota=None):
         return DownloadWebGallery(

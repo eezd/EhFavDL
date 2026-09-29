@@ -91,10 +91,8 @@ async def run(args):
                     gids = [item[0] for item in update_list]
                     current_gids = [item[2] for item in update_list]
                     clear_old_file(database, config.gallery_path, config.del_path, gids)
-                    while True:
-                        if await watch.dl_new_gallery(gids=",".join(map(str, current_gids))):
-                            break
-                        await asyncio.sleep(120)
+                    if not await watch.dl_new_gallery(gids=",".join(map(str, current_gids))):
+                        logger.warning("Some galleries failed to download; run option 4 again later.")
                 elif num == 5:
                     if config.tags_translation:
                         await add_fav_data.translate_tags()
