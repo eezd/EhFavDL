@@ -256,12 +256,5 @@ def remove_duplicates_2d_array(arr):
     return result
 
 
-def xml_escape(title):
-    # XML
-    title = str(title).replace("&", r"&amp;").replace("<", r"&lt;").replace(">", "&gt;").replace('"', "&quot;").replace(
-        "'", "&apos;")
-    return title
-
-
 def windows_escape(title):
     return re.sub(r'''[\\/:*?"<>|\t]''', '', title)

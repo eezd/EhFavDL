@@ -3,6 +3,7 @@ import re
 import shutil
 import sqlite3
 import sys
+import xml.etree.ElementTree as ET
 import zipfile
 from datetime import datetime
 
@@ -10,7 +11,13 @@ from loguru import logger
 from tqdm import tqdm
 
 from src.Service import Service
-from src.Utils import create_cbz, xml_escape
+from src.Utils import create_cbz
+
+XML_INVALID_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
+COMICINFO_NAMESPACES = {
+    "xmlns:xsd": "http://www.w3.org/2001/XMLSchema",
+    "xmlns:xsi": "http://www.w3.org/2001/XMLSchema-instance",
+}
 
 
 class ComicInfo(Service):
@@ -49,11 +56,10 @@ class ComicInfo(Service):
                     else:
                         db_tags.append(tag)
             if self.prefer_japanese_title and db_data[1] is not None and db_data[1] != "" and len(str(db_data[1]).strip()) > 3:
-                print("Using Japanese title" + str(db_data[1]))
-                xml_t = xml_escape(str(db_data[1]))
+                title = str(db_data[1])
             else:
-                print("Using English title" + str(db_data[0]))
-                xml_t = xml_escape(str(db_data[0]))
+                title = str(db_data[0])
+            logger.debug(f"ComicInfo title: {title}")
             category = db_data[2]
             posted = datetime.fromtimestamp(int(db_data[3])).strftime("%Y-%m-%d").split("-")
             art = ", ".join(
@@ -62,30 +68,30 @@ class ComicInfo(Service):
                 if tag.startswith("artist:") and ":" in tag
             )
             tags = ", ".join(db_tags)
-        data_list = [
-            r'<ComicInfo xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" encoding="utf-8">',
-            r'<Manga/>',
-            f'<Title>{xml_t}</Title>',
-            r'<Summary/>',
-            f'<Genre>{category}</Genre>',
-            f'<Tags>{tags}</Tags>',
-            r'<BlackAndWhite/>',
-            f'<Year>{posted[0]}</Year>',
-            f'<Month>{posted[1]}</Month>',
-            f'<Day>{posted[2]}</Day>',
-            r'<LanguageISO/>',
-            f'<Writer>{art}</Writer>',
-            f'<Series/>',
-            r'<PageCount/>',
-            r'<URL/>',
-            f'<Web>{self.base_url}/g/{gid}/{db_data[4]}</Web>',
-            r'<Characters/>',
-            r'<Translated>Yes</Translated>',
-            r'</ComicInfo>',
+        fields = [
+            ("Manga", None),
+            ("Title", title),
+            ("Summary", None),
+            ("Genre", category),
+            ("Tags", tags),
+            ("BlackAndWhite", None),
+            ("Year", posted[0]),
+            ("Month", posted[1]),
+            ("Day", posted[2]),
+            ("LanguageISO", None),
+            ("Writer", art),
+            ("Series", None),
+            ("PageCount", None),
+            ("URL", None),
+            ("Web", f"{self.base_url}/g/{gid}/{db_data[4]}"),
+            ("Characters", None),
+            ("Translated", "Yes"),
         ]
-        with open(os.path.join(path, "ComicInfo.xml"), 'w', encoding='utf-8') as file:
-            for data in data_list:
-                file.write(data + '\n')
+        root = ET.Element("ComicInfo", COMICINFO_NAMESPACES)
+        for name, value in fields:
+            ET.SubElement(root, name).text = XML_INVALID_CHARS.sub("", str(value)) if value else None
+        ET.indent(root)
+        ET.ElementTree(root).write(os.path.join(path, "ComicInfo.xml"), encoding="utf-8", xml_declaration=True)
         logger.info(f"Create {path}/ComicInfo.xml")
 
     def update_meta_info(self, target_path="", only_folder=False):

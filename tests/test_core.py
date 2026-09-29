@@ -1,3 +1,4 @@
+import xml.etree.ElementTree as ET
 import os
 import sqlite3
 import tempfile
@@ -18,7 +19,6 @@ from src.Utils import (
     get_web_gallery_download_list,
     move_path_with_collision,
     windows_escape,
-    xml_escape,
 )
 from src.Watch import Watch
 
@@ -84,7 +84,6 @@ class CoreBehaviorTests(unittest.TestCase):
 
     def test_pure_helpers(self):
         self.assertEqual(windows_escape('a<b>c:d|e?f*g"h/i\t'), "abcdefghi")
-        self.assertEqual(xml_escape('a & b < c > d " e \' f'), "a &amp; b &lt; c &gt; d &quot; e &apos; f")
 
     def test_config_parses_string_booleans_and_list_ids(self):
         config_text = self.config_path.read_text(encoding="utf-8")
@@ -199,7 +198,29 @@ class CoreBehaviorTests(unittest.TestCase):
         xml_text = xml_file.read_text(encoding="utf-8")
         self.assertIn("<Title>English</Title>", xml_text)
 
+    def test_comicinfo_escapes_special_characters(self):
+        with sqlite3.connect(self.config.dbs_name) as co:
+            co.execute(
+                "INSERT INTO eh_data(gid, token, title, title_jpn, category, posted) VALUES (?,?,?,?,?,?)",
+                (778, "tok", "A & B <C>", "", "Non-H & <x>", 1704067200),
+            )
+            co.executemany("INSERT INTO tag_list(tid, tag) VALUES (?,?)", [(1, "artist:x&y"), (2, "female:a<b")])
+            co.executemany("INSERT INTO gid_tid(gid, tid) VALUES (?,?)", [(778, 1), (778, 2)])
+            co.commit()
 
+        output_dir = self.root / "data" / "gallery" / "778-sample"
+        os.makedirs(output_dir, exist_ok=True)
+        ComicInfo(self.config, self.database).create_xml(778, str(output_dir))
+
+        xml_file = output_dir / "ComicInfo.xml"
+        self.assertTrue(xml_file.read_text(encoding="utf-8").startswith("<?xml"))
+        root = ET.parse(xml_file).getroot()
+        self.assertNotIn("encoding", root.attrib)
+        self.assertEqual(root.findtext("Title"), "A & B <C>")
+        self.assertEqual(root.findtext("Genre"), "Non-H & <x>")
+        self.assertEqual(set(root.findtext("Tags").split(", ")), {"artist:x&y", "female:a<b"})
+        self.assertEqual(root.findtext("Writer"), "x&y")
+        self.assertEqual(root.findtext("Web"), "exhentai.org/g/778/tok")
 
 
 class AsyncInfrastructureTests(unittest.IsolatedAsyncioTestCase):
