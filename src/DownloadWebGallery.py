@@ -1,33 +1,46 @@
 import asyncio
+import os
+import re
+import shutil
+import sqlite3
+from enum import Enum
 
 from bs4 import BeautifulSoup
+from loguru import logger
 from tqdm.asyncio import tqdm_asyncio
 
+from src.Service import Service
 from src.ComicInfo import ComicInfo
-from src.Utils import *
-
-# Retry settings for images served by H@H nodes (*.hath.network).
-# Delays help avoid repeatedly hitting the same node or route after a failure.
-HATH_RELOAD_ATTEMPTS = 8   # Increased from 6.
-HATH_RELOAD_DELAY = 3      # Seconds before retrying a failed image.
-HATH_PAGE_RELOAD_DELAY = 2 # Seconds before retrying a failed /s/ page.
+from src.Utils import create_cbz, windows_escape
 
 
-class DownloadWebGallery(Config):
+class DownloadStatus(Enum):
+    SUCCESS = "success"
+    RETRYABLE_FAILURE = "retryable_failure"
+    COPYRIGHT_BLOCKED = "copyright_blocked"
 
-    def __init__(self, gid, token, title):
-        super().__init__()
+
+MAX_IMAGE_ATTEMPTS = 8
+MAX_QUOTA_WAITS = 3
+QUOTA_EXCEEDED_IMAGE = re.compile(r'^https://(exhentai|e-hentai)\.org/img/509\.gif$')
+
+
+def with_nl(url, nl_key):
+    """Mirror EH's nl(): append nl with '?' or '&' depending on the existing query."""
+    return f"{url}{'&' if '?' in url else '?'}nl={nl_key}"
+
+
+
+class DownloadWebGallery(Service):
+    def __init__(self, config, database, eh_client, quota, gid, token, title):
+        super().__init__(config, database, eh_client, quota)
 
         self.gid = gid
         self.token = token
 
-        # invalid format name
         self.title = windows_escape(title)
-
         self.filepath_tmp = os.path.join(self.web_path, 'temp', str(self.gid) + '-' + self.title + "-1280x")
-
         self.filepath_end = os.path.join(self.web_path, str(self.gid) + '-' + self.title + "-1280x")
-
         self.long_url = f"https://{self.base_url}/g/{self.gid}/{self.token}/"
 
     @logger.catch
@@ -36,64 +49,52 @@ class DownloadWebGallery(Config):
         注意: 一旦执行到这步, 那么不管你下没下载图片, 都会消耗你的 IP 配额
         Once you reach this step, your IP quota will be consumed regardless of whether you download the image or not.
 
+        The semaphore is held only for a single attempt, so waiting for quota never blocks other downloads.
+
         Returns: True | False
         """
-        async with semaphore:
-            reload_count = 0
-            while reload_count < HATH_RELOAD_ATTEMPTS:
-                reload_count += 1
-                real_url = await self.fetch_data(url=url)
-                if real_url is False:
-                    return real_url
-                try:
-                    soup = BeautifulSoup(real_url, 'html.parser')
-                    real_url = soup.select_one('img#img').get('src')
-                    file_extension = "." + real_url.split('.')[-1]
-                    file_path = os.path.join(self.filepath_tmp, file_index + file_extension)
-                    # <title>503 Backend fetch failed</title>
-                    # <h1>Error 503 Backend fetch failed</h1>...
-                except Exception as e:
-                    logger.error(e)
-                    logger.warning(f"download_image, retrying...{reload_count}/{HATH_RELOAD_ATTEMPTS}")
-                    await asyncio.sleep(HATH_PAGE_RELOAD_DELAY)
-                    continue
+        attempts = quota_waits = 0
+        while attempts < MAX_IMAGE_ATTEMPTS:
+            async with semaphore:
+                status, url = await self._download_once(url, file_index)
+            if status is True:
+                return True
+            if status == "quota":
+                quota_waits += 1
+                if quota_waits > MAX_QUOTA_WAITS:
+                    logger.warning(f"IP quota did not recover after {MAX_QUOTA_WAITS} waits: {url}")
+                    return False
+                logger.warning("509: YOU HAVE TEMPORARILY REACHED THE LIMIT")
+                await self.wait_image_limits()
+                continue
+            attempts += 1
+            logger.info(f"Reload Image. Retrying... {attempts} / {MAX_IMAGE_ATTEMPTS}")
+        return False
 
-                load_fail = soup.select_one('#loadfail').get('onclick')
-                url = url + "&nl=" + str(re.search(r'return nl\(\'(.*)\'\)', load_fail).group(1))
+    async def _download_once(self, url, file_index):
+        """
+        Returns (status, next_url); status is True, "quota" (509) or "retry".
+        next_url carries the nl key so the next attempt uses another image server.
+        """
+        page = await self.fetch_data(url=url)
+        try:
+            soup = BeautifulSoup(page, 'html.parser')
+            image_url = soup.select_one('img#img').get('src')
+            nl_key = re.search(r"return nl\('(.*)'\)", soup.select_one('#loadfail').get('onclick')).group(1)
+        except Exception as e:
+            # e.g. <title>503 Backend fetch failed</title>
+            logger.error(e)
+            return "retry", url
+        next_url = with_nl(url, nl_key)
 
-                # 配额用尽，返回的 real_url 会变成509.gif
-                # Quota exhausted, the returned real_url will change to 509.gif.
-                if re.match(r'^https://(exhentai|e-hentai)\.org/img/509\.gif$', real_url):
-                    logger.warning("509: YOU HAVE TEMPORARILY REACHED THE LIMIT")
-                    await self.wait_image_limits()
-                    return await self.download_image(semaphore=semaphore, url=url, file_index=file_index)
+        # 配额用尽，返回的图片地址会变成509.gif
+        # Quota exhausted, the returned image url will change to 509.gif.
+        if QUOTA_EXCEEDED_IMAGE.match(image_url):
+            return "quota", next_url
 
-                # download file
-                dl_status = await self.fetch_data(url=real_url, tqdm_file_path=file_path)
-
-                if isinstance(dl_status, str):
-                    if dl_status == "reload_image":
-                        logger.info(
-                            F"Reload Image. Retrying... {reload_count} / {HATH_RELOAD_ATTEMPTS} "
-                            F"(delay {HATH_RELOAD_DELAY}s) | {url}")
-                        await asyncio.sleep(HATH_RELOAD_DELAY)
-                elif dl_status is True:
-                    return True
-                    # if file_extension.lower() == ".webp":
-                    #     try:
-                    #         webp_image = Image.open(file_path)
-                    #         webp_image.verify()
-                    #         rgb_image = webp_image.convert('RGB')
-                    #         jpg_file_path = os.path.splitext(file_path)[0] + '.jpg'
-                    #         rgb_image.save(jpg_file_path, 'JPEG')
-                    #         os.remove(file_path)
-                    #         return True
-                    #     except Exception as e:
-                    #         logger.error(f"Failed to process image: {file_path}. Error: {e}")
-                    # else:
-                    #     # 补充非 webp 图片的处理
-                    #     return True
-            return False
+        file_path = os.path.join(self.filepath_tmp, file_index + "." + image_url.split('.')[-1])
+        dl_status = await self.fetch_data(url=image_url, tqdm_file_path=file_path)
+        return (True if dl_status is True else "retry"), next_url
 
     async def get_image_url(self):
         """
@@ -110,14 +111,17 @@ class DownloadWebGallery(Config):
         page_data = BeautifulSoup(hx_res, 'html.parser')
 
         # 判断是否被版权 / Check for copyright status.
-        copyright_msg = page_data.select_one('.d p')
-        if copyright_msg is not None:
-            if copyright_msg.find('copyright') != -1:
+        notice = page_data.select_one('.d p')
+        if notice is not None:
+            notice_text = notice.get_text(" ", strip=True)
+            if "copyright" in notice_text.lower():
                 return "copyright"
+            logger.warning(f"Gallery unavailable: {notice_text} {self.long_url}")
+            return []
 
         # 获取页面上显示的 pages，用于校验是否获取到全部的 page_img_url
         pages = None
-        lengthtd = page_data.find('td', text='Length:')
+        lengthtd = page_data.find('td', string='Length:')
         if lengthtd:
             length = lengthtd.find_next_sibling('td', class_='gdt2').text.strip()
             pages = re.search(r'\d+', length).group()
@@ -163,10 +167,10 @@ class DownloadWebGallery(Config):
                 with sqlite3.connect(self.dbs_name) as co:
                     co.execute('UPDATE eh_data SET copyright_flag=1 WHERE gid=?', (self.gid,))
                     co.commit()
-                return False
+                return DownloadStatus.COPYRIGHT_BLOCKED
         if len(res_image_list) == 0:
             logger.warning(f"Failed to get image urls: {self.long_url}")
-            return False
+            return DownloadStatus.RETRYABLE_FAILURE
 
         # init
         semaphore = asyncio.Semaphore(int(self.connect_limit))
@@ -197,7 +201,7 @@ class DownloadWebGallery(Config):
         for result in results:
             if not result:
                 logger.warning(f"Failed to download image: {self.long_url}")
-                return False
+                return DownloadStatus.RETRYABLE_FAILURE
 
         # claer temp file
         if os.path.exists(self.filepath_tmp):
@@ -212,8 +216,7 @@ class DownloadWebGallery(Config):
             file_count += len(files)
         if file_count != len(res_image_list):
             logger.warning(f"Failed for missing pages: {self.long_url}")
-            return False
-
+            return DownloadStatus.RETRYABLE_FAILURE
         # move file
         if os.path.isdir(self.filepath_end):
             logger.warning(f"Directory already exists, coverage {self.filepath_end}")
@@ -221,8 +224,7 @@ class DownloadWebGallery(Config):
             shutil.move(self.filepath_tmp, self.filepath_end)
         else:
             shutil.move(self.filepath_tmp, self.filepath_end)
-
-        ComicInfo().create_xml(gid=self.gid, path=self.filepath_end)
+        ComicInfo(self.config, self.database).create_xml(gid=self.gid, path=self.filepath_end)
         create_cbz(src_path=self.filepath_end, target_path=self.filepath_end)
         shutil.rmtree(self.filepath_end)
 
@@ -235,4 +237,4 @@ class DownloadWebGallery(Config):
         after_image_limits, after_total_limits = await self.get_image_limits()
         logger.info(
             f"OK, {after_image_limits - before_image_limits} IP quotas used({after_image_limits} / {after_total_limits}): {self.long_url}")
-        return True
+        return DownloadStatus.SUCCESS

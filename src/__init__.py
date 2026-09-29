@@ -1,9 +1,1 @@
-from .AddFavData import AddFavData
-from .Checker import Checker
-from .ComicInfo import ComicInfo
-from .Config import Config
-from .DownloadArchiveGallery import DownloadArchiveGallery
-from .DownloadWebGallery import DownloadWebGallery
-from .LANraragi import LANraragi
-from .Utils import *
-from .Watch import Watch
+"""EhFavDL application package."""

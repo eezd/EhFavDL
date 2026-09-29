@@ -3,7 +3,6 @@ import json
 import os
 import re
 import shutil
-import sqlite3
 import sys
 import time
 import zipfile
@@ -11,9 +10,6 @@ import zipfile
 from loguru import logger
 from tqdm import tqdm
 
-from src.Config import Config
-
-self = Config()
 
 
 def _split_csv_values(raw_values):
@@ -64,9 +60,9 @@ def move_path_with_collision(old_path, dest_dir):
     return dest_path
 
 
-def get_web_gallery_download_list(fav_cat="", gids=""):
+def get_web_gallery_download_list(database, fav_cat="", gids=""):
     dl_list = []
-    with sqlite3.connect(self.dbs_name) as co:
+    with database.connection() as co:
         fav_cat_values = _split_csv_values(fav_cat)
         gid_values = _split_csv_values(gids)
         if not fav_cat_values and not gid_values:
@@ -117,26 +113,24 @@ def get_web_gallery_download_list(fav_cat="", gids=""):
     return dl_list
 
 
-def clear_old_file(move_list):
+def clear_old_file(database, gallery_path, del_path, move_list):
     """
-    将目标文件/文件夹 移动到 del 文件夹下
-    Move the target file/folder to the `del` folder.
-
-    :param move_list: [gid1, gid2, gid3]
+    将目标文件/文件夹移动到 del 文件夹下。
+    Move target files/folders to the del directory.
     """
-    del_dir = self.del_path
+    del_dir = del_path
     os.makedirs(del_dir, exist_ok=True)
     gallery_map = {}
-    for folder_name in os.listdir(self.gallery_path):
-        match = re.match(r'^(\d+)-', folder_name)
+    for folder_name in os.listdir(gallery_path):
+        match = re.match(r'^([0-9]+)-', folder_name)
         if match:
             gallery_map.setdefault(match.group(1), []).append(folder_name)
 
-    with sqlite3.connect(self.dbs_name) as co:
+    with database.connection() as co:
         delete_targets = []
         for gid in move_list:
             for folder_name in gallery_map.get(str(gid), []):
-                folder_path = os.path.join(self.gallery_path, folder_name)
+                folder_path = os.path.join(gallery_path, folder_name)
                 dest_path = move_path_with_collision(folder_path, del_dir)
                 delete_targets.append((gid,))
                 logger.info(f"Moved: {folder_path} -> {dest_path}")
@@ -164,14 +158,9 @@ def create_cbz(src_path, target_path=""):
     logger.info(f'Create CBZ: {target_path}')
 
 
-def directory_to_cbz(target_path=""):
-    """
-    转换 gid- 文件夹为CBZ文件
-    Convert the "gid-" folders under self.gallery_path to CBZ files
-    """
-    logger.info(f'Create CBZ ...')
-    if target_path == "":
-        target_path = self.gallery_path
+def directory_to_cbz(target_path):
+    """Convert gid-named folders under target_path to CBZ files."""
+    logger.info('Create CBZ ...')
     path_list = []
     for i in os.listdir(target_path):
         if not re.match(r'^\d+-', i) or os.path.isfile(os.path.join(target_path, i)):
@@ -185,16 +174,8 @@ def directory_to_cbz(target_path=""):
     logger.info(f'[OK] Create CBZ')
 
 
-def rename_cbz_file(target_path=""):
-    """
-    重命名  (gid-name.cbz) OR (gid-name-1280x.cbz)  CBZ文件
-    Rename the CBZ file (gid-name.cbz) OR (gid-name-1280x.cbz).
-
-    限制文件名称最长 80位 并且转化为 base64 不超过196位
-    Limit the file name to a maximum of 80 characters and ensure that its base64 encoding does not exceed 196 characters.
-    """
-    if target_path == "":
-        target_path = self.gallery_path
+def rename_cbz_file(target_path):
+    """Normalize CBZ file names under target_path."""
     for i in os.listdir(target_path):
         if not re.match(r'^\d+-', i) or os.path.isdir(os.path.join(target_path, i)):
             continue
@@ -222,15 +203,10 @@ def rename_cbz_file(target_path=""):
             logger.info(F"\nold_name: {i} \n new_name: {new_name} \n")
 
 
-def rename_gid_name(target_path=""):
-    """
-    根据 gid 重命名名称, 默认使用 title_jpn
-    Rename the name based on gid, defaulting to title_jpn.
-    """
-    if target_path == "":
-        target_path = self.gallery_path
+def rename_gid_name(database, target_path):
+    """Rename files and folders using titles stored in database."""
 
-    with sqlite3.connect(self.dbs_name) as co:
+    with database.connection() as co:
         for item in os.listdir(target_path):
             if not re.match(r'^\d+-', item):
                 continue
@@ -278,13 +254,6 @@ def remove_duplicates_2d_array(arr):
             result.append(sub_array)
             seen.append(sub_array)
     return result
-
-
-def xml_escape(title):
-    # XML
-    title = str(title).replace("&", r"&amp;").replace("<", r"&lt;").replace(">", "&gt;").replace('"', "&quot;").replace(
-        "'", "&apos;")
-    return title
 
 
 def windows_escape(title):

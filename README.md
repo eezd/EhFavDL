@@ -1,19 +1,17 @@
 # EhFavDL
 
-[![PYTHON](https://img.shields.io/badge/Python-3.11-orange.svg)](https://www.python.org/)
+[![PYTHON](https://img.shields.io/badge/Python-3-orange.svg)](https://www.python.org/)
 [![Release](https://img.shields.io/github/v/release/eezd/EhFavDL)](https://github.com/eezd/EhFavDL/releases)
 [![Code size](https://img.shields.io/github/languages/code-size/eezd/EhFavDL?color=blueviolet)](https://github.com/eezd/EhFavDL)
 [![Repo size](https://img.shields.io/github/repo-size/eezd/EhFavDL?color=eb56fd)](https://github.com/eezd/EhFavDL)
 [![Last commit](https://img.shields.io/github/last-commit/eezd/EhFavDL/main)](https://github.com/eezd/EhFavDL/commits/main)
 [![License](https://img.shields.io/badge/license-MIT-yellowgreen.svg)](LICENSE)
 
-E-Hentai / Exhentai 下载收藏夹，基于 Python3.11 编写，支持 LANraragi 和 Komga。
+E-Hentai / Exhentai 下载收藏夹，基于 Python 3 编写，支持 LANraragi 和 Komga。
 
 [中文](README.md)/[English](README-EN.md)
 
 [文档](docs.md)/[Docs English](docs-en.md)
-
-> 正在使用 v1.3.4 的请尽快更新到 v1.3.5, watch 模式存在一个重大疏漏, 导致无法实时同步本地画廊
 
 ## 📌 TODO
 
@@ -28,10 +26,10 @@ E-Hentai / Exhentai 下载收藏夹，基于 Python3.11 编写，支持 LANrarag
 
 ## 🔨 安装
 
-1. 安装环境
+1. 安装项目
 
 ```bash
-pip install -r requirements.txt
+python -m pip install .
 ```
 
 2. 填写 `config.yaml`
@@ -77,27 +75,24 @@ lan_url: http://127.0.0.1:22299
 # Setting >>> Security >>> API Key
 lan_api_psw: jskada
 
-# python main.py -w1 / w2
+# ehfavdl -w1 / -w2
 watch_fav_ids: 0,1,2,3,4,5,6,7,8,9
 
 # False / True
 watch_lan_status: False
 ```
 
-3. Run
+3. 运行
 
 ```shell
-python main.py
+ehfavdl
 
 # or
 
-python main.py -w
-# or
-python main.py -w1
-# or
-python main.py -w2
-# or
-python main.py -w3
+ehfavdl -w
+ehfavdl -w1
+ehfavdl -w2
+ehfavdl -w3
 ```
 
 - 最佳用法: 现在可以使用 eh 的收藏夹来分类画廊了 `>=1.1.2`

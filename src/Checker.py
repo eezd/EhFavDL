@@ -1,11 +1,18 @@
 import os.path
+import re
+import sqlite3
+import sys
+import zipfile
 
-from src.Utils import *
+from loguru import logger
+
+from src.Service import Service
+from src.Utils import collect_gid_cbz_groups, move_path_with_collision
 
 
-class Checker(Config):
-    def __init__(self):
-        super().__init__()
+class Checker(Service):
+    def __init__(self, config, database):
+        super().__init__(config, database)
 
     def check_gid_in_local_cbz(self, target_path=""):
         """
@@ -76,6 +83,9 @@ class Checker(Config):
                     continue
                 gid = re.match(r'^(\d+)-', i).group(1)
                 data = co.execute('SELECT gid, current_gid FROM eh_data WHERE gid = ?', (gid,)).fetchone()
+                if data is None:
+                    logger.warning(f'No metadata found for local gallery: {i}')
+                    continue
                 if data[0] != data[1]:
                     folder_path = os.path.join(target_path, i)
                     dest_path = move_path_with_collision(folder_path, self.del_path)
@@ -106,7 +116,7 @@ class Checker(Config):
                         logger.error(f"检测到压缩包损坏, 请删除文件: {file_path}")
                         logger.error(f"Detected a corrupted archive. Please delete the file.: {file_path}")
                         status = 1
-                    except OSError as e:
+                    except OSError:
                         logger.error(f"检测到压缩包损坏, 请删除文件: {file_path}")
                         logger.error(f"Detected a corrupted archive. Please delete the file.: {file_path}")
                         status = 1

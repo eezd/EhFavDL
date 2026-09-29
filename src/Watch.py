@@ -1,82 +1,77 @@
 import asyncio
-import sys
+import os
+import re
+import shutil
+import zipfile
 
-from src import DownloadWebGallery, AddFavData, DownloadArchiveGallery, LANraragi, Checker
-from src.Utils import *
+from loguru import logger
+
+from src.AddFavData import AddFavData
+from src.Checker import Checker
+from src.DownloadWebGallery import DownloadStatus, DownloadWebGallery
+from src.LANraragi import LANraragi
+from src.Utils import clear_old_file, get_web_gallery_download_list, rename_cbz_file
+
+MAX_DOWNLOAD_ROUNDS = 3
 
 
-class Watch(Config):
-    def __init__(self):
-        super().__init__()
+class Watch:
+    def __init__(self, config, database, eh_client, quota):
+        self.config = config
+        self.database = database
+        self.eh_client = eh_client
+        self.quota = quota
 
     def watch_move_data_path(self):
-        """
-        web 和 archive 目录下的以 gid- 开头的 CBZ 文件到 data_path 根目录
-
-        Move the CBZ files starting with gid- from the web and archive directories to the data_path root directory.
-        """
-        os.makedirs(self.data_path, exist_ok=True)
-        os.makedirs(self.gallery_path, exist_ok=True)
-        os.makedirs(self.web_path, exist_ok=True)
-        os.makedirs(self.archive_path, exist_ok=True)
-        for sub_name in os.listdir(self.web_path):
-            if re.match(r'^\d+-.*\.cbz$', sub_name) and os.path.isfile(os.path.join(self.web_path, sub_name)):
-                full_path = os.path.join(self.web_path, sub_name)
-                dest_path = os.path.join(self.gallery_path, sub_name)
-                shutil.move(full_path, dest_path)
-                logger.info(f"Moved: {full_path} -> {dest_path}")
-        for sub_name in os.listdir(self.archive_path):
-            if re.match(r'^\d+-.*\.cbz$', sub_name) and os.path.isfile(os.path.join(self.archive_path, sub_name)):
-                full_path = os.path.join(self.archive_path, sub_name)
-                dest_path = os.path.join(self.gallery_path, sub_name)
+        os.makedirs(self.config.data_path, exist_ok=True)
+        os.makedirs(self.config.gallery_path, exist_ok=True)
+        os.makedirs(self.config.web_path, exist_ok=True)
+        for sub_name in os.listdir(self.config.web_path):
+            if re.match(r"^\d+-.*\.cbz$", sub_name) and os.path.isfile(os.path.join(self.config.web_path, sub_name)):
+                full_path = os.path.join(self.config.web_path, sub_name)
+                dest_path = os.path.join(self.config.gallery_path, sub_name)
                 shutil.move(full_path, dest_path)
                 logger.info(f"Moved: {full_path} -> {dest_path}")
 
-    async def dl_new_gallery(self, fav_cat="", gids="", archive_status=False):
-        dl_list = []
-        failed_gid_list = ""
-        if fav_cat != "":
-            dl_list = get_web_gallery_download_list(fav_cat=fav_cat)
-        if gids != "":
-            dl_list = get_web_gallery_download_list(gids=gids)
-        if not dl_list:
+    async def dl_new_gallery(self, fav_cat=None, gids=None):
+        """Download galleries selected by fav_cat or gids; retry failures up to MAX_DOWNLOAD_ROUNDS."""
+        if not fav_cat and not gids:
             return True
-        for j in dl_list:
-            if archive_status:
-                # 归档默认下载 Resample(1280x) 版本
-                # Archive the default download Resample(1280x) version
-                status = await DownloadArchiveGallery().dl_gallery(gid=j[0], token=j[1], title=j[2],
-                                                                   original_flag=False)
-            elif len(dl_list) == 3 and j[0] == 1633417:
-                status = False
-            elif len(dl_list) == 3 and j[0] == 1633421:
-                status = False
-            else:
-                download_gallery = DownloadWebGallery(gid=j[0], token=j[1], title=j[2])
-                status = await download_gallery.apply()
-            if not status:
-                failed_gid_list += "," + str(j[0])
-                logger.warning(f"Download https://{self.base_url}/g/{j[0]}/{j[1]} failed")
-
-        # 下载失败重新下载 / Download failed, retrying download
-        failed_gid_list = failed_gid_list[1:]
-        if len(failed_gid_list) > 0:
-            logger.warning(f"Download failed, retry in 30 seconds. gids = {failed_gid_list}")
-            await asyncio.sleep(30)
-            return await self.dl_new_gallery(gids=failed_gid_list, archive_status=archive_status)
-        return True
+        dl_list = get_web_gallery_download_list(self.database, fav_cat=fav_cat or "", gids=gids or "")
+        for round_no in range(1, MAX_DOWNLOAD_ROUNDS + 1):
+            failed = []
+            for gid, token, title in dl_list:
+                status = await DownloadWebGallery(
+                    self.config, self.database, self.eh_client, self.quota, gid, token, title
+                ).apply()
+                if status is DownloadStatus.COPYRIGHT_BLOCKED:
+                    logger.warning(
+                        f"Skipping retry for copyright-blocked gallery: "
+                        f"https://{self.config.base_url}/g/{gid}/{token}"
+                    )
+                    continue
+                if status is not DownloadStatus.SUCCESS:
+                    failed.append((gid, token, title))
+                    logger.warning(f"Download https://{self.config.base_url}/g/{gid}/{token} failed")
+            if not failed:
+                return True
+            dl_list = failed
+            if round_no < MAX_DOWNLOAD_ROUNDS:
+                logger.warning(f"Download failed, retry in 30 seconds. gids = {[gid for gid, _, _ in failed]}")
+                await asyncio.sleep(30)
+        logger.warning(f"Giving up after {MAX_DOWNLOAD_ROUNDS} rounds. gids = {[gid for gid, _, _ in failed]}")
+        return False
 
     async def apply(self, method=1):
         while True:
-            image_limits, total_limits = await self.get_image_limits()
+            image_limits, total_limits = await self.quota.get_limits()
             logger.info(f"Image Limits: {image_limits} / {total_limits}")
             self.watch_move_data_path()
-            Checker().check_gid_in_local_cbz()
-            Checker().sync_local_to_sqlite_cbz(cover=True)
+            checker = Checker(self.config, self.database)
+            checker.check_gid_in_local_cbz()
+            checker.sync_local_to_sqlite_cbz(cover=True)
 
-            # 更新 tags 信息, 用于判断是否存在新画廊
-            # Update tags information to determine if a new gallery exists.
-            add_fav_data = AddFavData()
+            add_fav_data = AddFavData(self.config, self.database, self.eh_client)
             await add_fav_data.update_category()
             if method == 1:
                 await add_fav_data.post_fav_data()
@@ -88,65 +83,52 @@ class Watch(Config):
                 await add_fav_data.update_meta_data()
 
             update_list = await add_fav_data.clear_del_flag()
-            fav_update_list = []
-            # watch_fav_ids
-            with sqlite3.connect(self.dbs_name) as co:
-                if self.watch_fav_ids is not None:
-                    watch_fav_ids = [fav_id.strip() for fav_id in self.watch_fav_ids.split(",") if fav_id.strip()]
-                    if len(watch_fav_ids) == 0:
-                        query = "SELECT gid FROM fav_category WHERE fav_id IN (?,?,?,?,?,?,?,?,?,?)"
-                        params = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-                    else:
+            with self.database.connection() as co:
+                if self.config.watch_fav_ids is not None:
+                    watch_fav_ids = [value.strip() for value in self.config.watch_fav_ids.split(",") if value.strip()]
+                    if watch_fav_ids:
                         placeholders = ",".join(["?"] * len(watch_fav_ids))
                         query = f"SELECT gid FROM fav_category WHERE fav_id IN ({placeholders})"
                         params = watch_fav_ids
+                    else:
+                        query = "SELECT gid FROM fav_category WHERE fav_id IN (?,?,?,?,?,?,?,?,?,?)"
+                        params = list(range(10))
                 else:
                     query = "SELECT gid FROM fav_category WHERE fav_id IN (?,?,?,?,?,?,?,?,?,?)"
-                    params = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-                total_gids = co.execute(query, params).fetchall()
-                if total_gids is not None:
-                    total_gids = {gid[0] for gid in total_gids}
-                    for item in update_list:
-                        if item[0] in total_gids:
-                            fav_update_list.append(item)
+                    params = list(range(10))
+                total_gids = {gid[0] for gid in co.execute(query, params).fetchall()}
+            fav_update_list = [item for item in update_list if item[0] in total_gids]
 
             gids = [item[0] for item in fav_update_list]
-            clear_old_file(move_list=gids)
+            clear_old_file(self.database, self.config.gallery_path, self.config.del_path, gids)
             current_gids = [item[2] for item in fav_update_list]
-            await self.dl_new_gallery(gids=str(current_gids).replace("[", "").replace("]", ""))
+            await self.dl_new_gallery(gids=",".join(map(str, current_gids)))
             self.watch_move_data_path()
             await add_fav_data.clear_del_flag()
 
-            await self.dl_new_gallery(fav_cat=self.watch_fav_ids)
+            await self.dl_new_gallery(fav_cat=self.config.watch_fav_ids)
             self.watch_move_data_path()
-            if self.watch_lan_status:
-                rename_cbz_file()
-                await LANraragi(watch_status=True).lan_update_tags()
-
-            if self.tags_translation:
+            if self.config.watch_lan_status:
+                rename_cbz_file(self.config.gallery_path)
+                await LANraragi(self.config, self.database, watch_status=True).lan_update_tags()
+            if self.config.tags_translation:
                 await add_fav_data.translate_tags()
-
             await add_fav_data.clear_del_flag()
-            Checker().clear_old_file()
+            checker.clear_old_file()
 
             sleep_time = 60 * 60
             logger.info(f"Done! Wait {sleep_time} s")
-            # 1小时后重新检查 / Recheck in 1 hour
             await asyncio.sleep(sleep_time)
 
 
 def unzip_data_path(data_path):
-    """
-    解压 data_path 目录下的以 gid- 开头的 CBZ 文件(不会删除CBZ)
-    Unzip CBZ files starting with gid- in the data_path directory (do not delete the CBZ files).
-    """
     for folder_name in os.listdir(data_path):
         file_path = os.path.join(data_path, folder_name)
-        if os.path.isfile(file_path) and folder_name.endswith('.cbz') and re.match(r'^\d+-', folder_name):
+        if os.path.isfile(file_path) and folder_name.endswith(".cbz") and re.match(r"^\d+-", folder_name):
             extract_to = os.path.join(data_path, os.path.splitext(folder_name)[0])
             if os.path.exists(extract_to):
                 shutil.rmtree(extract_to)
             os.makedirs(extract_to, exist_ok=True)
-            with zipfile.ZipFile(file_path, 'r') as zip_ref:
+            with zipfile.ZipFile(file_path, "r") as zip_ref:
                 zip_ref.extractall(extract_to)
                 logger.info(f"Unzipped: {file_path} to {extract_to}")

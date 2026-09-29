@@ -8,7 +8,7 @@
 A: 可以运行 `2. Update Gallery Metadata (Update Tags)`，那么旧画廊的 `current_gid` 和 `current_token` 就是新画廊的值。
 
 **Q: 如果我下载的画廊存在更新该怎么办？**
-A: 先运行 `2. Update Gallery Metadata (Update Tags)`，然后下载 `4. Download Web Gallery (News Gallery)` 或者 `6. Download Archive Gallery (News Gallery)`
+A: 先运行 `2. Update Gallery Metadata (Update Tags)`，然后使用 `4. Download Web Gallery (News Gallery)` 下载更新后的画廊。
 
 ## Docs
 
@@ -16,18 +16,18 @@ A: 先运行 `2. Update Gallery Metadata (Update Tags)`，然后下载 `4. Downl
 
 ### Watch 模式
 
-- `python main.py -w1`
+- `ehfavdl -w1`
   - 更新收藏夹所有数据
   - 更新所有 Meta 数据
   - 清理旧画廊，下载新画廊
   - 下载 `watch_fav_ids` 的画廊
 
-- `python main.py -w2`
+- `ehfavdl -w2`
   - 以 **更新时间排序** 的方式更新收藏夹前几页画廊的 Meta 数据（直至当前页面没有新画廊时会跳出循环）
   - 清理旧画廊，下载新画廊
   - 下载 `watch_fav_ids` 的画廊
 
-- `python main.py -w3`
+- `ehfavdl -w3`
   - 仅下载画廊
   - 适用于刚刚执行完 `w1` ，但由于意外情况导致程序中断，不希望再花费时间去更新所有画廊数据以及所有 Meta 数据的情况。
 
@@ -36,7 +36,7 @@ A: 先运行 `2. Update Gallery Metadata (Update Tags)`，然后下载 `4. Downl
 w2 并不是没有缺点的，他无法判断哪些画廊被移除收藏夹了，因为他没有获取所有收藏夹数据。
 
 ```python
-class Watch(Config):
+class Watch:
     ...
     async def apply(self, method=1):
         ...
@@ -54,9 +54,9 @@ class Watch(Config):
 
 
 ```sh
-$ python main.py 
+$ ehfavdl
 
-2025-04-03 17:44:18.031 | INFO     | __main__:main:29 - Image Limits: 0 / 50000
+2025-04-03 17:44:18.031 | INFO     | main:run:34 - Image Limits: 0 / 50000
 
 1. Update User Fav Info
 2. Update Gallery Metadata
@@ -77,19 +77,20 @@ Select Number:12
 2. Checker().sync_local_to_sqlite_cbz()
 3. Checker().sync_local_to_sqlite_cbz(True)
 4. Checker().check_loc_file()
+5. Checker().clear_old_file()
 (Options) Select Number:
 ```
 
 
 
 - `1. Update User Fav Info`
-  - 获取收藏夹画廊数据，仅
+  - 获取收藏夹中的画廊信息
 - `2. Update Gallery Metadata`
   - 使用 EH API 更新所有画廊 Meta
 - `3. Download Web Gallery`
   - 下载Web画廊, 文件会下载到: `$data_path$\web` 文件夹下
 - `4. Download Web Gallery (News Gallery)`
-  - 移动旧画廊到 `$data_path$\web\del` 文件夹下，然后根据 `eh_data` 表中的 `current_gid` 字段下载新画廊。
+  - 移动旧画廊到 `$data_path$\del` 文件夹，然后根据 `eh_data` 表中的 `current_gid` 字段下载新画廊。
   - Tips: 请先运行 `2. Update Gallery Metadata (Update Tags)` 确保 Meta 数据是最新的。
 - `5. Update Tags Translation`
   - 更新Tags翻译数据
@@ -130,7 +131,7 @@ Select Number:12
 > `if count == 0`：该 if 是作为一个保险，避免资源的过度消耗。
 
 ```python
-class AddFavData(Config):
+class AddFavData:
     async def post_fav_data(...):
         ...
             if get_all is False:

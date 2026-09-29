@@ -11,8 +11,8 @@ determine their relationship.
 the old gallery to match the new gallery.
 
 **Q: What should I do if a downloaded gallery has been updated?**  
-**A:** First, run `2. Update Gallery Metadata (Update Tags)`, and then download the updated gallery
-using `4. Download Web Gallery (News Gallery)` or `6. Download Archive Gallery (News Gallery)`.
+**A:** First, run `2. Update Gallery Metadata (Update Tags)`, and then use
+`4. Download Web Gallery (News Gallery)` to download the updated gallery.
 
 ## Docs
 
@@ -20,19 +20,19 @@ This project runs in two modes: Default Mode and Watch Mode.
 
 ### Watch Mode
 
-- `python main.py -w1`
+- `ehfavdl -w1`
     - Update all data in the favorites
     - Update all Meta data
     - Clean up old galleries and download new galleries
     - Download galleries from `watch_fav_ids`
 
-- `python main.py -w2`
+- `ehfavdl -w2`
     - Update Meta data of galleries on the first few pages of favorites, sorted by **update time** (the loop will stop
       when there are no new galleries on the current page)
     - Clean up old galleries and download new galleries
     - Download galleries from `watch_fav_ids`
 
-- `python main.py -w3`
+- `ehfavdl -w3`
   - Download galleries only 
   - Suitable for situations where you've just run `w1`, but the program was interrupted due to unforeseen issues, and you don't want to spend time updating all gallery data and all meta data again.
 
@@ -44,7 +44,7 @@ However, `w2` is not without drawbacks. It cannot determine which galleries have
 does not retrieve all the favorite data.
 
 ```python
-class Watch(Config):
+class Watch:
     ...
 
     async def apply(self, method=1):
@@ -62,9 +62,9 @@ class Watch(Config):
 ### Default
 
 ```sh
-$ python main.py 
+$ ehfavdl
 
-2025-04-03 17:44:18.031 | INFO     | __main__:main:29 - Image Limits: 0 / 50000
+2025-04-03 17:44:18.031 | INFO     | main:run:34 - Image Limits: 0 / 50000
 
 1. Update User Fav Info
 2. Update Gallery Metadata
@@ -85,6 +85,7 @@ Select Number:12
 2. Checker().sync_local_to_sqlite_cbz()
 3. Checker().sync_local_to_sqlite_cbz(True)
 4. Checker().check_loc_file()
+5. Checker().clear_old_file()
 (Options) Select Number:
 ```
 
@@ -95,7 +96,7 @@ Select Number:12
 - `3. Download Web Gallery`
     - Download web galleries; the files will be saved in the `$data_path$\web` folder.
 - `4. Download Web Gallery (News Gallery)`
-    - Move old galleries to the `$data_path$\web\del` folder, then download new galleries based on the `current_gid`
+    - Move old galleries to the `$data_path$\del` folder, then download new galleries based on the `current_gid`
       field in the `eh_data` table.
     - Tips: Please run `2. Update Gallery Metadata (Update Tags)` first to ensure the Meta data is up-to-date.
 - `5. Update Tags Translation`
@@ -144,7 +145,7 @@ If new galleries exist, `AddFavData().deep_check()` is used for a thorough check
 > `if count == 0`: This `if` condition is a safety measure to prevent excessive resource consumption.
 
 ```python
-class AddFavData(Config):
+class AddFavData:
     async def post_fav_data(...):
         ...
         if get_all is False:

@@ -1,19 +1,17 @@
 # EhFavDL
 
-[![PYTHON](https://img.shields.io/badge/Python-3.11-orange.svg)](https://www.python.org/)
+[![PYTHON](https://img.shields.io/badge/Python-3-orange.svg)](https://www.python.org/)
 [![Release](https://img.shields.io/github/v/release/eezd/EhFavDL)](https://github.com/eezd/EhFavDL/releases)
 [![Code size](https://img.shields.io/github/languages/code-size/eezd/EhFavDL?color=blueviolet)](https://github.com/eezd/EhFavDL)
 [![Repo size](https://img.shields.io/github/repo-size/eezd/EhFavDL?color=eb56fd)](https://github.com/eezd/EhFavDL)
 [![Last commit](https://img.shields.io/github/last-commit/eezd/EhFavDL/main)](https://github.com/eezd/EhFavDL/commits/main)
 [![License](https://img.shields.io/badge/license-MIT-yellowgreen.svg)](LICENSE)
 
-Download favorites from E-Hentai / Exhentai, written in Python 3.11, with support for LANraragi and Komga.
+Download favorites from E-Hentai / Exhentai, written in Python 3, with support for LANraragi and Komga.
 
 [中文](README.md)/[English](README-EN.md)
 
 [文档](docs.md)/[Docs English](docs-en.md)
-
-> For those using v1.3.4, please update to v1.3.5 as soon as possible. There is a critical oversight in the watch mode that prevents real-time synchronization of the local gallery.
 
 ## 📌 TODO
 
@@ -28,13 +26,13 @@ Download favorites from E-Hentai / Exhentai, written in Python 3.11, with suppor
 
 ## 🔨 Installation
 
-1. Install dependencies
+1. Install the project
 
 ```bash
-pip install -r requirements.txt
+python -m pip install .
 ```
 
-2. Configure`config.yaml`
+2. Configure `config.yaml`
 
 ```yaml
 # 缺少 sk 和 hath_perks 会导致无法获取正确的 IP 配额
@@ -77,7 +75,7 @@ lan_url: http://127.0.0.1:22299
 # Setting >>> Security >>> API Key
 lan_api_psw: jskada
 
-# python main.py -w1 / w2
+# ehfavdl -w1 / -w2
 watch_fav_ids: 0,1,2,3,4,5,6,7,8,9
 
 # False / True
@@ -87,17 +85,14 @@ watch_lan_status: False
 3. Run
 
 ```shell
-python main.py
+ehfavdl
 
 # or
 
-python main.py -w
-# or
-python main.py -w1
-# or
-python main.py -w2
-# or
-python main.py -w3
+ehfavdl -w
+ehfavdl -w1
+ehfavdl -w2
+ehfavdl -w3
 ```
 
 - Best Practice: You can now use EH favorites to categorize galleries`>=1.1.2`
