@@ -286,6 +286,49 @@ class AsyncInfrastructureTests(unittest.IsolatedAsyncioTestCase):
             self.config, self.database, eh_client or mock.Mock(), quota or mock.Mock(), 1, "tok", "title"
         )
 
+    def make_image_page(self, image_url):
+        return (
+            f'<img id="img" src="{image_url}">'
+            f'<a id="loadfail" onclick="return nl(\'51413-1\')">reload</a>'
+        ).encode()
+
+    async def run_download_image(self, page_urls):
+        requested = []
+        pages = iter(page_urls)
+
+        async def fake_fetch(url, tqdm_file_path=None):
+            requested.append(url)
+            if tqdm_file_path is not None:
+                return True
+            return self.make_image_page(next(pages))
+
+        quota = mock.Mock(wait_until_available=mock.AsyncMock(return_value=(0, 5000)))
+        download = self.make_download(mock.Mock(fetch_data=fake_fetch), quota)
+        result = await asyncio.wait_for(
+            download.download_image(asyncio.Semaphore(1), "https://exhentai.org/s/aaa/1-1", "00000001"),
+            timeout=2,
+        )
+        return result, requested, quota.wait_until_available
+
+    async def test_download_image_quota_wait_does_not_deadlock(self):
+        quota_page = "https://exhentai.org/img/509.gif"
+        image = "https://abc.hath.network/h/1.jpg"
+
+        result, requested, wait = await self.run_download_image([quota_page, image])
+
+        self.assertTrue(result)
+        wait.assert_awaited_once()
+        self.assertEqual(
+            requested,
+            ["https://exhentai.org/s/aaa/1-1", "https://exhentai.org/s/aaa/1-1?nl=51413-1", image],
+        )
+
+    async def test_download_image_gives_up_when_quota_never_recovers(self):
+        result, _, wait = await self.run_download_image(["https://exhentai.org/img/509.gif"] * 10)
+
+        self.assertFalse(result)
+        self.assertEqual(wait.await_count, 3)
+
     async def test_get_image_url_copyright_detection(self):
         pages = {
             "copyright": '<div class="d"><p>This gallery is unavailable due to a copyright claim by X.</p></div>',

@@ -12,6 +12,16 @@ from src.Service import Service
 from src.ComicInfo import ComicInfo
 from src.Utils import create_cbz, windows_escape
 
+MAX_IMAGE_ATTEMPTS = 6
+MAX_QUOTA_WAITS = 3
+QUOTA_EXCEEDED_IMAGE = re.compile(r'^https://(exhentai|e-hentai)\.org/img/509\.gif$')
+
+
+def with_nl(url, nl_key):
+    """Mirror EH's nl(): append nl with '?' or '&' depending on the existing query."""
+    return f"{url}{'&' if '?' in url else '?'}nl={nl_key}"
+
+
 
 class DownloadWebGallery(Service):
     def __init__(self, config, database, eh_client, quota, gid, token, title):
@@ -31,60 +41,52 @@ class DownloadWebGallery(Service):
         注意: 一旦执行到这步, 那么不管你下没下载图片, 都会消耗你的 IP 配额
         Once you reach this step, your IP quota will be consumed regardless of whether you download the image or not.
 
+        The semaphore is held only for a single attempt, so waiting for quota never blocks other downloads.
+
         Returns: True | False
         """
-        async with semaphore:
-            reload_count = 0
-            while reload_count < 6:
-                reload_count += 1
-                real_url = await self.fetch_data(url=url)
-                if real_url is False:
-                    return real_url
-                try:
-                    soup = BeautifulSoup(real_url, 'html.parser')
-                    real_url = soup.select_one('img#img').get('src')
-                    file_extension = "." + real_url.split('.')[-1]
-                    file_path = os.path.join(self.filepath_tmp, file_index + file_extension)
-                    # <title>503 Backend fetch failed</title>
-                    # <h1>Error 503 Backend fetch failed</h1>...
-                except Exception as e:
-                    logger.error(e)
-                    logger.warning(f"download_image, retrying...{reload_count}/6")
-                    continue
+        attempts = quota_waits = 0
+        while attempts < MAX_IMAGE_ATTEMPTS:
+            async with semaphore:
+                status, url = await self._download_once(url, file_index)
+            if status is True:
+                return True
+            if status == "quota":
+                quota_waits += 1
+                if quota_waits > MAX_QUOTA_WAITS:
+                    logger.warning(f"IP quota did not recover after {MAX_QUOTA_WAITS} waits: {url}")
+                    return False
+                logger.warning("509: YOU HAVE TEMPORARILY REACHED THE LIMIT")
+                await self.wait_image_limits()
+                continue
+            attempts += 1
+            logger.info(f"Reload Image. Retrying... {attempts} / {MAX_IMAGE_ATTEMPTS}")
+        return False
 
-                load_fail = soup.select_one('#loadfail').get('onclick')
-                url = url + "&nl=" + str(re.search(r'return nl\(\'(.*)\'\)', load_fail).group(1))
+    async def _download_once(self, url, file_index):
+        """
+        Returns (status, next_url); status is True, "quota" (509) or "retry".
+        next_url carries the nl key so the next attempt uses another image server.
+        """
+        page = await self.fetch_data(url=url)
+        try:
+            soup = BeautifulSoup(page, 'html.parser')
+            image_url = soup.select_one('img#img').get('src')
+            nl_key = re.search(r"return nl\('(.*)'\)", soup.select_one('#loadfail').get('onclick')).group(1)
+        except Exception as e:
+            # e.g. <title>503 Backend fetch failed</title>
+            logger.error(e)
+            return "retry", url
+        next_url = with_nl(url, nl_key)
 
-                # 配额用尽，返回的 real_url 会变成509.gif
-                # Quota exhausted, the returned real_url will change to 509.gif.
-                if re.match(r'^https://(exhentai|e-hentai)\.org/img/509\.gif$', real_url):
-                    logger.warning("509: YOU HAVE TEMPORARILY REACHED THE LIMIT")
-                    await self.wait_image_limits()
-                    return await self.download_image(semaphore=semaphore, url=url, file_index=file_index)
+        # 配额用尽，返回的图片地址会变成509.gif
+        # Quota exhausted, the returned image url will change to 509.gif.
+        if QUOTA_EXCEEDED_IMAGE.match(image_url):
+            return "quota", next_url
 
-                # download file
-                dl_status = await self.fetch_data(url=real_url, tqdm_file_path=file_path)
-
-                if isinstance(dl_status, str):
-                    if dl_status == "reload_image":
-                        logger.info(F"Reload Image. Retrying... {reload_count} / 6 ")
-                elif dl_status is True:
-                    return True
-                    # if file_extension.lower() == ".webp":
-                    #     try:
-                    #         webp_image = Image.open(file_path)
-                    #         webp_image.verify()
-                    #         rgb_image = webp_image.convert('RGB')
-                    #         jpg_file_path = os.path.splitext(file_path)[0] + '.jpg'
-                    #         rgb_image.save(jpg_file_path, 'JPEG')
-                    #         os.remove(file_path)
-                    #         return True
-                    #     except Exception as e:
-                    #         logger.error(f"Failed to process image: {file_path}. Error: {e}")
-                    # else:
-                    #     # 补充非 webp 图片的处理
-                    #     return True
-            return False
+        file_path = os.path.join(self.filepath_tmp, file_index + "." + image_url.split('.')[-1])
+        dl_status = await self.fetch_data(url=image_url, tqdm_file_path=file_path)
+        return (True if dl_status is True else "retry"), next_url
 
     async def get_image_url(self):
         """
