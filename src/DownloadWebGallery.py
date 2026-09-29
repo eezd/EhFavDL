@@ -101,14 +101,17 @@ class DownloadWebGallery(Service):
         page_data = BeautifulSoup(hx_res, 'html.parser')
 
         # 判断是否被版权 / Check for copyright status.
-        copyright_msg = page_data.select_one('.d p')
-        if copyright_msg is not None:
-            if copyright_msg.find('copyright') != -1:
+        notice = page_data.select_one('.d p')
+        if notice is not None:
+            notice_text = notice.get_text(" ", strip=True)
+            if "copyright" in notice_text.lower():
                 return "copyright"
+            logger.warning(f"Gallery unavailable: {notice_text} {self.long_url}")
+            return []
 
         # 获取页面上显示的 pages，用于校验是否获取到全部的 page_img_url
         pages = None
-        lengthtd = page_data.find('td', text='Length:')
+        lengthtd = page_data.find('td', string='Length:')
         if lengthtd:
             length = lengthtd.find_next_sibling('td', class_='gdt2').text.strip()
             pages = re.search(r'\d+', length).group()

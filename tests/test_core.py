@@ -9,6 +9,7 @@ from src.AppConfig import AppConfig
 from src.ComicInfo import ComicInfo
 from src.Checker import Checker
 from src.Database import Database
+from src.DownloadWebGallery import DownloadWebGallery
 from src.EhClient import EhClient
 import src.Utils as utils_mod
 from src.Utils import (
@@ -53,6 +54,13 @@ watch_lan_status: False
 """
     config_path.write_text(config_text.strip() + "\n", encoding="utf-8")
     return config_path
+
+
+GALLERY_PAGE = """
+<table><tr><td class="gdt1">Length:</td><td class="gdt2">2 pages</td></tr></table>
+<table class="ptb"><tr><td>&lt;</td><td>1</td><td>&gt;</td></tr></table>
+<div id="gdt"><a href="https://exhentai.org/s/aaa/1-1"></a><a href="https://exhentai.org/s/bbb/1-2"></a></div>
+"""
 
 
 class CoreBehaviorTests(unittest.TestCase):
@@ -235,6 +243,28 @@ class AsyncInfrastructureTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(get_download_list.call_count, 2)
         self.assertEqual(download.apply.await_count, 2)
         sleep.assert_awaited_once_with(30)
+
+    def make_download(self, eh_client=None, quota=None):
+        return DownloadWebGallery(
+            self.config, self.database, eh_client or mock.Mock(), quota or mock.Mock(), 1, "tok", "title"
+        )
+
+    async def test_get_image_url_copyright_detection(self):
+        pages = {
+            "copyright": '<div class="d"><p>This gallery is unavailable due to a copyright claim by X.</p></div>',
+            "removed": '<div class="d"><p>This gallery has been removed or is unavailable.</p></div>',
+        }
+        for kind, html in pages.items():
+            client = mock.Mock(fetch_data=mock.AsyncMock(return_value=html.encode()))
+            result = await self.make_download(client).get_image_url()
+            self.assertEqual(result, "copyright" if kind == "copyright" else [], kind)
+
+        client = mock.Mock(fetch_data=mock.AsyncMock(return_value=GALLERY_PAGE.encode()))
+        result = await self.make_download(client).get_image_url()
+        self.assertEqual(
+            result,
+            [["https://exhentai.org/s/aaa/1-1", "00000001"], ["https://exhentai.org/s/bbb/1-2", "00000002"]],
+        )
 
 
 if __name__ == "__main__":
