@@ -113,21 +113,32 @@ class EhClient:
         desc_name = url.split("/")[-1] + "/" + os.path.basename(tqdm_file_path)
 
         def _download():
-            handlers = [urllib.request.HTTPSHandler(context=ssl.create_default_context())]
-            if self.config.proxy_status and self.config.proxy_url:
-                handlers.append(urllib.request.ProxyHandler(
-                    {"http": self.config.proxy_url, "https": self.config.proxy_url}))
+            # Match aiohttp: use the configured proxy only; never fall back to *_proxy environment variables.
+            proxy_url = self.config.proxy_url if self.config.proxy_status else None
+            proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else {}
+            handlers = [
+                urllib.request.HTTPSHandler(context=ssl.create_default_context()),
+                urllib.request.ProxyHandler(proxies),
+            ]
             opener = urllib.request.build_opener(*handlers)
             request = urllib.request.Request(url, headers=headers)
             with opener.open(request, timeout=60) as resp:
                 total = int(resp.headers.get("Content-Length", 0))
+                received = 0
                 with open(temp_file_path, "wb") as file:
                     with tqdm(total=total, unit="B", unit_scale=True, desc=desc_name) as progress:
                         while chunk := resp.read(65536):
                             file.write(chunk)
+                            received += len(chunk)
                             progress.update(len(chunk))
+                return received, total
 
-        await asyncio.to_thread(_download)
+        received, total = await asyncio.to_thread(_download)
+        # urllib does not raise when the connection closes early, and Image.verify() accepts truncated JPEGs.
+        if total and received != total:
+            os.remove(temp_file_path)
+            logger.error(f"Truncated image: {received}/{total} bytes | URL: {url}")
+            return "reload_image"
 
         if os.path.exists(tqdm_file_path):
             os.remove(tqdm_file_path)

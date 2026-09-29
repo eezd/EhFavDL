@@ -22,6 +22,8 @@ class DownloadStatus(Enum):
 
 MAX_IMAGE_ATTEMPTS = 8
 MAX_QUOTA_WAITS = 3
+# Pause before reloading a failed image so the next attempt avoids the same H@H node or route.
+IMAGE_RETRY_DELAY = 3
 QUOTA_EXCEEDED_IMAGE = re.compile(r'^https://(exhentai|e-hentai)\.org/img/509\.gif$')
 
 
@@ -49,7 +51,7 @@ class DownloadWebGallery(Service):
         注意: 一旦执行到这步, 那么不管你下没下载图片, 都会消耗你的 IP 配额
         Once you reach this step, your IP quota will be consumed regardless of whether you download the image or not.
 
-        The semaphore is held only for a single attempt, so waiting for quota never blocks other downloads.
+        The semaphore is held only for a single attempt, so quota waits and retry delays never block other downloads.
 
         Returns: True | False
         """
@@ -68,7 +70,9 @@ class DownloadWebGallery(Service):
                 await self.wait_image_limits()
                 continue
             attempts += 1
-            logger.info(f"Reload Image. Retrying... {attempts} / {MAX_IMAGE_ATTEMPTS}")
+            if attempts < MAX_IMAGE_ATTEMPTS:
+                logger.info(f"Reload Image. Retrying in {IMAGE_RETRY_DELAY}s... {attempts} / {MAX_IMAGE_ATTEMPTS} | {url}")
+                await asyncio.sleep(IMAGE_RETRY_DELAY)
         return False
 
     async def _download_once(self, url, file_index):

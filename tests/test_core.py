@@ -1,11 +1,16 @@
 import asyncio
-import xml.etree.ElementTree as ET
+import io
 import os
+import socket
 import sqlite3
 import tempfile
+import threading
 import unittest
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from unittest import mock
+
+from PIL import Image
 
 from src.AddFavData import AddFavData
 from src.AppConfig import AppConfig
@@ -56,6 +61,32 @@ watch_lan_status: False
 """
     config_path.write_text(config_text.strip() + "\n", encoding="utf-8")
     return config_path
+
+
+def jpeg_bytes():
+    buffer = io.BytesIO()
+    Image.effect_noise((64, 64), 64).convert("RGB").save(buffer, "JPEG")
+    return buffer.getvalue()
+
+
+def serve_once(testcase, body, content_length):
+    """Serve `body` with the given Content-Length on 127.0.0.1, then close the connection."""
+    server = socket.socket()
+    server.bind(("127.0.0.1", 0))
+    server.listen()
+    testcase.addCleanup(server.close)
+
+    def handle():
+        conn, _ = server.accept()
+        with conn:
+            conn.recv(65536)
+            conn.sendall(
+                f"HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: {content_length}\r\n"
+                f"Connection: close\r\n\r\n".encode() + body
+            )
+
+    threading.Thread(target=handle, daemon=True).start()
+    return f"http://127.0.0.1:{server.getsockname()[1]}/h/1.jpg"
 
 
 GALLERY_PAGE = """
@@ -370,6 +401,51 @@ class AsyncInfrastructureTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertFalse(result)
         self.assertEqual(wait.await_count, 3)
+
+    async def test_download_image_retry_delay_releases_slot(self):
+        semaphore = asyncio.Semaphore(1)
+        pages = iter([b"<title>503 Backend fetch failed</title>", self.make_image_page("https://abc.hath.network/h/1.jpg")])
+
+        async def fake_fetch(url, tqdm_file_path=None):
+            return True if tqdm_file_path is not None else next(pages)
+
+        slot_held_while_sleeping = []
+
+        async def fake_sleep(_):
+            slot_held_while_sleeping.append(semaphore.locked())
+
+        download = self.make_download(mock.Mock(fetch_data=fake_fetch))
+        with mock.patch("src.DownloadWebGallery.asyncio.sleep", side_effect=fake_sleep):
+            result = await asyncio.wait_for(
+                download.download_image(semaphore, "https://exhentai.org/s/aaa/1-1", "00000001"), timeout=2
+            )
+
+        self.assertTrue(result)
+        self.assertEqual(slot_held_while_sleeping, [False])
+
+    async def test_fetch_file_rejects_truncated_image(self):
+        image = jpeg_bytes()
+        url = serve_once(self, image[: len(image) // 2], len(image))
+        target = self.root / "00000001.jpg"
+
+        result = await EhClient(self.config).fetch_file_blocking(url, str(target))
+
+        self.assertEqual(result, "reload_image")
+        self.assertFalse(target.exists())
+        self.assertEqual(list(self.root.glob("temp_*")), [])
+
+    async def test_fetch_file_ignores_environment_proxy_when_proxy_disabled(self):
+        image = jpeg_bytes()
+        url = serve_once(self, image, len(image))
+        target = self.root / "00000001.jpg"
+        dead_proxy = "http://127.0.0.1:9"
+        proxy_env = {"http_proxy": dead_proxy, "HTTP_PROXY": dead_proxy, "no_proxy": "", "NO_PROXY": ""}
+
+        with mock.patch.dict(os.environ, proxy_env):
+            result = await EhClient(self.config).fetch_file_blocking(url, str(target))
+
+        self.assertIs(result, True)
+        self.assertEqual(target.read_bytes(), image)
 
     async def test_get_image_url_copyright_detection(self):
         pages = {
