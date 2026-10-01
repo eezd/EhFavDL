@@ -52,7 +52,10 @@ def move_path_with_collision(old_path, dest_dir):
         suffix = 0
         while True:
             suffix_part = "" if suffix == 0 else f"_{suffix}"
-            dest_path = os.path.join(dest_dir, f"{root}_{timestamp}{suffix_part}{ext}")
+            tail = f"_{timestamp}{suffix_part}{ext}"
+            # A name that already fills the limit would overflow once the tail is added, so shorten the root.
+            root_fit = truncate_utf8(root, MAX_FILENAME_BYTES - len(tail.encode("utf-8")))
+            dest_path = os.path.join(dest_dir, root_fit + tail)
             if not os.path.exists(dest_path):
                 break
             suffix += 1
@@ -256,13 +259,18 @@ def windows_escape(title):
     return re.sub(r'''[\\/:*?"<>|\t]''', '', title)
 
 
-# Leaves room for the "temp_" prefix and ".cbz" extension within the 255-byte limit of a single file name.
+# Longest gallery name (without extension) that is still safe to create: a single file name is limited to 255 bytes.
 MAX_NAME_BYTES = 240
+MAX_FILENAME_BYTES = 255
+
+
+def truncate_utf8(text, max_bytes):
+    """Cut `text` to at most `max_bytes` UTF-8 bytes without splitting a character."""
+    return text.encode("utf-8")[:max_bytes].decode("utf-8", errors="ignore")
 
 
 def gallery_basename(gid, title, suffix=""):
     """Return '{gid}-{title}{suffix}' with the title cut so the name fits the filesystem limit (UTF-8 bytes)."""
     prefix = f"{gid}-"
     budget = MAX_NAME_BYTES - len(prefix.encode("utf-8")) - len(suffix.encode("utf-8"))
-    cut = windows_escape(title).encode("utf-8")[:budget]
-    return prefix + cut.decode("utf-8", errors="ignore").rstrip() + suffix
+    return prefix + truncate_utf8(windows_escape(title), budget).rstrip() + suffix

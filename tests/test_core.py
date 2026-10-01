@@ -229,6 +229,26 @@ class CoreBehaviorTests(unittest.TestCase):
         self.assertTrue(Path(moved).exists())
         self.assertEqual(Path(moved).name, "457-sample_20240101000000_1.cbz")
 
+    def test_move_path_with_collision_keeps_capped_names_within_filesystem_limit(self):
+        name = gallery_basename(1485407, "あ" * 100, "-1280x") + ".cbz"  # what a download is stored as
+        dest_dir = self.root / "data" / "del"
+        os.makedirs(dest_dir, exist_ok=True)
+        (dest_dir / name).write_bytes(b"existing")
+
+        moved = []
+        with mock.patch.object(utils_mod.time, "strftime", return_value="20240101000000"):
+            for attempt in range(3):  # same-name collision, then timestamp collisions that add _1, _2
+                src_file = self.root / "data" / "gallery" / name
+                src_file.write_bytes(f"payload {attempt}".encode())
+                moved.append(Path(move_path_with_collision(str(src_file), str(dest_dir))))
+
+        self.assertEqual(len({p.name for p in moved}), 3)  # every file kept, none overwritten
+        for path in moved:
+            self.assertLessEqual(len(path.name.encode("utf-8")), 255, path.name)
+            self.assertTrue(path.name.startswith("1485407-"))
+            self.assertTrue(path.name.endswith(".cbz"))
+        self.assertEqual(sorted(p.read_bytes() for p in moved), [b"payload 0", b"payload 1", b"payload 2"])
+
     def test_comicinfo_create_xml_without_tags(self):
         with sqlite3.connect(self.config.dbs_name) as co:
             co.execute(
