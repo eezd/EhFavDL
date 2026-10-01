@@ -43,19 +43,12 @@ class Checker(Service):
         If `cover=True`, reset the `original_flag` and `web_1280x_flag` fields in the `fav_category` table,
          and then reconfigure them based on the local files.
         """
-        gid_list_original = []
-        gid_list_1280x = []
         if target_path == "":
             target_path = self.gallery_path
-        for i in os.listdir(target_path):
-            if not re.match(r'^\d+-.*\.cbz', i):
-                continue
-            if i.find('-1280x') != -1:
-                gid_list_1280x.append(re.match(r'^(\d+)-', i).group(1))
-            else:
-                gid_list_original.append(re.match(r'^(\d+)-', i).group(1))
-        gid_list_1280x = sorted(set(gid_list_1280x))
-        gid_list_original = sorted(set(gid_list_original))
+        # Real *.cbz files only, and '-1280x' matched case-insensitively, like the duplicate check.
+        original, web_1280x = collect_gid_cbz_groups(target_path)
+        gid_list_1280x = sorted(web_1280x)
+        gid_list_original = sorted(original)
         logger.info(f'gid_list_1280x count: {len(gid_list_1280x)}')
         logger.info(f'gid_list_original count: {len(gid_list_original)}')
         with sqlite3.connect(self.dbs_name) as co:
@@ -78,26 +71,27 @@ class Checker(Service):
         if target_path == "":
             target_path = self.gallery_path
         with sqlite3.connect(self.dbs_name) as co:
-            for i in os.listdir(target_path):
-                if not re.match(r'^\d+-.*\.cbz', i):
-                    continue
-                gid = re.match(r'^(\d+)-', i).group(1)
-                data = co.execute('SELECT gid, current_gid FROM eh_data WHERE gid = ?', (gid,)).fetchone()
-                if data is None:
-                    logger.warning(f'No metadata found for local gallery: {i}')
-                    continue
-                if data[0] != data[1]:
-                    # Only move an old version once its current version is available locally.
-                    replaced = co.execute(
-                        'SELECT 1 FROM fav_category WHERE gid = ? AND (original_flag = 1 OR web_1280x_flag = 1)',
-                        (data[1],),
-                    ).fetchone()
-                    if replaced is None:
-                        logger.info(f'Keeping {i}: its current version {data[1]} is not downloaded')
+            # Same matching as the duplicate check: real *.cbz files only (not .cbz-tmp, .cbz.bak or directories).
+            original, web_1280x = collect_gid_cbz_groups(target_path)
+            for names in (*original.values(), *web_1280x.values()):
+                for i in names:
+                    gid = re.match(r'^(\d+)-', i).group(1)
+                    data = co.execute('SELECT gid, current_gid FROM eh_data WHERE gid = ?', (gid,)).fetchone()
+                    if data is None:
+                        logger.warning(f'No metadata found for local gallery: {i}')
                         continue
-                    folder_path = os.path.join(target_path, i)
-                    dest_path = move_path_with_collision(folder_path, self.del_path)
-                    logger.info(f"Moved: {folder_path} -> {dest_path}")
+                    if data[0] != data[1]:
+                        # Only move an old version once its current version is available locally.
+                        replaced = co.execute(
+                            'SELECT 1 FROM fav_category WHERE gid = ? AND (original_flag = 1 OR web_1280x_flag = 1)',
+                            (data[1],),
+                        ).fetchone()
+                        if replaced is None:
+                            logger.info(f'Keeping {i}: its current version {data[1]} is not downloaded')
+                            continue
+                        folder_path = os.path.join(target_path, i)
+                        dest_path = move_path_with_collision(folder_path, self.del_path)
+                        logger.info(f"Moved: {folder_path} -> {dest_path}")
 
     def check_loc_file(self):
         folder = input(f"Please enter the file directory.\n")

@@ -253,6 +253,56 @@ class CoreBehaviorTests(unittest.TestCase):
             self.assertTrue(path.name.endswith(".cbz"))
         self.assertEqual(sorted(p.read_bytes() for p in moved), [b"payload 0", b"payload 1", b"payload 2"])
 
+    def seed_sync_favorites(self, *gids):
+        with self.database.connection() as co:
+            for gid in gids:
+                co.execute("INSERT INTO fav_category(gid, token, fav_id, del_flag) VALUES (?,?,0,0)", (gid, "t"))
+            co.commit()
+
+    def sync_flags(self):
+        Checker(self.config, self.database).sync_local_to_sqlite_cbz(cover=True)
+        with self.database.connection() as co:
+            return co.execute("SELECT gid, original_flag, web_1280x_flag FROM fav_category ORDER BY gid").fetchall()
+
+    def test_sync_flags_ignore_leftovers_that_are_not_cbz_files(self):
+        gallery = Path(self.config.gallery_path)
+        self.seed_sync_favorites(888)
+        (gallery / "888-t.cbz-tmp").mkdir()  # update_meta_info leftover
+        (gallery / "888-t.cbz.bak").write_bytes(b"x")
+        (gallery / "888-folder.cbz").mkdir()  # a directory that happens to end in .cbz
+
+        self.assertEqual(self.sync_flags(), [(888, 0, 0)])  # was (888, 1, 0): counted as downloaded
+
+    def test_sync_flags_treat_uppercase_1280x_as_the_web_version(self):
+        gallery = Path(self.config.gallery_path)
+        self.seed_sync_favorites(777, 778, 779)
+        (gallery / "777-t-1280X.cbz").write_bytes(b"x")
+        (gallery / "778-t-1280x.cbz").write_bytes(b"x")
+        (gallery / "779-t.cbz").write_bytes(b"x")
+
+        self.assertEqual(self.sync_flags(), [(777, 0, 1), (778, 0, 1), (779, 1, 0)])
+
+    def test_checker_clear_old_file_only_moves_real_cbz_files(self):
+        gallery = self.seed_outdated_gallery_for_checker()
+        (gallery / "100-Old.cbz.bak").write_bytes(b"backup")
+        (gallery / "100-Old-folder.cbz").mkdir()
+
+        Checker(self.config, self.database).clear_old_file()
+
+        self.assertEqual(sorted(p.name for p in gallery.iterdir()), ["100-Old-folder.cbz", "100-Old.cbz.bak", "200-New-1280x.cbz"])
+        self.assertEqual(sorted(p.name for p in Path(self.config.del_path).iterdir()), ["100-Old-1280x.cbz"])
+
+    def seed_outdated_gallery_for_checker(self):
+        gallery = Path(self.config.gallery_path)
+        with self.database.connection() as co:
+            co.execute("INSERT INTO eh_data(gid, token, title, current_gid, current_token) VALUES (100,'a','Old',200,'b')")
+            co.execute("INSERT INTO eh_data(gid, token, title, current_gid, current_token) VALUES (200,'b','New',200,'b')")
+            co.execute("INSERT INTO fav_category(gid, token, fav_id, web_1280x_flag) VALUES (200,'b',0,1)")
+            co.commit()
+        (gallery / "100-Old-1280x.cbz").write_bytes(b"old")
+        (gallery / "200-New-1280x.cbz").write_bytes(b"new")
+        return gallery
+
     def test_rename_cbz_file_shortens_long_names_and_normalizes_1280x(self):
         gallery = Path(self.config.gallery_path)
         long_name = "123-" + "x" * 100 + ".cbz"
