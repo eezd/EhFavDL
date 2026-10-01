@@ -38,14 +38,24 @@ class LANraragi(Service):
                 lan_url += "/api/archives"
 
             async with session.get(lan_url) as response:
-                all_archives = await response.json(content_type=None)
+                try:
+                    response.raise_for_status()
+                    all_archives = await response.json(content_type=None)
+                except Exception as exc:
+                    logger.error(f"Could not read the LANraragi archive list from {lan_url}: {exc}")
+                    return
+
+            if not isinstance(all_archives, list):
+                logger.error(f"LANraragi did not return an archive list, check lan_url and lan_api_psw: {all_archives}")
+                return
 
             logger.info(f"一共检查到 {len(all_archives)} 个")
             logger.info(f"A total of {len(all_archives)} were checked")
             if len(all_archives) == 0:
                 logger.error(f"请添加画廊后再添加Tags")
                 logger.error(f"Please add gallery before adding Tags")
-                sys.exit(1)
+                return
+            failed_arcids = []
 
             with self.get_db_connection() as co:
                 eh_rows = co.execute('''
@@ -95,9 +105,12 @@ class LANraragi(Service):
                         else:
                             gid = int(str(sub_archives['title']).split('-')[0])
                     except ValueError:
+                        # Not an archive this tool downloaded: leave it alone instead of aborting the whole run.
                         logger.warning(
-                            f"The ID does not exist>> arcid: {str(sub_archives['arcid'])}, title: {str(sub_archives['title'])}")
-                        sys.exit(1)
+                            f"Skipping archive without a gallery id>> arcid: {str(sub_archives['arcid'])}, "
+                            f"title: {str(sub_archives['title'])}")
+                        progress_bar.update(1)
+                        continue
 
                     fav_info = eh_map.get(gid)
                     fav_name = ""
@@ -110,15 +123,17 @@ class LANraragi(Service):
                         continue
 
                     token = str(fav_info["token"])
-                    if fav_info["title_jpn"] is not None and fav_info["title_jpn"] != "":
-                        title = str(fav_info["title_jpn"])
+                    title_jpn = fav_info["title_jpn"]
+                    if self.prefer_japanese_title and title_jpn and len(str(title_jpn).strip()) > 3:
+                        title = str(title_jpn)
                     else:
                         title = str(fav_info["title"])
 
                     source = f"exhentai.org/g/{gid}/{token}"
                     category = str(fav_info["category"])
                     posted = fav_info["posted"]
-                    pages = int(sub_archives['pagecount'])
+                    pagecount = sub_archives.get('pagecount')
+                    pages = f"pages:{int(pagecount)}," if isinstance(pagecount, (int, float)) and pagecount > 0 else ""
 
                     tid_list = gid_tid_map.get(gid, [])
                     db_tags = []
@@ -132,11 +147,24 @@ class LANraragi(Service):
                         else:
                             db_tags.append(tag)
                     tags = ','.join(db_tags)
-                    lan_tags = f"gid:{gid},token:{token},source:{source},category:{category},date_added:{posted},pages:{pages},{fav_name}," + tags
+                    lan_tags = f"gid:{gid},token:{token},source:{source},category:{category},date_added:{posted},{pages}{fav_name}," + tags
 
                     async with session.put(f"{lan_url}/{sub_archives['arcid']}/metadata",
                                            data={"title": title, "tags": lan_tags.strip()}) as response:
-                        await response.read()
-                        progress_bar.update(1)
+                        accepted = response.status < 400
+                        try:
+                            body = await response.json(content_type=None)
+                            if isinstance(body, dict) and "success" in body:
+                                accepted = accepted and bool(body["success"])
+                        except Exception:
+                            pass  # LANraragi did not answer with JSON; the HTTP status decides
+                        if not accepted:
+                            failed_arcids.append(str(sub_archives['arcid']))
+                            logger.warning(f"LANraragi rejected the metadata for arcid {sub_archives['arcid']} "
+                                           f"(HTTP {response.status}); check lan_api_psw")
+                    progress_bar.update(1)
 
-        logger.info("[OK] LANraragi Add Tags")
+        if failed_arcids:
+            logger.warning(f"LANraragi Add Tags finished with {len(failed_arcids)} failures: {failed_arcids[:10]}")
+        else:
+            logger.info("[OK] LANraragi Add Tags")

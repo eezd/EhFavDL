@@ -11,7 +11,9 @@ import zipfile
 from pathlib import Path
 from unittest import mock
 
+import aiohttp
 from PIL import Image
+from yarl import URL
 
 from src.AddFavData import AddFavData, FavoritesFetchError
 from src.AppConfig import AppConfig
@@ -20,6 +22,7 @@ from src.Checker import Checker
 from src.Database import Database
 from src.DownloadWebGallery import DownloadStatus, DownloadWebGallery
 from src.EhClient import EhClient
+from src.LANraragi import LANraragi
 import src.Utils as utils_mod
 from src.Utils import (
     clear_old_file,
@@ -575,6 +578,131 @@ class AsyncInfrastructureTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(calls, {100: 1, 200: 2})
         sleep.assert_awaited_once_with(30)
 
+    def seed_lanraragi_gallery(self, gid=56853, title="English", title_jpn="Japanese title"):
+        with self.database.connection() as co:
+            co.execute(
+                "INSERT INTO eh_data(gid, token, title, title_jpn, category, posted) VALUES (?,?,?,?,?,?)",
+                (gid, "tok", title, title_jpn, "Manga", "1704067200"),
+            )
+            co.commit()
+
+    async def run_lanraragi(self, archives, put_status=200, put_body=None, get_status=200, prefer_japanese=True):
+        """Run LANraragi.lan_update_tags against a fake LRR. Returns (puts, log, outcome)."""
+        puts = []
+        put_body = {"success": 1} if put_body is None else put_body
+
+        class FakeResponse:
+            def __init__(self, status, body):
+                self.status, self._body = status, body
+
+            async def json(self, content_type=None):
+                return self._body
+
+            async def read(self):
+                return b"{}"
+
+            def raise_for_status(self):
+                if self.status >= 400:
+                    info = aiohttp.RequestInfo(URL("http://lan.invalid/api/archives"), "GET", {}, URL("http://lan.invalid/api/archives"))
+                    raise aiohttp.ClientResponseError(info, (), status=self.status)
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+        class FakeSession:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *exc):
+                return False
+
+            def get(self, url):
+                return FakeResponse(get_status, archives)
+
+            def put(self, url, data=None):
+                puts.append((url.rstrip("/").split("/")[-2], data))
+                return FakeResponse(put_status, put_body)
+
+        self.config.prefer_japanese_title = prefer_japanese
+        with mock.patch("src.LANraragi.aiohttp.ClientSession", FakeSession), \
+                mock.patch("src.LANraragi.logger") as log:
+            outcome = None
+            try:
+                await LANraragi(self.config, self.database, watch_status=True).lan_update_tags()
+            except BaseException as exc:  # SystemExit must be reported, not allowed to end the test run
+                outcome = exc
+        return puts, log, outcome
+
+    async def test_lanraragi_skips_archives_it_cannot_match_and_keeps_going(self):
+        self.seed_lanraragi_gallery(56853)
+        self.seed_lanraragi_gallery(138202)
+        archives = [
+            {"arcid": "a1", "title": "56853-Known", "tags": "", "pagecount": 5},
+            {"arcid": "a2", "title": "[Artist] Foreign comic not from this tool", "tags": "", "pagecount": 9},
+            {"arcid": "a3", "title": "138202-Known too", "tags": "", "pagecount": 7},
+        ]
+
+        puts, _, outcome = await self.run_lanraragi(archives)
+
+        self.assertIsNone(outcome)  # was SystemExit(1)
+        self.assertEqual([arcid for arcid, _ in puts], ["a1", "a3"])
+
+    async def test_lanraragi_empty_library_returns_without_exiting(self):
+        puts, _, outcome = await self.run_lanraragi([])
+
+        self.assertIsNone(outcome)
+        self.assertEqual(puts, [])
+
+    async def test_lanraragi_error_response_is_reported_not_iterated(self):
+        error_object = {"operation": "", "error": "This API is protected.", "success": 0}
+
+        puts, log, outcome = await self.run_lanraragi(error_object)
+
+        self.assertIsNone(outcome)  # was TypeError: string indices must be integers
+        self.assertEqual(puts, [])
+        log.error.assert_called()
+
+    async def test_lanraragi_http_error_is_reported_not_raised(self):
+        puts, log, outcome = await self.run_lanraragi([], get_status=500)
+
+        self.assertIsNone(outcome)
+        log.error.assert_called()
+
+    async def test_lanraragi_reports_rejected_metadata_updates(self):
+        self.seed_lanraragi_gallery(56853)
+        archives = [{"arcid": "a1", "title": "56853-Known", "tags": "", "pagecount": 5}]
+
+        _, log, _ = await self.run_lanraragi(archives, put_status=401, put_body={"success": 0, "error": "bad key"})
+
+        messages = " ".join(str(call.args[0]) for call in log.warning.call_args_list + log.error.call_args_list)
+        self.assertIn("a1", messages)
+        self.assertNotIn("[OK]", " ".join(str(call.args[0]) for call in log.info.call_args_list))
+
+    async def test_lanraragi_handles_missing_pagecount(self):
+        self.seed_lanraragi_gallery(56853)
+        archives = [{"arcid": "a1", "title": "56853-Known", "tags": "", "pagecount": None}]
+
+        puts, _, outcome = await self.run_lanraragi(archives)
+
+        self.assertIsNone(outcome)  # was TypeError: int() argument must be ... not 'NoneType'
+        self.assertEqual(len(puts), 1)
+        self.assertNotIn("pages:None", puts[0][1]["tags"])
+
+    async def test_lanraragi_title_follows_prefer_japanese_title(self):
+        self.seed_lanraragi_gallery(56853, title="English title", title_jpn="日本語のタイトル")
+        archives = [{"arcid": "a1", "title": "56853-Known", "tags": "", "pagecount": 5}]
+
+        english, _, _ = await self.run_lanraragi(archives, prefer_japanese=False)
+        japanese, _, _ = await self.run_lanraragi(archives, prefer_japanese=True)
+
+        self.assertEqual(english[0][1]["title"], "English title")
+        self.assertEqual(japanese[0][1]["title"], "日本語のタイトル")
 
     async def test_watch_skips_when_no_targets(self):
         result, apply, _, get_download_list = await self.run_watch_download([], fav_cat=None)
