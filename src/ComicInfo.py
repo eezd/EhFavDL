@@ -120,12 +120,17 @@ class ComicInfo(Service):
                     self.create_xml(gid, file_path)
                 else:
                     temp_dir = file_path + '-tmp'
-                    os.makedirs(temp_dir, exist_ok=True)
-                    with zipfile.ZipFile(file_path, 'r') as zip_ref:
-                        zip_ref.extractall(temp_dir)
-                    self.create_xml(gid, temp_dir)
-                    create_cbz(src_path=temp_dir, target_path=file_path)
-                    shutil.rmtree(temp_dir)
-                    logger.info(f"update_meta_info >> {file_path}")
+                    try:
+                        os.makedirs(temp_dir, exist_ok=True)
+                        with zipfile.ZipFile(file_path, 'r') as zip_ref:
+                            zip_ref.extractall(temp_dir)
+                        self.create_xml(gid, temp_dir)
+                        create_cbz(src_path=temp_dir, target_path=file_path)
+                        logger.info(f"update_meta_info >> {file_path}")
+                    except (OSError, zipfile.BadZipFile) as exc:
+                        # create_cbz replaces the CBZ only after writing it completely, so the original is untouched.
+                        logger.error(f"update_meta_info failed for {file_path}: {exc}")
+                    finally:
+                        shutil.rmtree(temp_dir, ignore_errors=True)
                 progress_bar.update(1)
         logger.info(f'[OK] update_meta_info')

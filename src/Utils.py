@@ -146,18 +146,29 @@ def create_cbz(src_path, target_path=""):
     """
     创建一个 CBZ 文件, 默认在当前位置创建
     Create a CBZ file, defaulting to the current location.
+
+    The archive is written to a temporary file next to the target and moved into place only after it is
+    complete, so a failure (disk full, Ctrl+C) never truncates an existing CBZ.
     """
     if target_path == "":
         target_path = src_path + ".cbz"
     elif not target_path.endswith(".cbz"):
         target_path = target_path + ".cbz"
-    with zipfile.ZipFile(target_path, 'w', zipfile.ZIP_STORED) as cbz:
-        for root, _, files in os.walk(src_path):
-            for file in files:
-                file_path = os.path.join(root, file)
-                # 使用os.path.relpath()获取文件相对于目录的路径
-                # Using os.path.relpath() to get the file path relative to a directory.
-                cbz.write(file_path, os.path.relpath(file_path, src_path))
+    # Not named *.cbz, so an interrupted run leaves nothing that looks like a gallery.
+    partial_path = os.path.join(os.path.dirname(target_path), "." + os.path.basename(target_path) + ".part")
+    try:
+        with zipfile.ZipFile(partial_path, 'w', zipfile.ZIP_STORED) as cbz:
+            for root, _, files in os.walk(src_path):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    # 使用os.path.relpath()获取文件相对于目录的路径
+                    # Using os.path.relpath() to get the file path relative to a directory.
+                    cbz.write(file_path, os.path.relpath(file_path, src_path))
+        os.replace(partial_path, target_path)
+    except BaseException:
+        if os.path.exists(partial_path):
+            os.remove(partial_path)
+        raise
     logger.info(f'Create CBZ: {target_path}')
 
 

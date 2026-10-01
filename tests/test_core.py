@@ -7,6 +7,7 @@ import tempfile
 import threading
 import unittest
 import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
 from unittest import mock
 
@@ -266,6 +267,69 @@ class CoreBehaviorTests(unittest.TestCase):
         self.assertTrue(xml_file.exists())
         xml_text = xml_file.read_text(encoding="utf-8")
         self.assertIn("<Title>English</Title>", xml_text)
+
+    def make_cbz(self, name="56853-t-1280x.cbz", pages=5):
+        pages_dir = self.root / "pages"
+        pages_dir.mkdir(exist_ok=True)
+        for index in range(1, pages + 1):
+            (pages_dir / f"{index:08d}.jpg").write_bytes(os.urandom(2000))
+        cbz = Path(self.config.gallery_path) / name
+        utils_mod.create_cbz(str(pages_dir), str(cbz))
+        return cbz
+
+    def seed_comicinfo_row(self, gid=56853):
+        with self.database.connection() as co:
+            co.execute(
+                "INSERT INTO eh_data(gid, token, title, title_jpn, category, posted) VALUES (?,?,?,?,?,?)",
+                (gid, "tok", "Title", "", "Manga", 1704067200),
+            )
+            co.commit()
+
+    def test_update_meta_info_keeps_cbz_intact_when_rewrite_fails(self):
+        self.seed_comicinfo_row()
+        cbz = self.make_cbz()
+        original = cbz.read_bytes()
+        real_write, calls = zipfile.ZipFile.write, {"count": 0}
+
+        def fail_on_second_page(zip_file, *args, **kwargs):
+            calls["count"] += 1
+            if calls["count"] == 2:
+                raise OSError(28, "No space left on device")
+            return real_write(zip_file, *args, **kwargs)
+
+        with mock.patch.object(zipfile.ZipFile, "write", fail_on_second_page), \
+                mock.patch("src.ComicInfo.logger") as log:
+            ComicInfo(self.config, self.database).update_meta_info()  # reports the failure and moves on
+
+        self.assertIn("No space left on device", log.error.call_args.args[0])
+
+        self.assertEqual(cbz.read_bytes(), original)  # was truncated to 1 member before the fix
+        self.assertEqual(sorted(p.name for p in cbz.parent.iterdir()), [cbz.name])  # no temp files left behind
+
+    def test_update_meta_info_rewrites_cbz_with_comicinfo_and_leaves_no_temp_files(self):
+        self.seed_comicinfo_row()
+        cbz = self.make_cbz()
+
+        ComicInfo(self.config, self.database).update_meta_info()
+
+        with zipfile.ZipFile(cbz) as archive:
+            self.assertIsNone(archive.testzip())
+            self.assertEqual(len(archive.namelist()), 6)  # 5 pages + ComicInfo.xml
+            self.assertEqual(ET.fromstring(archive.read("ComicInfo.xml")).findtext("Title"), "Title")
+        self.assertEqual(sorted(p.name for p in cbz.parent.iterdir()), [cbz.name])
+
+    def test_update_meta_info_failure_on_one_cbz_does_not_stop_the_others(self):
+        self.seed_comicinfo_row(56853)
+        self.seed_comicinfo_row(56854)
+        broken = Path(self.config.gallery_path) / "56853-t-1280x.cbz"
+        broken.write_bytes(b"not a zip file")
+        good = self.make_cbz("56854-t-1280x.cbz")
+
+        ComicInfo(self.config, self.database).update_meta_info()
+
+        self.assertEqual(broken.read_bytes(), b"not a zip file")
+        with zipfile.ZipFile(good) as archive:
+            self.assertIn("ComicInfo.xml", archive.namelist())
 
     def test_comicinfo_escapes_special_characters(self):
         with sqlite3.connect(self.config.dbs_name) as co:
