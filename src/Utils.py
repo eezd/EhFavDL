@@ -209,12 +209,21 @@ def rename_cbz_file(target_path):
             if len(new_i) > 80:
                 new_i = new_i[:80]
             new_name = new_i + (".cbz" if not web_1280x_flag else "-1280x.cbz")
-            shutil.move(os.path.join(target_path, i), os.path.join(target_path, new_name))
-            logger.info(F"\nold_name: {i} \n new_name: {new_name} \n")
+            _rename_without_overwrite(target_path, i, new_name)
         elif web_1280x_flag and "-1280X" in i:
             new_name = i.replace("-1280X", "-1280x")
-            shutil.move(os.path.join(target_path, i), os.path.join(target_path, new_name))
-            logger.info(F"\nold_name: {i} \n new_name: {new_name} \n")
+            _rename_without_overwrite(target_path, i, new_name)
+
+
+def _rename_without_overwrite(target_path, old_name, new_name):
+    """Rename a file, but leave it alone if the new name is already taken by another file."""
+    old_path = os.path.join(target_path, old_name)
+    new_path = os.path.join(target_path, new_name)
+    if os.path.exists(new_path) and not os.path.samefile(old_path, new_path):
+        logger.warning(f"Skipping rename, target already exists: {old_path} -> {new_path}")
+        return
+    shutil.move(old_path, new_path)
+    logger.info(F"\nold_name: {old_name} \n new_name: {new_name} \n")
 
 
 def rename_gid_name(database, target_path):

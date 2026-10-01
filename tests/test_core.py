@@ -253,6 +253,39 @@ class CoreBehaviorTests(unittest.TestCase):
             self.assertTrue(path.name.endswith(".cbz"))
         self.assertEqual(sorted(p.read_bytes() for p in moved), [b"payload 0", b"payload 1", b"payload 2"])
 
+    def test_rename_cbz_file_shortens_long_names_and_normalizes_1280x(self):
+        gallery = Path(self.config.gallery_path)
+        long_name = "123-" + "x" * 100 + ".cbz"
+        (gallery / long_name).write_bytes(b"long")
+        (gallery / "124-short-1280X.cbz").write_bytes(b"upper")
+
+        utils_mod.rename_cbz_file(str(gallery))
+
+        names = sorted(p.name for p in gallery.iterdir())
+        self.assertEqual(names, ["123-" + "x" * 76 + ".cbz", "124-short-1280x.cbz"])
+
+    def test_rename_cbz_file_never_overwrites_a_different_file(self):
+        gallery = Path(self.config.gallery_path)
+        # Both names are cut to the same 80 characters, so the second rename would land on the first.
+        original = gallery / ("123-" + "x" * 100 + " (original scan).cbz")
+        decensored = gallery / ("123-" + "x" * 100 + " (decensored).cbz")
+        original.write_bytes(b"A-original")
+        decensored.write_bytes(b"B-decensored")
+
+        utils_mod.rename_cbz_file(str(gallery))
+
+        contents = sorted(p.read_bytes() for p in gallery.iterdir())
+        self.assertEqual(contents, [b"A-original", b"B-decensored"])  # one of them was destroyed before the fix
+
+    def test_rename_cbz_file_keeps_both_files_when_only_the_1280x_case_differs(self):
+        gallery = Path(self.config.gallery_path)
+        (gallery / "124-t-1280X.cbz").write_bytes(b"UPPER")
+        (gallery / "124-t-1280x.cbz").write_bytes(b"lower")
+
+        utils_mod.rename_cbz_file(str(gallery))
+
+        self.assertEqual(sorted(p.read_bytes() for p in gallery.iterdir()), [b"UPPER", b"lower"])
+
     def test_comicinfo_create_xml_without_tags(self):
         with sqlite3.connect(self.config.dbs_name) as co:
             co.execute(
