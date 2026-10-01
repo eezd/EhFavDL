@@ -1024,6 +1024,37 @@ class AsyncInfrastructureTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(files, ["101-T-1280x.cbz", "103-T-1280x.cbz"])
         self.assertEqual([p.name for p in Path(self.config.del_path).iterdir()], ["102-T-1280x.cbz"])
 
+    async def test_post_eh_api_decodes_html_entities_in_titles(self):
+        async def fake_api(url, json):
+            return {"gmetadata": [{
+                "gid": 413243, "token": "t", "category": "Doujinshi", "thumb": "", "uploader": "u",
+                "posted": "1", "filecount": "5", "filesize": 1, "expunged": False, "rating": "4.5", "tags": [],
+                "title": "Victim Girls 10 - It&#039;s Training Cats &amp; Dogs. &lt;DL&gt; &quot;x&quot;",
+                "title_jpn": "ガールズ&amp;パンツァー &#x3042;",
+            }]}
+
+        add_fav = AddFavData(self.config, self.database, mock.Mock(fetch_data=fake_api))
+        with mock.patch("src.AddFavData.asyncio.sleep", new_callable=mock.AsyncMock):
+            data = await add_fav.post_eh_api({"method": "gdata", "gidlist": [[413243, "t"]], "namespace": 1})
+
+        title, title_jpn = data[0]["data"][2], data[0]["data"][3]
+        self.assertEqual(title, 'Victim Girls 10 - It\'s Training Cats & Dogs. <DL> "x"')
+        self.assertEqual(title_jpn, "ガールズ&パンツァー あ")
+
+    async def test_post_eh_api_leaves_plain_titles_untouched(self):
+        async def fake_api(url, json):
+            return {"gmetadata": [{
+                "gid": 1, "token": "t", "category": "Manga", "thumb": "", "uploader": "u", "posted": "1",
+                "filecount": "1", "filesize": 1, "expunged": False, "rating": "4", "tags": [],
+                "title": "[Artist] Title 100% (R&D) a&b ;x", "title_jpn": "",
+            }]}
+
+        add_fav = AddFavData(self.config, self.database, mock.Mock(fetch_data=fake_api))
+        with mock.patch("src.AddFavData.asyncio.sleep", new_callable=mock.AsyncMock):
+            data = await add_fav.post_eh_api({"method": "gdata", "gidlist": [[1, "t"]], "namespace": 1})
+
+        self.assertEqual(data[0]["data"][2], "[Artist] Title 100% (R&D) a&b ;x")
+
     async def test_update_meta_data_retries_only_failed_and_terminates(self):
         with self.database.connection() as co:
             co.executemany(

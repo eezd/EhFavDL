@@ -1,5 +1,6 @@
 import ast
 import asyncio
+import html
 import json
 import os
 import re
@@ -224,8 +225,8 @@ class AddFavData(Service):
                 "data": (
                     gid,
                     token,
-                    sub_post_data.get('title', ''),
-                    sub_post_data.get('title_jpn', ''),
+                    html.unescape(sub_post_data.get('title', '')),
+                    html.unescape(sub_post_data.get('title_jpn', '')),
                     sub_post_data.get('category', ''),
                     sub_post_data.get('thumb', ''),
                     sub_post_data.get('uploader', ''),
