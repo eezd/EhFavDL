@@ -220,13 +220,9 @@ def rename_gid_name(database, target_path):
                     title = str(co_title[1])
                 else:
                     title = str(co_title[0])
-                title = windows_escape(title)
                 old_path = os.path.join(target_path, item)
-                if os.path.isfile(old_path):
-                    ext = os.path.splitext(item)[1]
-                    new_name = f"{gid}-{title}{web_str}{ext}"
-                else:
-                    new_name = f"{gid}-{title}{web_str}"
+                ext = os.path.splitext(item)[1] if os.path.isfile(old_path) else ""
+                new_name = gallery_basename(gid, title, web_str) + ext
                 new_path = os.path.join(target_path, new_name)
                 if not os.path.exists(new_path):
                     logger.warning(f'rename: {old_path} -> {new_path}')
@@ -258,3 +254,15 @@ def remove_duplicates_2d_array(arr):
 
 def windows_escape(title):
     return re.sub(r'''[\\/:*?"<>|\t]''', '', title)
+
+
+# Leaves room for the "temp_" prefix and ".cbz" extension within the 255-byte limit of a single file name.
+MAX_NAME_BYTES = 240
+
+
+def gallery_basename(gid, title, suffix=""):
+    """Return '{gid}-{title}{suffix}' with the title cut so the name fits the filesystem limit (UTF-8 bytes)."""
+    prefix = f"{gid}-"
+    budget = MAX_NAME_BYTES - len(prefix.encode("utf-8")) - len(suffix.encode("utf-8"))
+    cut = windows_escape(title).encode("utf-8")[:budget]
+    return prefix + cut.decode("utf-8", errors="ignore").rstrip() + suffix

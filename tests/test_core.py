@@ -23,6 +23,7 @@ import src.Utils as utils_mod
 from src.Utils import (
     clear_old_file,
     collect_gid_cbz_groups,
+    gallery_basename,
     get_web_gallery_download_list,
     move_path_with_collision,
     windows_escape,
@@ -269,6 +270,38 @@ class CoreBehaviorTests(unittest.TestCase):
         self.assertEqual(set(root.findtext("Tags").split(", ")), {"artist:x&y", "female:a<b"})
         self.assertEqual(root.findtext("Writer"), "x&y")
         self.assertEqual(root.findtext("Web"), "exhentai.org/g/778/tok")
+
+    def test_gallery_basename_fits_filesystem_limit_and_can_be_created(self):
+        title = "あ" * 100  # 300 UTF-8 bytes, like the longest real titles
+        name = gallery_basename(1485407, title, "-1280x")
+
+        self.assertLessEqual(len((name + ".cbz").encode("utf-8")), 255)
+        self.assertTrue(name.startswith("1485407-"))
+        self.assertTrue(name.endswith("-1280x"))
+        (self.root / "temp").mkdir()
+        (self.root / "temp" / name).mkdir()  # raised OSError: File name too long before the fix
+        (self.root / "temp" / ("temp_" + name + ".cbz")).write_bytes(b"x")
+
+    def test_gallery_basename_never_cuts_a_character_in_half(self):
+        for width in (1, 2, 3, 4):  # 1-4 byte UTF-8 characters
+            char = {1: "a", 2: "é", 3: "あ", 4: "😀"}[width]
+            name = gallery_basename(7, char * 400, "-1280x")
+            name.encode("utf-8").decode("utf-8")  # raises on a split character
+            self.assertLessEqual(len(name.encode("utf-8")), 240, width)
+            self.assertTrue(set(name[len("7-"):-len("-1280x")]) <= {char}, width)
+
+    def test_gallery_basename_leaves_normal_titles_unchanged(self):
+        self.assertEqual(
+            gallery_basename(123, 'A: "Title" <1>?', "-1280x"), "123-A Title 1-1280x"
+        )
+        self.assertEqual(gallery_basename(123, "シスター完全敗北。", ""), "123-シスター完全敗北。")
+
+    def test_download_paths_use_capped_name(self):
+        download = DownloadWebGallery(self.config, self.database, mock.Mock(), mock.Mock(), 1485407, "tok", "あ" * 100)
+
+        self.assertLessEqual(len(os.path.basename(download.filepath_tmp).encode("utf-8")), 255)
+        self.assertLessEqual(len((os.path.basename(download.filepath_end) + ".cbz").encode("utf-8")), 255)
+        os.makedirs(download.filepath_tmp)
 
 
 class AsyncInfrastructureTests(unittest.IsolatedAsyncioTestCase):

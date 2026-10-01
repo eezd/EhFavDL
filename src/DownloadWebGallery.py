@@ -11,7 +11,7 @@ from tqdm.asyncio import tqdm_asyncio
 
 from src.Service import Service
 from src.ComicInfo import ComicInfo
-from src.Utils import create_cbz, windows_escape
+from src.Utils import create_cbz, gallery_basename
 
 
 class DownloadStatus(Enum):
@@ -40,9 +40,10 @@ class DownloadWebGallery(Service):
         self.gid = gid
         self.token = token
 
-        self.title = windows_escape(title)
-        self.filepath_tmp = os.path.join(self.web_path, 'temp', str(self.gid) + '-' + self.title + "-1280x")
-        self.filepath_end = os.path.join(self.web_path, str(self.gid) + '-' + self.title + "-1280x")
+        self.title = title
+        name = gallery_basename(self.gid, title, "-1280x")
+        self.filepath_tmp = os.path.join(self.web_path, 'temp', name)
+        self.filepath_end = os.path.join(self.web_path, name)
         self.long_url = f"https://{self.base_url}/g/{self.gid}/{self.token}/"
 
     @logger.catch
