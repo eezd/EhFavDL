@@ -723,6 +723,8 @@ class AsyncInfrastructureTests(unittest.IsolatedAsyncioTestCase):
                 self.status, self._body = status, body
 
             async def json(self, content_type=None):
+                if isinstance(self._body, Exception):
+                    raise self._body
                 return self._body
 
             async def read(self):
@@ -796,9 +798,14 @@ class AsyncInfrastructureTests(unittest.IsolatedAsyncioTestCase):
         log.error.assert_called()
 
     async def test_lanraragi_http_error_is_reported_not_raised(self):
-        puts, log, outcome = await self.run_lanraragi([], get_status=500)
+        # A valid archive list behind a 500: only the status check keeps the run from sending PUTs.
+        self.seed_lanraragi_gallery(56853)
+        archives = [{"arcid": "a1", "title": "56853-Known", "tags": "", "pagecount": 5}]
+
+        puts, log, outcome = await self.run_lanraragi(archives, get_status=500)
 
         self.assertIsNone(outcome)
+        self.assertEqual(puts, [])
         log.error.assert_called()
 
     async def test_lanraragi_reports_rejected_metadata_updates(self):
@@ -810,6 +817,36 @@ class AsyncInfrastructureTests(unittest.IsolatedAsyncioTestCase):
         messages = " ".join(str(call.args[0]) for call in log.warning.call_args_list + log.error.call_args_list)
         self.assertIn("a1", messages)
         self.assertNotIn("[OK]", " ".join(str(call.args[0]) for call in log.info.call_args_list))
+
+    async def test_lanraragi_treats_success_zero_as_a_failed_update_even_with_http_200(self):
+        # LANraragi reports some rejections in the body only; the status alone would call this a success.
+        self.seed_lanraragi_gallery(56853)
+        archives = [{"arcid": "a1", "title": "56853-Known", "tags": "", "pagecount": 5}]
+
+        _, log, _ = await self.run_lanraragi(archives, put_status=200, put_body={"success": 0, "error": "invalid tags"})
+
+        messages = " ".join(str(call.args[0]) for call in log.warning.call_args_list + log.error.call_args_list)
+        self.assertIn("a1", messages)
+        self.assertNotIn("[OK]", " ".join(str(call.args[0]) for call in log.info.call_args_list))
+
+    async def test_lanraragi_treats_a_non_json_error_status_as_a_failed_update(self):
+        # A reverse proxy answering 502 with an HTML page: there is no `success` field, only the status says it failed.
+        self.seed_lanraragi_gallery(56853)
+        archives = [{"arcid": "a1", "title": "56853-Known", "tags": "", "pagecount": 5}]
+
+        _, log, _ = await self.run_lanraragi(archives, put_status=502, put_body=ValueError("not json"))
+
+        messages = " ".join(str(call.args[0]) for call in log.warning.call_args_list + log.error.call_args_list)
+        self.assertIn("a1", messages)
+        self.assertNotIn("[OK]", " ".join(str(call.args[0]) for call in log.info.call_args_list))
+
+    async def test_lanraragi_accepts_a_successful_update_without_a_json_body(self):
+        self.seed_lanraragi_gallery(56853)
+        archives = [{"arcid": "a1", "title": "56853-Known", "tags": "", "pagecount": 5}]
+
+        _, log, _ = await self.run_lanraragi(archives, put_status=200, put_body=ValueError("empty body"))
+
+        self.assertIn("[OK] LANraragi Add Tags", " ".join(str(call.args[0]) for call in log.info.call_args_list))
 
     async def test_lanraragi_handles_missing_pagecount(self):
         self.seed_lanraragi_gallery(56853)
