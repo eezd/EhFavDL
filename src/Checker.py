@@ -87,6 +87,14 @@ class Checker(Service):
                     logger.warning(f'No metadata found for local gallery: {i}')
                     continue
                 if data[0] != data[1]:
+                    # Only move an old version once its current version is available locally.
+                    replaced = co.execute(
+                        'SELECT 1 FROM fav_category WHERE gid = ? AND (original_flag = 1 OR web_1280x_flag = 1)',
+                        (data[1],),
+                    ).fetchone()
+                    if replaced is None:
+                        logger.info(f'Keeping {i}: its current version {data[1]} is not downloaded')
+                        continue
                     folder_path = os.path.join(target_path, i)
                     dest_path = move_path_with_collision(folder_path, self.del_path)
                     logger.info(f"Moved: {folder_path} -> {dest_path}")

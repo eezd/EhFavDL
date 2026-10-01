@@ -105,8 +105,8 @@ class Watch:
                 total_gids = {gid[0] for gid in co.execute(query, params).fetchall()}
             fav_update_list = [item for item in update_list if item[0] in total_gids]
 
-            gids = [item[0] for item in fav_update_list]
-            clear_old_file(self.database, self.config.gallery_path, self.config.del_path, gids)
+            # Old versions are moved by clear_del_flag() only after the current version is downloaded,
+            # so a failed or copyright-blocked update never costs the only local copy.
             current_gids = [item[2] for item in fav_update_list]
             await self.dl_new_gallery(gids=",".join(map(str, current_gids)))
             self.watch_move_data_path()

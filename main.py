@@ -26,7 +26,6 @@ async def run(args):
     from src.ImageQuota import ImageQuota
     from src.LANraragi import LANraragi
     from src.Utils import (
-        clear_old_file,
         directory_to_cbz,
         get_web_gallery_download_list,
         rename_cbz_file,
@@ -96,11 +95,11 @@ async def run(args):
                             logger.warning(f"Download https://{config.base_url}/g/{gid}/{token} failed")
                 elif num == 4:
                     update_list = await add_fav_data.clear_del_flag()
-                    gids = [item[0] for item in update_list]
                     current_gids = [item[2] for item in update_list]
-                    clear_old_file(database, config.gallery_path, config.del_path, gids)
+                    # The old version is moved by clear_del_flag() below, only once the new one is downloaded.
                     if not await watch.dl_new_gallery(gids=",".join(map(str, current_gids))):
                         logger.warning("Some galleries failed to download; run option 4 again later.")
+                    await add_fav_data.clear_del_flag()
                 elif num == 5:
                     if config.tags_translation:
                         await add_fav_data.translate_tags()

@@ -402,6 +402,78 @@ class AsyncInfrastructureTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.snapshot_favorites(), before)
         self.assertEqual(client.fetch_data.await_count, 2)
 
+    def seed_outdated_gallery(self, new_version_downloaded=False):
+        """Old gid 100 is downloaded; its newer version 200 is favorited. Returns the gallery dir."""
+        gallery = Path(self.config.gallery_path)
+        gallery.mkdir(parents=True, exist_ok=True)
+        Path(self.config.del_path).mkdir(parents=True, exist_ok=True)
+        with self.database.connection() as co:
+            co.execute("INSERT OR REPLACE INTO fav_name(fav_id, fav_name) VALUES (0, 'Favorites 0')")
+            co.execute("INSERT INTO eh_data(gid, token, title, current_gid, current_token) VALUES (100,'a','Old',200,'b')")
+            co.execute("INSERT INTO eh_data(gid, token, title, current_gid, current_token) VALUES (200,'b','New',200,'b')")
+            co.execute("INSERT INTO fav_category(gid, token, fav_id, del_flag, web_1280x_flag) VALUES (100,'a',0,1,1)")
+            co.execute("INSERT INTO fav_category(gid, token, fav_id, del_flag, web_1280x_flag) VALUES (200,'b',0,0,?)",
+                       (1 if new_version_downloaded else 0,))
+            co.commit()
+        (gallery / "100-Old-1280x.cbz").write_bytes(b"only copy of the old version")
+        if new_version_downloaded:
+            (gallery / "200-New-1280x.cbz").write_bytes(b"new version")
+        return gallery
+
+    def gallery_and_del(self):
+        return (sorted(p.name for p in Path(self.config.gallery_path).iterdir()),
+                sorted(p.name for p in Path(self.config.del_path).iterdir()))
+
+    async def run_watch_round_until_sleep(self, download_status):
+        """One Watch.apply round whose downloads end with `download_status` and whose favorites fetch is mocked."""
+        pages = iter([b'<div id="favsel"></div>', favorites_page((100, "a", "Favorites 0"), (200, "b", "Favorites 0"))])
+        client = mock.Mock(fetch_data=mock.AsyncMock(side_effect=lambda *a, **k: next(pages)))
+        quota = mock.Mock(get_limits=mock.AsyncMock(return_value=(0, 5000)))
+        download = mock.Mock(apply=mock.AsyncMock(return_value=download_status))
+
+        class StopWatch(Exception):
+            pass
+
+        async def stop(seconds):
+            if seconds == 60 * 60:
+                raise StopWatch()
+
+        with mock.patch("src.Watch.DownloadWebGallery", return_value=download), \
+                mock.patch("src.Watch.asyncio.sleep", side_effect=stop), \
+                mock.patch.object(AddFavData, "update_meta_data", new_callable=mock.AsyncMock):
+            with self.assertRaises(StopWatch):
+                await asyncio.wait_for(Watch(self.config, self.database, client, quota).apply(3), timeout=5)
+
+    async def test_watch_keeps_old_version_when_new_version_download_fails(self):
+        self.seed_outdated_gallery()
+
+        await self.run_watch_round_until_sleep(DownloadStatus.RETRYABLE_FAILURE)
+
+        self.assertEqual(self.gallery_and_del(), (["100-Old-1280x.cbz"], []))
+        with self.database.connection() as co:
+            self.assertEqual(co.execute("SELECT COUNT(*) FROM fav_category WHERE gid=100").fetchone()[0], 1)
+
+    async def test_watch_keeps_old_version_when_new_version_is_copyright_blocked(self):
+        self.seed_outdated_gallery()
+
+        await self.run_watch_round_until_sleep(DownloadStatus.COPYRIGHT_BLOCKED)
+
+        self.assertEqual(self.gallery_and_del(), (["100-Old-1280x.cbz"], []))
+
+    def test_checker_clear_old_file_keeps_old_version_until_current_one_is_downloaded(self):
+        gallery = self.seed_outdated_gallery(new_version_downloaded=False)
+        checker = Checker(self.config, self.database)
+
+        checker.clear_old_file()
+        self.assertEqual(self.gallery_and_del(), (["100-Old-1280x.cbz"], []))
+
+        with self.database.connection() as co:
+            co.execute("UPDATE fav_category SET web_1280x_flag=1 WHERE gid=200")
+            co.commit()
+        (gallery / "200-New-1280x.cbz").write_bytes(b"new version")
+        checker.clear_old_file()
+        self.assertEqual(self.gallery_and_del(), (["200-New-1280x.cbz"], ["100-Old-1280x.cbz"]))
+
     async def test_watch_does_not_retry_copyright_blocked_gallery(self):
         result, apply, sleep, _ = await self.run_watch_download(
             [DownloadStatus.COPYRIGHT_BLOCKED], gids="999"
