@@ -112,6 +112,7 @@ class ComicInfo(Service):
                 continue
             path_list.append(os.path.join(target_path, i))
         logger.info(f'Total {len(path_list)}...')
+        failures = 0
         with tqdm(total=len(path_list)) as progress_bar:
             for file_path in path_list:
                 filename = os.path.basename(file_path)
@@ -129,8 +130,12 @@ class ComicInfo(Service):
                         logger.info(f"update_meta_info >> {file_path}")
                     except (OSError, zipfile.BadZipFile) as exc:
                         # create_cbz replaces the CBZ only after writing it completely, so the original is untouched.
+                        failures += 1
                         logger.error(f"update_meta_info failed for {file_path}: {exc}")
                     finally:
                         shutil.rmtree(temp_dir, ignore_errors=True)
                 progress_bar.update(1)
-        logger.info(f'[OK] update_meta_info')
+        if failures:
+            logger.warning(f'update_meta_info finished with {failures} failure(s); see the errors above')
+        else:
+            logger.info(f'[OK] update_meta_info')

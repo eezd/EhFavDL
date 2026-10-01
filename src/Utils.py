@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import sys
+import tempfile
 import time
 import zipfile
 
@@ -154,8 +155,11 @@ def create_cbz(src_path, target_path=""):
         target_path = src_path + ".cbz"
     elif not target_path.endswith(".cbz"):
         target_path = target_path + ".cbz"
-    # Not named *.cbz, so an interrupted run leaves nothing that looks like a gallery.
-    partial_path = os.path.join(os.path.dirname(target_path), "." + os.path.basename(target_path) + ".part")
+    # A short random name that does not depend on the gallery title, so a target that already fills the
+    # 255-byte limit still has a valid temp name. It starts with '.' and does not end in .cbz, so an interrupted
+    # run leaves nothing that looks like a gallery.
+    handle, partial_path = tempfile.mkstemp(dir=os.path.dirname(target_path) or ".", prefix=".cbz-", suffix=".part")
+    os.close(handle)
     try:
         with zipfile.ZipFile(partial_path, 'w', zipfile.ZIP_STORED) as cbz:
             for root, _, files in os.walk(src_path):

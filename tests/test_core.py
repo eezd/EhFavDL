@@ -417,6 +417,50 @@ class CoreBehaviorTests(unittest.TestCase):
         with zipfile.ZipFile(good) as archive:
             self.assertIn("ComicInfo.xml", archive.namelist())
 
+    def test_update_meta_info_does_not_report_ok_when_a_cbz_failed(self):
+        self.seed_comicinfo_row(56853)
+        (Path(self.config.gallery_path) / "56853-t-1280x.cbz").write_bytes(b"not a zip file")
+
+        with mock.patch("src.ComicInfo.logger") as log:
+            ComicInfo(self.config, self.database).update_meta_info()
+
+        info = " ".join(str(call.args[0]) for call in log.info.call_args_list)
+        self.assertNotIn("[OK] update_meta_info", info)  # was printed even though nothing was updated
+        warnings = " ".join(str(call.args[0]) for call in log.warning.call_args_list)
+        self.assertIn("1 failure", warnings)
+
+    def test_update_meta_info_reports_ok_when_every_cbz_succeeded(self):
+        self.seed_comicinfo_row()
+        self.make_cbz()
+
+        with mock.patch("src.ComicInfo.logger") as log:
+            ComicInfo(self.config, self.database).update_meta_info()
+
+        self.assertIn("[OK] update_meta_info", " ".join(str(call.args[0]) for call in log.info.call_args_list))
+
+    def test_create_cbz_works_for_names_up_to_the_255_byte_limit(self):
+        pages = self.root / "pages"
+        pages.mkdir()
+        (pages / "00000001.jpg").write_bytes(b"img")
+        for name_bytes in (249, 250, 252, 255):  # a temp name 6 bytes longer than the target overflowed from 250 up
+            cbz = self.root / ("1-" + "x" * (name_bytes - len("1-.cbz")) + ".cbz")
+            self.assertEqual(len(cbz.name.encode("utf-8")), name_bytes)
+
+            utils_mod.create_cbz(str(pages), str(cbz))
+
+            with zipfile.ZipFile(cbz) as archive:
+                self.assertEqual(archive.namelist(), ["00000001.jpg"], name_bytes)
+            self.assertEqual([p.name for p in self.root.iterdir() if p.name.endswith(".part")], [], name_bytes)
+
+    def test_directory_to_cbz_handles_a_folder_name_at_the_limit(self):
+        folder = self.root / ("1-" + "x" * (251 - len("1-")))  # folder name 251 bytes -> '<name>.cbz' is 255
+        folder.mkdir()
+        (folder / "00000001.jpg").write_bytes(b"img")
+
+        utils_mod.directory_to_cbz(str(self.root))
+
+        self.assertTrue((self.root / (folder.name + ".cbz")).is_file())
+
     def test_comicinfo_escapes_special_characters(self):
         with sqlite3.connect(self.config.dbs_name) as co:
             co.execute(
