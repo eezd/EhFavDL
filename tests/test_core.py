@@ -12,7 +12,7 @@ from unittest import mock
 
 from PIL import Image
 
-from src.AddFavData import AddFavData
+from src.AddFavData import AddFavData, FavoritesFetchError
 from src.AppConfig import AppConfig
 from src.ComicInfo import ComicInfo
 from src.Checker import Checker
@@ -94,6 +94,21 @@ GALLERY_PAGE = """
 <table class="ptb"><tr><td>&lt;</td><td>1</td><td>&gt;</td></tr></table>
 <div id="gdt"><a href="https://exhentai.org/s/aaa/1-1"></a><a href="https://exhentai.org/s/bbb/1-2"></a></div>
 """
+
+
+def favorites_page(*galleries, next_gid=None):
+    """Minimal EH favorites page. `galleries` are (gid, token, fav_name) tuples."""
+    rows = "".join(
+        f'<tr><td><div id="posted_{gid}" title="{fav_name}">2026-01-01 00:00</div>'
+        f'<a href="https://exhentai.org/g/{gid}/{token}/">g</a></td></tr>'
+        for gid, token, fav_name in galleries
+    )
+    nav = f'<a id="dnext" href="https://exhentai.org/favorites.php?next={next_gid}">next</a>' if next_gid else ""
+    return f'<div class="ido"><form id="favform"><table class="itg">{rows}</table></form>{nav}</div>'.encode()
+
+
+LOGIN_PAGE = b"<html><body><p>Please log in to view your favorites.</p></body></html>"
+NO_HITS_PAGE = b'<div class="ido"><p>No hits found</p></div>'
 
 
 class CoreBehaviorTests(unittest.TestCase):
@@ -309,6 +324,31 @@ class AsyncInfrastructureTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(apply.await_count, 3)
         self.assertEqual(sleep.await_count, 2)
 
+    async def test_watch_round_skips_cleanup_when_favorites_cannot_be_fetched(self):
+        self.seed_downloaded_favorites([101, 102])
+        before = self.snapshot_favorites()
+        quota = mock.Mock(get_limits=mock.AsyncMock(return_value=(0, 5000)))
+        client = mock.Mock(fetch_data=mock.AsyncMock(side_effect=[
+            b'<div id="favsel"></div>',  # update_category
+            LOGIN_PAGE,                  # post_fav_data
+        ]))
+        watch = Watch(self.config, self.database, client, quota)
+
+        class StopWatch(Exception):
+            pass
+
+        async def stop_after_skip(seconds):
+            raise StopWatch()
+
+        # src.Watch.asyncio and src.AddFavData.asyncio are the same module object, so patch sleep once.
+        # The first sleep reached is the one-hour wait after the skipped round, which stops the loop.
+        with mock.patch("src.Watch.asyncio.sleep", side_effect=stop_after_skip):
+            with self.assertRaises(StopWatch):
+                await asyncio.wait_for(watch.apply(1), timeout=5)
+
+        self.assertEqual(self.snapshot_favorites(), before)
+        self.assertEqual(client.fetch_data.await_count, 2)
+
     async def test_watch_does_not_retry_copyright_blocked_gallery(self):
         result, apply, sleep, _ = await self.run_watch_download(
             [DownloadStatus.COPYRIGHT_BLOCKED], gids="999"
@@ -488,6 +528,83 @@ class AsyncInfrastructureTests(unittest.IsolatedAsyncioTestCase):
             ).fetchone()[0]
         self.assertEqual(flag, 1)
 
+
+    def seed_downloaded_favorites(self, gids, fav_id=0):
+        gallery = Path(self.config.gallery_path)
+        gallery.mkdir(parents=True, exist_ok=True)
+        with self.database.connection() as co:
+            co.execute("INSERT OR REPLACE INTO fav_name(fav_id, fav_name) VALUES (0, 'Favorites 0')")
+            for gid in gids:
+                co.execute(
+                    "INSERT INTO eh_data(gid, token, title, current_gid, current_token) VALUES (?,?,?,?,?)",
+                    (gid, "t", "T", gid, "t"),
+                )
+                co.execute(
+                    "INSERT INTO fav_category(gid, token, fav_id, del_flag, original_flag, web_1280x_flag) "
+                    "VALUES (?,?,?,0,0,1)",
+                    (gid, "t", fav_id),
+                )
+                (gallery / f"{gid}-T-1280x.cbz").write_bytes(b"cbz")
+            co.commit()
+
+    def snapshot_favorites(self):
+        with self.database.connection() as co:
+            rows = co.execute("SELECT gid, del_flag FROM fav_category ORDER BY gid").fetchall()
+        return rows, sorted(p.name for p in Path(self.config.gallery_path).iterdir())
+
+    async def sync_favorites(self, *pages):
+        """Run the Watch sequence post_fav_data -> clear_del_flag against canned pages."""
+        pages = iter(pages)
+
+        async def fake_fetch(url, **kwargs):
+            page = next(pages)
+            if isinstance(page, Exception):
+                raise page
+            return page
+
+        add_fav = AddFavData(self.config, self.database, mock.Mock(fetch_data=fake_fetch))
+        with mock.patch("src.AddFavData.asyncio.sleep", new_callable=mock.AsyncMock):
+            await add_fav.post_fav_data()
+            await add_fav.clear_del_flag()
+
+    async def test_favorites_sync_keeps_files_when_page_is_not_a_favorites_list(self):
+        self.seed_downloaded_favorites([101, 102, 103])
+        before = self.snapshot_favorites()
+
+        with self.assertRaises(FavoritesFetchError):
+            await self.sync_favorites(LOGIN_PAGE)
+
+        self.assertEqual(self.snapshot_favorites(), before)
+
+    async def test_favorites_sync_keeps_files_when_empty_result_would_remove_everything(self):
+        self.seed_downloaded_favorites([101, 102])
+        before = self.snapshot_favorites()
+
+        with self.assertRaises(FavoritesFetchError):
+            await self.sync_favorites(NO_HITS_PAGE)
+
+        self.assertEqual(self.snapshot_favorites(), before)
+
+    async def test_favorites_sync_is_atomic_when_a_later_page_fails(self):
+        self.seed_downloaded_favorites([101, 102, 103])
+        before = self.snapshot_favorites()
+        first_page = favorites_page((101, "t", "Favorites 0"), next_gid=101)
+
+        with self.assertRaises(RuntimeError):
+            await self.sync_favorites(first_page, RuntimeError("connection lost"))
+
+        self.assertEqual(self.snapshot_favorites(), before)
+
+    async def test_favorites_sync_removes_only_galleries_missing_from_favorites(self):
+        self.seed_downloaded_favorites([101, 102, 103])
+        page = favorites_page((101, "t", "Favorites 0"), (103, "t", "Favorites 0"))
+
+        await self.sync_favorites(page)
+
+        rows, files = self.snapshot_favorites()
+        self.assertEqual(rows, [(101, 0), (103, 0)])
+        self.assertEqual(files, ["101-T-1280x.cbz", "103-T-1280x.cbz"])
+        self.assertEqual([p.name for p in Path(self.config.del_path).iterdir()], ["102-T-1280x.cbz"])
 
     async def test_update_meta_data_retries_only_failed_and_terminates(self):
         with self.database.connection() as co:

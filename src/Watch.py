@@ -6,7 +6,7 @@ import zipfile
 
 from loguru import logger
 
-from src.AddFavData import AddFavData
+from src.AddFavData import AddFavData, FavoritesFetchError
 from src.Checker import Checker
 from src.DownloadWebGallery import DownloadStatus, DownloadWebGallery
 from src.LANraragi import LANraragi
@@ -73,14 +73,20 @@ class Watch:
 
             add_fav_data = AddFavData(self.config, self.database, self.eh_client)
             await add_fav_data.update_category()
-            if method == 1:
-                await add_fav_data.post_fav_data()
-                await add_fav_data.update_meta_data(True)
-            elif method == 2:
-                await add_fav_data.post_fav_data(url_params="?f_search=&inline_set=fs_p", get_all=False)
-                await add_fav_data.update_meta_data()
-            elif method == 3:
-                await add_fav_data.update_meta_data()
+            try:
+                if method == 1:
+                    await add_fav_data.post_fav_data()
+                    await add_fav_data.update_meta_data(True)
+                elif method == 2:
+                    await add_fav_data.post_fav_data(url_params="?f_search=&inline_set=fs_p", get_all=False)
+                    await add_fav_data.update_meta_data()
+                elif method == 3:
+                    await add_fav_data.update_meta_data()
+            except FavoritesFetchError as exc:
+                # Nothing was written, but cleaning up from a failed fetch could move downloaded files away.
+                logger.error(f"Skipping this round, local galleries are untouched: {exc}")
+                await asyncio.sleep(60 * 60)
+                continue
 
             update_list = await add_fav_data.clear_del_flag()
             with self.database.connection() as co:

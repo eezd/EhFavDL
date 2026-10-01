@@ -18,6 +18,10 @@ META_BATCH_SIZE = 25
 META_RETRY = 3
 
 
+class FavoritesFetchError(Exception):
+    """Raised when the favorites pages cannot be read, so local state must not be synced from them."""
+
+
 class AddFavData(Service):
     def __init__(self, config, database, eh_client):
         super().__init__(config, database, eh_client)
@@ -329,12 +333,15 @@ class AddFavData(Service):
         mylist = remove_duplicates_2d_array(mylist)
         return [mylist, next_gid]
 
-    def wirte_fav_data(self, data):
+    def wirte_fav_data(self, data, replace_all=False):
         """
         data:{
             'eh_data': eh_data,
             'fav_category_data': fav_category_data
         }
+
+        replace_all=True: `data` is the complete favorites list. In the same transaction, every
+        fav_category row that is not in it is marked del_flag=1, so a failure leaves the database untouched.
         """
         eh_data = data['eh_data']
         fav_category_data = data['fav_category_data']
@@ -353,6 +360,12 @@ class AddFavData(Service):
                         del_flag = 0''',
                 fav_category_data,
             )
+            if replace_all:
+                co.execute('CREATE TEMP TABLE current_favorites(gid INTEGER PRIMARY KEY)')
+                co.executemany('INSERT OR IGNORE INTO current_favorites(gid) VALUES (?)',
+                               [(gid,) for gid, _, _ in fav_category_data])
+                co.execute('UPDATE fav_category SET del_flag = 1 WHERE gid NOT IN (SELECT gid FROM current_favorites)')
+                co.execute('DROP TABLE current_favorites')
             co.commit()
 
     async def deep_check(self, gid_token, max_depth=4):
@@ -433,10 +446,11 @@ class AddFavData(Service):
         next_gid = 0
         instant_count = 0
 
-        if get_all is True:
-            with sqlite3.connect(self.dbs_name) as co:
-                co.execute('UPDATE fav_category SET del_flag = 1')
-                co.commit()
+        # get_all=True replaces the whole favorites list, so pages are collected first and written in a single
+        # transaction at the end. Nothing is marked del_flag=1 up front: if any page cannot be read, the database
+        # is left unchanged and clear_del_flag() cannot move downloaded galleries away.
+        collected_eh_data = []
+        collected_fav_data = []
 
         while True:
             if next_gid is None:
@@ -458,6 +472,9 @@ class AddFavData(Service):
                     hx_res = raw_data.decode(detected['encoding'])
 
             hx_res_bs = BeautifulSoup(hx_res, 'html.parser')
+            if get_all is True and hx_res_bs.select_one('#favform') is None:
+                raise FavoritesFetchError(
+                    f"Not a favorites list page (login, maintenance or rate-limit page?): {url}")
             search_data = self.format_fav_page_info(hx_res_bs)
             await asyncio.sleep(0.5)
 
@@ -491,10 +508,24 @@ class AddFavData(Service):
                     break
                 elif url_params == "?f_search=&inline_set=fs_p":
                     await self.deep_check(gid_token=eh_data)
-            self.wirte_fav_data({'eh_data': eh_data, 'fav_category_data': fav_category_data})
+            if get_all is True:
+                collected_eh_data.extend(eh_data)
+                collected_fav_data.extend(fav_category_data)
+            else:
+                self.wirte_fav_data({'eh_data': eh_data, 'fav_category_data': fav_category_data})
 
             next_gid = search_data[1]
 
+        if get_all is True:
+            if not collected_fav_data:
+                with self.database.connection() as co:
+                    known = co.execute('SELECT COUNT(*) FROM fav_category').fetchone()[0]
+                if known:
+                    raise FavoritesFetchError(
+                        f"The favorites list is empty but {known} galleries are recorded locally; "
+                        "refusing to sync. Check your cookies and the favorites page.")
+            self.wirte_fav_data(
+                {'eh_data': collected_eh_data, 'fav_category_data': collected_fav_data}, replace_all=True)
         return all_gid
 
     async def clear_del_flag(self):

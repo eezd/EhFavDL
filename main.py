@@ -16,7 +16,7 @@ def build_parser():
 async def run(args):
     from loguru import logger
 
-    from src.AddFavData import AddFavData
+    from src.AddFavData import AddFavData, FavoritesFetchError
     from src.AppConfig import AppConfig
     from src.Checker import Checker
     from src.ComicInfo import ComicInfo
@@ -73,7 +73,10 @@ async def run(args):
                 num = int(num) if num else None
                 print("\n")
                 if num == 1:
-                    await add_fav_data.apply()
+                    try:
+                        await add_fav_data.apply()
+                    except FavoritesFetchError as exc:
+                        logger.error(f"Favorites were not updated, local galleries are untouched: {exc}")
                 elif num == 2:
                     await add_fav_data.update_category()
                     await add_fav_data.update_meta_data(True)
