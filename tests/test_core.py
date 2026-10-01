@@ -629,7 +629,8 @@ class AsyncInfrastructureTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(self.snapshot_favorites(), before)
 
-    async def test_favorites_sync_keeps_files_when_empty_result_would_remove_everything(self):
+    async def test_favorites_sync_keeps_files_on_no_hits_page(self):
+        # EH answers an empty search with a page that has no #favform, so the page check stops it.
         self.seed_downloaded_favorites([101, 102])
         before = self.snapshot_favorites()
 
@@ -637,6 +638,23 @@ class AsyncInfrastructureTests(unittest.IsolatedAsyncioTestCase):
             await self.sync_favorites(NO_HITS_PAGE)
 
         self.assertEqual(self.snapshot_favorites(), before)
+
+    async def test_favorites_sync_refuses_empty_list_while_local_favorites_exist(self):
+        # A favorites page that parses but lists nothing must not flag every local gallery as removed.
+        self.seed_downloaded_favorites([101, 102])
+        before = self.snapshot_favorites()
+
+        with self.assertRaisesRegex(FavoritesFetchError, "empty but 2 galleries"):
+            await self.sync_favorites(favorites_page())
+
+        self.assertEqual(self.snapshot_favorites(), before)
+
+    async def test_favorites_sync_accepts_empty_list_when_nothing_is_recorded_locally(self):
+        os.makedirs(self.config.gallery_path)  # Watch creates it at the start of every round
+
+        await self.sync_favorites(favorites_page())
+
+        self.assertEqual(self.snapshot_favorites(), ([], []))
 
     async def test_favorites_sync_is_atomic_when_a_later_page_fails(self):
         self.seed_downloaded_favorites([101, 102, 103])
